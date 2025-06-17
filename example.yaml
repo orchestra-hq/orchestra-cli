@@ -1,0 +1,34 @@
+version: v1
+name: Smoke Test from GitHub
+pipeline:
+  b09e28ba-43ba-462f-b8c3-ac2890d33a96:
+    tasks:
+      88435db2-8bf7-4a4a-a283-5baa731c134d:
+        integration: HTTP
+        integration_job: HTTP_REQUEST
+        parameters:
+          path: /500
+          method: GET
+        depends_on: []
+        condition: null
+        name: Get HTTP 500
+        tags: []
+        connection: test_http_status_code_56396
+        operation_metadata: null
+        treat_failure_as_warning: true
+        configuration: null
+    depends_on: []
+    condition: null
+    name: ""
+schedule: []
+sensors: {}
+trigger_events: []
+webhook:
+  enabled: true
+  operation_metadata: null
+  run_inputs: null
+configuration:
+  retries: 2
+  retry_delay: null
+  timeout: null
+inputs: null
