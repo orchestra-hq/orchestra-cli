@@ -1,14 +1,12 @@
 version: v1
 name: Smoke Test from GitHub
 pipeline:
-  b09e28ba-43ba-462f-b8c3-ac2890d33a96:
+  task_group_1:
     tasks:
-      88435db2-8bf7-4a4a-a283-5baa731c134d:
-        integration: HTTP_A
-        integration_job: HTTP_REQUEST
+      task_1:
+        integration: HTTP
         parameters:
-          path: /500
-          method: GET
+          attribute_values: "something"
         depends_on: []
         condition: null
         name: Get HTTP 500
@@ -17,6 +15,15 @@ pipeline:
         operation_metadata: null
         treat_failure_as_warning: true
         configuration: null
+      task_2:
+        integration: TABLEAU_CLOUD
+        integration_job: TABLEAU_UPDATE_SUBSCRIPTION
+        parameters:
+          attribute_values: "something"
+        depends_on: []
+        condition: null
+        name: Tableau Thing
+        tags: []
     depends_on: []
     condition: null
     name: ""

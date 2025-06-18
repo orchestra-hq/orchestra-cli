@@ -33,8 +33,10 @@ def indent_message(msg: str, indent: str = "  ") -> str:
 def get_yaml_snippet(data: Any, loc: List[Any]) -> dict[str, Any]:
     weird_keys = ["TaskGroupModel"]
     try:
-        for key in loc:
+        for idx, key in enumerate(loc):
             if key not in weird_keys:
+                if key not in data:
+                    return {loc[idx - 1]: data}
                 data = data[key]
         return {loc[-1]: data}
     except Exception:
@@ -91,7 +93,6 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
                         typer.echo(
                             yellow("(Could not locate this path in your YAML)")
                         )
-                    typer.echo("")
             else:
                 typer.echo(errors)
         except Exception:
