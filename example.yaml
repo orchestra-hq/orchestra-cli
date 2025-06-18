@@ -4,7 +4,7 @@ pipeline:
   b09e28ba-43ba-462f-b8c3-ac2890d33a96:
     tasks:
       88435db2-8bf7-4a4a-a283-5baa731c134d:
-        integration: HTTP
+        integration: HTTP_A
         integration_job: HTTP_REQUEST
         parameters:
           path: /500
