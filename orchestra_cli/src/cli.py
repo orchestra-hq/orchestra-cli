@@ -103,7 +103,16 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
 @app.command()
 def upload():
     """
-    Upload a YAML file to the API. (Not supported yet)
+    Upload a YAML file to the API. (🚧 Coming soon)
     """
-    typer.echo(red("Action not supported yet"))
+    typer.echo(red("🚧 Action not supported yet"))
+    raise typer.Exit(code=1)
+
+
+@app.command()
+def run():
+    """
+    Run a pipeline in Orchestra. (🚧 Coming soon)
+    """
+    typer.echo(red("🚧 Action not supported yet"))
     raise typer.Exit(code=1)
