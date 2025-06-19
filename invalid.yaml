@@ -1,5 +1,5 @@
 version: v1
-name: Smoke Test from GitHub
+name: Validation Test
 pipeline:
   task_group_1:
     tasks:
