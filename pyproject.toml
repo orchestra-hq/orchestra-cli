@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Orchestra Technologies", email = "support@getorchestra.io" },
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = ["httpx>=0.28.1", "pyyaml>=6.0.2", "typer>=0.16.0"]
 
 [project.scripts]
@@ -28,13 +28,6 @@ dev = [
 
 
 [tool.ruff]
-exclude = [
-  "database/migrations",
-  "integrations/template",
-  "scripts/venv",
-  ".build",
-  "dummy_scripts",
-]
 line-length = 100
 
 [tool.ruff.lint]
@@ -53,10 +46,6 @@ line-length = 100
 exclude = '''
 /(
   | \.venv
-  | venv
-  | database/migrations
-  | integrations/template
-  | .build
 )/
 '''
 
