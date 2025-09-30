@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Orchestra Technologies", email = "support@getorchestra.io" },
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 dependencies = ["httpx>=0.28.1", "pyyaml>=6.0.2", "typer>=0.16.0"]
 
 [project.scripts]
@@ -17,5 +17,48 @@ orchestra = "orchestra_cli.src.cli:app"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[project.optional-dependencies]
-dev = ["pytest>=7.0"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pyright>=1.1.405",
+    "ruff>=0.13.2",
+    "black>=25.9.0",
+]
+
+
+[tool.ruff]
+exclude = [
+  "database/migrations",
+  "integrations/template",
+  "scripts/venv",
+  ".build",
+  "dummy_scripts",
+]
+line-length = 100
+
+[tool.ruff.lint]
+# E = pycodestyle error
+# F = Pyflakes
+# W = pycodestyle warning
+# I = isort
+# UP = pyupgrade
+# ARG = flake8-unused-arguments
+# COM = flake8-commas
+# N = pep8-naming
+select = ["E", "F", "W", "I", "N", "UP", "ARG", "COM"]
+
+[tool.black]
+line-length = 100
+exclude = '''
+/(
+  | \.venv
+  | venv
+  | database/migrations
+  | integrations/template
+  | .build
+)/
+'''
+
+[tool.pyright]
+typeCheckingMode = "basic"

@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+
 from orchestra_cli.src.cli import app
 
 runner = CliRunner()
