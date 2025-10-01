@@ -1,8 +1,9 @@
-import yaml
+from pathlib import Path
+from typing import Any
+
 import httpx
 import typer
-from pathlib import Path
-from typing import Any, List
+import yaml
 
 app = typer.Typer(help="Orchestra CLI – perform operations with Orchestra locally.")
 
@@ -30,7 +31,7 @@ def indent_message(msg: str, indent: str = "  ") -> str:
     return "\n".join(indent + line for line in msg.splitlines())
 
 
-def get_yaml_snippet(data: Any, loc: List[Any]) -> dict[str, Any]:
+def get_yaml_snippet(data: Any, loc: list[Any]) -> dict[str, Any] | None:
     weird_keys = ["TaskGroupModel"]
     try:
         for idx, key in enumerate(loc):
@@ -77,22 +78,14 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
                 for err in details:
                     loc = err.get("loc", [])
                     msg = err.get("msg", "Unknown error")
-                    typer.echo(
-                        bold(yellow(f"Error at: {'.'.join(str(x) for x in loc)}"))
-                    )
+                    typer.echo(bold(yellow(f"Error at: {'.'.join(str(x) for x in loc)}")))
                     typer.echo(red(indent_message(msg)))
                     snippet = get_yaml_snippet(data, loc)
                     if snippet is not None:
                         typer.echo(bold("\nYAML snippet:"))
-                        typer.echo(
-                            yaml.dump(
-                                snippet, sort_keys=False, default_flow_style=False
-                            )
-                        )
+                        typer.echo(yaml.dump(snippet, sort_keys=False, default_flow_style=False))
                     else:
-                        typer.echo(
-                            yellow("(Could not locate this path in your YAML)")
-                        )
+                        typer.echo(yellow("(Could not locate this path in your YAML)"))
             else:
                 typer.echo(errors)
         except Exception:
