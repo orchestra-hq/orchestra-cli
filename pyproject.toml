@@ -1,6 +1,6 @@
 [project]
 name = "orchestra-cli"
-version = "0.0.4"
+version = "0.0.5"
 description = "Orchestra CLI. Perform operations with Orchestra locally."
 readme = "README.md"
 authors = [

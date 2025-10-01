@@ -15,5 +15,9 @@ orchestra-cli validate example.yaml
 
 ## Building and Releasing
 
+- Bump the version in `pyproject.toml` or by running `uv version --bump <major/minor/patch>`
+- Run `uv sync` to install the dependencies
 - Run `uv build` to build the CLI
 - Run `uv publish` to publish the CLI (you will need to pass the `--token` flag)
+
+**Note: Failure to bump the version will result in a failed release.**
