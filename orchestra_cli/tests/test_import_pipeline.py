@@ -5,6 +5,7 @@ from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
+from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
 
@@ -21,22 +22,6 @@ class FakeResponse:
         return self._json
 
 
-def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]]):
-    class Result:
-        def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
-            self.returncode = returncode
-            self.stdout = stdout
-            self.stderr = stderr
-
-    def _mock_run(args, cwd=None, capture_output=False, text=False, check=False):  # noqa: ARG001
-        # args begins with ["git", ...]
-        key = tuple(args[1:])
-        rc, out, err = mapping.get(key, (1, "", ""))
-        return Result(rc, out, err)
-
-    return _mock_run
-
-
 def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     # Arrange repo with YAML inside
     repo_root = tmp_path
@@ -46,13 +31,13 @@ def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     # Mock httpx.post: first schema 200, then import 201
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
         json={"ok": True},
         status_code=200,
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/import",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/import",
         json={"pipeline_id": "abc-123"},
         status_code=201,
     )
@@ -94,7 +79,7 @@ def test_import_schema_validation_error(tmp_path: Path, httpx_mock: HTTPXMock):
 
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
         json={"detail": [{"loc": ["root"], "msg": "bad"}]},
         status_code=400,
     )
@@ -111,13 +96,13 @@ def test_import_api_error(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
 
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
         json={"ok": True},
         status_code=200,
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/import",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/import",
         json={"detail": "bad"},
         status_code=400,
     )
@@ -145,7 +130,7 @@ def test_not_a_git_repo(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
 
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
         json={"ok": True},
         status_code=200,
     )
@@ -169,7 +154,7 @@ def test_missing_repo_or_branch(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMo
 
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
         json={"ok": True},
         status_code=200,
     )
@@ -197,13 +182,13 @@ def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
 
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
         json={"ok": True},
         status_code=200,
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://dev.getorchestra.io/api/engine/public/pipelines/import",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/import",
         json={"pipeline_id": "xyz"},
         status_code=201,
     )
