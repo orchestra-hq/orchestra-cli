@@ -7,7 +7,6 @@ from orchestra_cli.src.cli import app
 
 from .test_import_pipeline import make_git_subprocess_mock
 
-
 runner = CliRunner()
 
 
@@ -127,4 +126,3 @@ def test_run_api_error(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     result = runner.invoke(app, ["run", "--alias", "demo"])
     assert result.exit_code == 1
     assert "Run failed" in result.output
-

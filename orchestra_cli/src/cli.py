@@ -10,6 +10,3 @@ app = typer.Typer(help="Orchestra CLI – perform operations with Orchestra loca
 app.command(name="validate")(validate)
 app.command(name="import")(import_pipeline)
 app.command(name="run")(run_pipeline)
-
-# Backwards/explicit alias mirroring problem statement
-app.command(name="run-pipeline")(run_pipeline)
