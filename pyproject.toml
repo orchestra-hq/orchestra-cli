@@ -17,7 +17,6 @@ orchestra = "orchestra_cli.src.cli:app"
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
