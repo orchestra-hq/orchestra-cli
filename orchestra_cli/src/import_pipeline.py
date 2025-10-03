@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 import os
 import re
@@ -40,44 +38,23 @@ def _detect_repository_url(repo_root: Path) -> str | None:
     if not ok or not remote:
         return None
 
-    # Normalize and extract an owner/repo-style slug from a variety of git URL formats
+    # Normalize with regex and extract owner/repo from a variety of git URL formats
     url = remote.strip()
-
-    # Remove protocol scheme if present (e.g., https://, ssh://, git://)
-    if "://" in url:
-        url = url.split("://", 1)[1]
-        # Remove leading auth part like git@ if present after scheme
-        if "@" in url and url.index("@") < url.index("/"):
-            url = url.split("@", 1)[1]
-
-    # Convert scp-like syntax git@host:owner/repo.git to host/owner/repo.git
-    if ":" in url and ("/" not in url.split(":", 1)[0]):
-        host, path_part = url.split(":", 1)
-        url = f"{host}/{path_part}"
-
-    # Drop hostname, keep path
-    path = url
-    if "/" in url:
-        path = url.split("/", 1)[1]
-
-    # Split path, remove empty and service-specific segments
-    segments = [seg for seg in path.split("/") if seg]
-    # Remove common service-specific segments
-    filtered = [seg for seg in segments if seg not in {"_git", "scm", "v3"}]
-
-    if not filtered:
-        return None
-
-    # Remove trailing .git from last segment
-    filtered[-1] = filtered[-1][:-4] if filtered[-1].endswith(".git") else filtered[-1]
-
-    # Prefer last two path components as slug (owner/repo)
-    if len(filtered) >= 2:
-        owner, repo = filtered[-2], filtered[-1]
-        return f"{owner}/{repo}"
-
-    # Fallback: if only one component remains, return it (unlikely)
-    return filtered[-1]
+    # Strip scheme (e.g., https://, ssh://, git://)
+    url = re.sub(r"^\w+://", "", url)
+    # Strip leading auth (e.g., git@)
+    url = re.sub(r"^[^@/]+@", "", url)
+    # Convert scp-like syntax host:owner/repo to host/owner/repo
+    url = re.sub(r"^([^/:]+):", r"\1/", url)
+    # Drop hostname to get path portion
+    path = re.sub(r"^[^/]+/", "", url)
+    # Remove common service-specific path segments
+    path = re.sub(r"/(?:_git|scm|v3)(?=/)", "", path)
+    # Capture last two path segments as owner/repo, trimming optional .git suffix
+    m = re.search(r"([^/]+)/([^/]+?)(?:\.git)?/?$", path)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    return None
 
 
 def _get_remote_url(repo_root: Path) -> str | None:
@@ -105,17 +82,17 @@ def _detect_default_branch(repo_root: Path) -> str | None:
 
 def _detect_storage_provider(repository_url: str | None) -> str:
     if not repository_url:
-        return "ORCHESTRA"
+        typer.echo(red("Could not detect storage provider - no repository URL"))
+        raise typer.Exit(code=1)
     url = repository_url.lower()
-    if any(host in url for host in ["github.com", ":github.com"]):
+    if "github.com" in url:
         return "GITHUB"
-    if any(host in url for host in ["gitlab.com", ":gitlab.com"]):
+    if "gitlab.com" in url:
         return "GITLAB"
     if any(host in url for host in ["dev.azure.com", "azure.com", "visualstudio.com"]):
         return "AZURE_DEVOPS"
-    if any(host in url for host in ["bitbucket.org", ":bitbucket.org"]):
-        return "BITBUCKET"
-    return "ORCHESTRA"
+    typer.echo(red("Could not detect storage provider - no matching host"))
+    raise typer.Exit(code=1)
 
 
 def _git_warnings_local(repo_root: Path) -> list[str]:
@@ -169,6 +146,9 @@ def import_pipeline(
         raise typer.Exit(code=1)
 
     api_key = os.getenv("ORCHESTRA_API_KEY")
+    if not api_key:
+        typer.echo(red("ORCHESTRA_API_KEY is not set"))
+        raise typer.Exit(code=1)
 
     # Load and validate YAML with API first
     data, err = _load_yaml(path)
@@ -190,9 +170,12 @@ def import_pipeline(
         raise typer.Exit(code=1)
 
     repository_slug = _detect_repository_url(repo_root)
+    if not repository_slug:
+        typer.echo(red("Could not detect repository URL from git"))
+        raise typer.Exit(code=1)
     default_branch = _detect_default_branch(repo_root)
-    if repository_slug is None or default_branch is None:
-        typer.echo(red("Could not detect repository URL or default branch from git"))
+    if not default_branch:
+        typer.echo(red("Could not detect default branch from git"))
         raise typer.Exit(code=1)
 
     # Compute YAML path relative to repo root
@@ -202,16 +185,12 @@ def import_pipeline(
         typer.echo(red("YAML file must be inside the git repository"))
         raise typer.Exit(code=1)
 
-    # Show warnings (skip interactive confirmation as a TODO per instructions)
+    # Show warnings
     for w in _git_warnings_local(repo_root):
         typer.echo(yellow(f"⚠ {w}"))
 
-    # Use the raw remote URL to detect storage provider reliably
-    raw_remote = _get_remote_url(repo_root)
-    storage_provider = _detect_storage_provider(raw_remote)
-
     payload = {
-        "storage_provider": storage_provider,
+        "storage_provider": _detect_storage_provider(_get_remote_url(repo_root)),
         "repository": repository_slug,
         "default_branch": default_branch,
         "yaml_path": yaml_path,
@@ -219,14 +198,11 @@ def import_pipeline(
     }
 
     try:
-        request_kwargs = {}
-        if api_key:
-            request_kwargs["headers"] = {"Authorization": f"Bearer {api_key}"}
         response = httpx.post(
             get_api_url("import"),
             json=payload,
             timeout=30,
-            **request_kwargs,
+            headers={"Authorization": f"Bearer {api_key}"},
         )
     except Exception as e:
         typer.echo(red(f"HTTP request failed: {e}"))
@@ -237,10 +213,10 @@ def import_pipeline(
             body = response.json()
         except Exception:
             body = {}
-        pipeline_id = body.get("pipeline_id") or body.get("id")
+        pipeline_id = body.get("id")
         if pipeline_id:
             # Print only the pipeline id as requested
-            typer.echo(str(pipeline_id))
+            typer.echo(f"Pipeline with alias '{alias}' imported successfully: {pipeline_id}")
             raise typer.Exit(code=0)
         else:
             # Fallback if server does not return a field we expect

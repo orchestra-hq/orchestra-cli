@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+import pytest
 from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
@@ -8,6 +9,7 @@ from orchestra_cli.src.cli import app
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
+mock_pipeline_id = "f374e795-50aa-4aeb-9936-d68d2b90475c"
 
 
 class FakeResponse:
@@ -22,7 +24,25 @@ class FakeResponse:
         return self._json
 
 
-def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
+@pytest.fixture(autouse=True)
+def mock_env(monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_API_KEY", "fake-key")
+    monkeypatch.setenv("BASE_URL", "")
+
+
+@pytest.mark.parametrize(
+    "git_origin",
+    [
+        "https://github.com/org/repo.git",
+        "git@github.com:org/repo.git",
+        "https://gitlab.com/org/repo.git",
+        "git@gitlab.com:org/repo.git",
+        "https://dev.azure.com/org/project/_git/repo",
+        "https://org@dev.azure.com/org/project/_git/repo",
+        "git@ssh.dev.azure.com:v3/org/project/repo",
+    ],
+)
+def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock, git_origin: str):
     # Arrange repo with YAML inside
     repo_root = tmp_path
     yaml_file = repo_root / "pipe.yaml"
@@ -38,14 +58,14 @@ def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="POST",
         url="https://app.getorchestra.io/api/engine/public/pipelines/import",
-        json={"pipeline_id": "abc-123"},
+        json={"id": mock_pipeline_id},
         status_code=201,
     )
 
     # Mock git
     mapping = {
         ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
-        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("remote", "get-url", "origin"): (0, git_origin, ""),
         ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
         ("status", "--porcelain"): (0, "", ""),
         # Do not provide upstream to skip that branch check path
@@ -62,7 +82,10 @@ def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     # Assert
     assert result.exit_code == 0
     # Should print only the pipeline id
-    assert result.output.strip() == "abc-123"
+    assert (
+        result.output.strip()
+        == f"Pipeline with alias 'demo' imported successfully: {mock_pipeline_id}"
+    )
 
 
 def test_import_invalid_yaml(tmp_path: Path):
@@ -172,7 +195,7 @@ def test_missing_repo_or_branch(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMo
 
     result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(f)])
     assert result.exit_code == 1
-    assert "Could not detect repository URL or default branch" in result.output
+    assert "Could not detect repository URL from git" in result.output
 
 
 def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
@@ -189,7 +212,7 @@ def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="POST",
         url="https://app.getorchestra.io/api/engine/public/pipelines/import",
-        json={"pipeline_id": "xyz"},
+        json={"id": mock_pipeline_id},
         status_code=201,
     )
 
