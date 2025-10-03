@@ -20,14 +20,14 @@ def _run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
         return False, str(e)
 
 
-def _detect_repo_root(start_path: Path) -> Path | None:
+def detect_repo_root(start_path: Path) -> Path | None:
     ok, out = _run_git_command(["rev-parse", "--show-toplevel"], start_path)
     if not ok:
         return None
     return Path(out)
 
 
-def _git_warnings(repo_root: Path) -> list[str]:
+def git_warnings(repo_root: Path) -> list[str]:
     warnings: list[str] = []
     # Uncommitted changes
     ok, out = _run_git_command(["status", "--porcelain"], repo_root)
@@ -50,4 +50,3 @@ def _git_warnings(repo_root: Path) -> list[str]:
             if ok_stat and "behind" in stat:
                 warnings.append("You are not on latest HEAD of the branch (behind remote)")
     return warnings
-

@@ -11,8 +11,8 @@ import typer
 import yaml
 
 from ..utils.constants import API_URL
+from ..utils.git import detect_repo_root, git_warnings
 from ..utils.styling import bold, green, indent_message, red, yellow
-from ..utils.git import _detect_repo_root, _git_warnings
 
 
 def _run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
@@ -32,7 +32,7 @@ def _run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
 
 
 def _detect_repo_root_local(start_path: Path) -> Path | None:
-    return _detect_repo_root(start_path)
+    return detect_repo_root(start_path)
 
 
 def _detect_repository_url(repo_root: Path) -> str | None:
@@ -119,7 +119,7 @@ def _detect_storage_provider(repository_url: str | None) -> str:
 
 
 def _git_warnings_local(repo_root: Path) -> list[str]:
-    return _git_warnings(repo_root)
+    return git_warnings(repo_root)
 
 
 def _load_yaml(file: Path) -> tuple[dict | None, str | None]:
