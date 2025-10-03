@@ -166,10 +166,9 @@ def import_pipeline(
         typer.echo(red("YAML file must be inside the git repository"))
         raise typer.Exit(code=1)
 
-    # Show warnings (no interactive confirmation per instructions)
+    # Show warnings (skip interactive confirmation as a TODO per instructions)
     for w in _git_warnings(repo_root):
         typer.echo(yellow(f"⚠ {w}"))
-    typer.echo(yellow("TODO: Prompt user to press Enter to continue when warnings are present."))
 
     storage_provider = _detect_storage_provider(repository_url)
 
