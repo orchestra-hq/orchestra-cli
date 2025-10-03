@@ -10,7 +10,7 @@ import httpx
 import typer
 import yaml
 
-from ..utils.constants import API_URL
+from ..utils.constants import get_api_url
 from ..utils.git import detect_repo_root, git_warnings
 from ..utils.styling import bold, green, indent_message, red, yellow
 
@@ -133,7 +133,7 @@ def _load_yaml(file: Path) -> tuple[dict | None, str | None]:
 
 def _validate_yaml_with_api(data: dict) -> tuple[bool, str | None]:
     try:
-        response = httpx.post(API_URL.format("schema"), json=data, timeout=15)
+        response = httpx.post(get_api_url("schema"), json=data, timeout=15)
     except Exception as e:
         return False, f"HTTP request failed: {e}"
 
@@ -223,7 +223,7 @@ def import_pipeline(
         if api_key:
             request_kwargs["headers"] = {"Authorization": f"Bearer {api_key}"}
         response = httpx.post(
-            API_URL.format("import"),
+            get_api_url("import"),
             json=payload,
             timeout=30,
             **request_kwargs,

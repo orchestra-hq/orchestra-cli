@@ -1,18 +1,24 @@
 import os
+import time
 from pathlib import Path
 
 import httpx
 import typer
 
-from ..utils.constants import API_URL
+from ..utils.constants import get_api_url
 from ..utils.git import detect_repo_root, git_warnings
-from ..utils.styling import bold, indent_message, red, yellow
+from ..utils.styling import bold, green, indent_message, red, yellow
 
 
 def run_pipeline(
     alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
     branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
     commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
+    wait: bool = typer.Option(
+        False,
+        "--wait/--no-wait",
+        help="Poll the pipeline run until it completes",
+    ),
 ):
     """
     Run a pipeline in Orchestra.
@@ -45,7 +51,7 @@ def run_pipeline(
 
     try:
         response = httpx.post(
-            API_URL.format(f"{alias}/start"),
+            get_api_url(f"{alias}/start"),
             json=payload if payload else None,
             timeout=30,
             headers={"Authorization": f"Bearer {api_key}"},
@@ -55,14 +61,98 @@ def run_pipeline(
         raise typer.Exit(code=1)
 
     if 200 <= response.status_code < 300:
+        # Extract pipeline run id from response body using several possible keys
         try:
             body = response.json()
         except Exception:
             body = {}
-        typer.echo(
-            f"Pipeline (alias: {alias}) run successfully started: {body.get('pipeline_run_id')}",
-        )
-        raise typer.Exit(code=0)
+
+        pipeline_run_id = body.get("pipelineRunId")
+
+        if not pipeline_run_id:
+            typer.echo(
+                yellow(
+                    f"Started pipeline (alias: {alias}), "
+                    "but could not determine run id from response",
+                ),
+            )
+            raise typer.Exit(code=0)
+
+        # If not waiting, print only the id (to preserve existing behavior/tests)
+        if not wait:
+            typer.echo(f"Started pipeline (alias: {alias}), run id: {str(pipeline_run_id)}")
+            raise typer.Exit(code=0)
+
+        # Derive base API and host for status + lineage URLs
+        api_prefix = get_api_url(f"{alias}/start").split("/pipelines/")[
+            0
+        ]  # https://dev.getorchestra.io/api/engine/public
+        host = get_api_url(f"{alias}/start").split("/api/")[0]  # https://dev.getorchestra.io
+
+        lineage_url = f"{host}/pipeline-runs/{pipeline_run_id}/lineage"
+
+        typer.echo(green(f"Started pipeline (alias: {alias}), run id: {pipeline_run_id}"))
+        typer.echo(yellow(f"Lineage: {lineage_url}"))
+        typer.echo(bold("Polling pipeline status... (Ctrl+C to stop)"))
+
+        # Poll until we hit a terminal state
+        poll_interval_seconds = 5
+        headers = {"Authorization": f"Bearer {api_key}"}
+        status_url = f"{api_prefix}/pipeline_runs/{pipeline_run_id}/status"
+
+        while True:
+            time.sleep(poll_interval_seconds)
+            try:
+                status_resp = httpx.get(status_url, headers=headers, timeout=30)
+            except Exception as e:
+                typer.echo(yellow(f"Polling request failed: {e}"))
+                continue
+
+            if not (200 <= status_resp.status_code < 300):
+                typer.echo(red(f"❌ Status check failed with HTTP {status_resp.status_code}"))
+                try:
+                    typer.echo(yellow(indent_message(status_resp.text)))
+                except Exception:
+                    pass
+                raise typer.Exit(code=1)
+
+            try:
+                status_body = status_resp.json()
+            except Exception:
+                status_body = {}
+
+            status_value = (
+                status_body.get("runStatus")
+                or status_body.get("run_status")
+                or status_body.get("status")
+                or ""
+            ).upper()
+            pipeline_name = (
+                status_body.get("pipelineName") or status_body.get("pipeline_name") or alias
+            )
+
+            if status_value:
+                typer.echo(f"Pipeline ({pipeline_name}) status: {status_value}")
+
+            if status_value in {"SUCCEEDED", "SUCCESS", "COMPLETED"}:
+                typer.echo(green("✅ Pipeline succeeded"))
+                # Print the run id at the end for easy scripting/grepping
+                typer.echo(str(pipeline_run_id))
+                raise typer.Exit(code=0)
+
+            if status_value == "WARNING":
+                typer.echo(yellow("⚠ Pipeline completed with warnings"))
+                typer.echo(str(pipeline_run_id))
+                raise typer.Exit(code=0)
+
+            if status_value in {"FAILED", "CANCELLED", "CANCELED", "ERROR"}:
+                typer.echo(
+                    red(
+                        f"❌ Pipeline ended with status {status_value}. See lineage for details.",
+                    ),
+                )
+                typer.echo(yellow(lineage_url))
+                raise typer.Exit(code=1)
 
     typer.echo(red(f"❌ Run failed with status {response.status_code}"))
     try:
