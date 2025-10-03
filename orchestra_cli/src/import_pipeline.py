@@ -12,6 +12,7 @@ import yaml
 
 from ..utils.constants import API_URL
 from ..utils.styling import bold, green, indent_message, red, yellow
+from ..utils.git import _detect_repo_root, _git_warnings
 
 
 def _run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
@@ -30,11 +31,8 @@ def _run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
         return False, str(e)
 
 
-def _detect_repo_root(start_path: Path) -> Path | None:
-    ok, out = _run_git_command(["rev-parse", "--show-toplevel"], start_path)
-    if not ok:
-        return None
-    return Path(out)
+def _detect_repo_root_local(start_path: Path) -> Path | None:
+    return _detect_repo_root(start_path)
 
 
 def _detect_repository_url(repo_root: Path) -> str | None:
@@ -120,29 +118,8 @@ def _detect_storage_provider(repository_url: str | None) -> str:
     return "ORCHESTRA"
 
 
-def _git_warnings(repo_root: Path) -> list[str]:
-    warnings: list[str] = []
-    # Uncommitted changes
-    ok, out = _run_git_command(["status", "--porcelain"], repo_root)
-    if ok and out:
-        warnings.append("Uncommitted changes detected in repository")
-
-    # Not on latest commit of the branch / local vs remote mismatch
-    # Try to compare local HEAD to upstream if it exists
-    ok, branch = _run_git_command(
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-        repo_root,
-    )
-    if ok and branch:
-        ok_head, head = _run_git_command(["rev-parse", "HEAD"], repo_root)
-        ok_up, upstream = _run_git_command(["rev-parse", "@{u}"], repo_root)
-        if ok_head and ok_up and head and upstream and head != upstream:
-            warnings.append("Local branch SHA does not match remote branch SHA")
-            # If behind, call out explicitly
-            ok_stat, stat = _run_git_command(["status", "-sb"], repo_root)
-            if ok_stat and "behind" in stat:
-                warnings.append("You are not on latest HEAD of the branch (behind remote)")
-    return warnings
+def _git_warnings_local(repo_root: Path) -> list[str]:
+    return _git_warnings(repo_root)
 
 
 def _load_yaml(file: Path) -> tuple[dict | None, str | None]:
@@ -207,7 +184,7 @@ def import_pipeline(
         raise typer.Exit(code=1)
 
     # Detect git repository info
-    repo_root = _detect_repo_root(path.parent)
+    repo_root = _detect_repo_root_local(path.parent)
     if repo_root is None:
         typer.echo(red("Not a git repository (could not detect repository root)"))
         raise typer.Exit(code=1)
@@ -226,7 +203,7 @@ def import_pipeline(
         raise typer.Exit(code=1)
 
     # Show warnings (skip interactive confirmation as a TODO per instructions)
-    for w in _git_warnings(repo_root):
+    for w in _git_warnings_local(repo_root):
         typer.echo(yellow(f"⚠ {w}"))
 
     # Use the raw remote URL to detect storage provider reliably
