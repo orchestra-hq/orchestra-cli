@@ -1,1 +1,1 @@
-API_URL = "https://app.getorchestra.io/api/engine/public/pipelines/{}"
+API_URL = "https://dev.getorchestra.io/api/engine/public/pipelines/{}"

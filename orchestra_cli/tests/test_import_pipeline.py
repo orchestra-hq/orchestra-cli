@@ -1,18 +1,16 @@
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
-import builtins
-import types
+from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
-
 
 runner = CliRunner()
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, json_data: Optional[Dict[str, Any]] = None, text: str = ""):
+    def __init__(self, status_code: int, json_data: dict[str, Any] | None = None, text: str = ""):
         self.status_code = status_code
         self._json = json_data
         self.text = text
@@ -30,7 +28,7 @@ def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]
             self.stdout = stdout
             self.stderr = stderr
 
-    def _mock_run(args, cwd=None, capture_output=False, text=False, check=False):
+    def _mock_run(args, cwd=None, capture_output=False, text=False, check=False):  # noqa: ARG001
         # args begins with ["git", ...]
         key = tuple(args[1:])
         rc, out, err = mapping.get(key, (1, "", ""))
@@ -39,26 +37,25 @@ def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]
     return _mock_run
 
 
-def test_import_success(monkeypatch, tmp_path: Path):
+def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     # Arrange repo with YAML inside
     repo_root = tmp_path
     yaml_file = repo_root / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
 
     # Mock httpx.post: first schema 200, then import 201
-    calls: list[str] = []
-
-    def fake_post(url: str, json: dict, timeout: int):  # type: ignore[override]
-        calls.append(url)
-        if url.endswith("/schema"):
-            return FakeResponse(200, {"ok": True})
-        if url.endswith("/import"):
-            return FakeResponse(201, {"pipeline_id": "abc-123"})
-        return FakeResponse(404, {"detail": "not found"})
-
-    import httpx
-
-    monkeypatch.setattr(httpx, "post", fake_post)
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/import",
+        json={"pipeline_id": "abc-123"},
+        status_code=201,
+    )
 
     # Mock git
     mapping = {
@@ -75,58 +72,55 @@ def test_import_success(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
     # Act
-    result = runner.invoke(app, ["import-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(yaml_file)])
 
     # Assert
     assert result.exit_code == 0
     # Should print only the pipeline id
     assert result.output.strip() == "abc-123"
-    # Ensure both endpoints were called
-    assert any(u.endswith("/schema") for u in calls)
-    assert any(u.endswith("/import") for u in calls)
 
 
 def test_import_invalid_yaml(tmp_path: Path):
     bad = tmp_path / "bad.yaml"
     bad.write_text("name: [oops\n")
-    result = runner.invoke(app, ["import-pipeline", "--alias", "demo", "--path", str(bad)])
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(bad)])
     assert result.exit_code == 1
     assert "Invalid YAML" in result.output
 
 
-def test_import_schema_validation_error(monkeypatch, tmp_path: Path):
+def test_import_schema_validation_error(tmp_path: Path, httpx_mock: HTTPXMock):
     good = tmp_path / "ok.yaml"
     good.write_text("name: ok\n")
 
-    def fake_post(url: str, json: dict, timeout: int):  # type: ignore[override]
-        if url.endswith("/schema"):
-            return FakeResponse(400, {"detail": [{"loc": ["root"], "msg": "bad"}]})
-        return FakeResponse(500, {"detail": "should not be called"})
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"detail": [{"loc": ["root"], "msg": "bad"}]},
+        status_code=400,
+    )
 
-    import httpx
-
-    monkeypatch.setattr(httpx, "post", fake_post)
-
-    result = runner.invoke(app, ["import-pipeline", "--alias", "demo", "--path", str(good)])
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(good)])
     assert result.exit_code == 1
     assert "Validation failed" in result.output
 
 
-def test_import_api_error(monkeypatch, tmp_path: Path):
+def test_import_api_error(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     repo_root = tmp_path
     yaml_file = repo_root / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
 
-    def fake_post(url: str, json: dict, timeout: int):  # type: ignore[override]
-        if url.endswith("/schema"):
-            return FakeResponse(200, {"ok": True})
-        if url.endswith("/import"):
-            return FakeResponse(400, {"detail": "bad"})
-        return FakeResponse(404)
-
-    import httpx
-
-    monkeypatch.setattr(httpx, "post", fake_post)
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/import",
+        json={"detail": "bad"},
+        status_code=400,
+    )
 
     mapping = {
         ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
@@ -140,49 +134,46 @@ def test_import_api_error(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "Import failed" in result.output
 
 
-def test_not_a_git_repo(monkeypatch, tmp_path: Path):
+def test_not_a_git_repo(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     yaml_file = tmp_path / "p.yaml"
     yaml_file.write_text("name: ok\n")
 
-    def fake_post(url: str, json: dict, timeout: int):  # type: ignore[override]
-        if url.endswith("/schema"):
-            return FakeResponse(200, {"ok": True})
-        return FakeResponse(500)
-
-    import httpx
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
     import subprocess
 
-    monkeypatch.setattr(httpx, "post", fake_post)
     # rev-parse --show-toplevel fails
     mapping = {
         ("rev-parse", "--show-toplevel"): (1, "", "fatal: not a git repo"),
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "Not a git repository" in result.output
 
 
-def test_missing_repo_or_branch(monkeypatch, tmp_path: Path):
+def test_missing_repo_or_branch(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     repo_root = tmp_path
     f = repo_root / "p.yaml"
     f.write_text("name: ok\n")
 
-    def fake_post(url: str, json: dict, timeout: int):  # type: ignore[override]
-        if url.endswith("/schema"):
-            return FakeResponse(200, {"ok": True})
-        return FakeResponse(500)
-
-    import httpx
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
     import subprocess
-
-    monkeypatch.setattr(httpx, "post", fake_post)
 
     # repo root ok, but cannot get remote url or default branch
     mapping = {
@@ -194,27 +185,30 @@ def test_missing_repo_or_branch(monkeypatch, tmp_path: Path):
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import-pipeline", "--alias", "demo", "--path", str(f)])
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(f)])
     assert result.exit_code == 1
     assert "Could not detect repository URL or default branch" in result.output
 
 
-def test_warnings_printed(monkeypatch, tmp_path: Path):
+def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     repo_root = tmp_path
     f = repo_root / "p.yaml"
     f.write_text("name: ok\n")
 
-    def fake_post(url: str, json: dict, timeout: int):  # type: ignore[override]
-        if url.endswith("/schema"):
-            return FakeResponse(200, {"ok": True})
-        if url.endswith("/import"):
-            return FakeResponse(201, {"pipeline_id": "xyz"})
-        return FakeResponse(500)
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.getorchestra.io/api/engine/public/pipelines/import",
+        json={"pipeline_id": "xyz"},
+        status_code=201,
+    )
 
-    import httpx
     import subprocess
-
-    monkeypatch.setattr(httpx, "post", fake_post)
 
     mapping = {
         ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
@@ -229,7 +223,7 @@ def test_warnings_printed(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import-pipeline", "--alias", "demo", "--path", str(f)])
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(f)])
     assert result.exit_code == 0
     assert "⚠ Uncommitted changes" in result.output
     assert "Local branch SHA does not match remote branch SHA" in result.output

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import httpx
 import typer
@@ -30,21 +30,67 @@ def _run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
         return False, str(e)
 
 
-def _detect_repo_root(start_path: Path) -> Optional[Path]:
+def _detect_repo_root(start_path: Path) -> Path | None:
     ok, out = _run_git_command(["rev-parse", "--show-toplevel"], start_path)
     if not ok:
         return None
     return Path(out)
 
 
-def _detect_repository_url(repo_root: Path) -> Optional[str]:
-    ok, out = _run_git_command(["remote", "get-url", "origin"], repo_root)
+def _detect_repository_url(repo_root: Path) -> str | None:
+    ok, remote = _run_git_command(["remote", "get-url", "origin"], repo_root)
+    if not ok or not remote:
+        return None
+
+    # Normalize and extract an owner/repo-style slug from a variety of git URL formats
+    url = remote.strip()
+
+    # Remove protocol scheme if present (e.g., https://, ssh://, git://)
+    if "://" in url:
+        url = url.split("://", 1)[1]
+        # Remove leading auth part like git@ if present after scheme
+        if "@" in url and url.index("@") < url.index("/"):
+            url = url.split("@", 1)[1]
+
+    # Convert scp-like syntax git@host:owner/repo.git to host/owner/repo.git
+    if ":" in url and ("/" not in url.split(":", 1)[0]):
+        host, path_part = url.split(":", 1)
+        url = f"{host}/{path_part}"
+
+    # Drop hostname, keep path
+    path = url
+    if "/" in url:
+        path = url.split("/", 1)[1]
+
+    # Split path, remove empty and service-specific segments
+    segments = [seg for seg in path.split("/") if seg]
+    # Remove common service-specific segments
+    filtered = [seg for seg in segments if seg not in {"_git", "scm", "v3"}]
+
+    if not filtered:
+        return None
+
+    # Remove trailing .git from last segment
+    filtered[-1] = filtered[-1][:-4] if filtered[-1].endswith(".git") else filtered[-1]
+
+    # Prefer last two path components as slug (owner/repo)
+    if len(filtered) >= 2:
+        owner, repo = filtered[-2], filtered[-1]
+        return f"{owner}/{repo}"
+
+    # Fallback: if only one component remains, return it (unlikely)
+    return filtered[-1]
+
+
+def _get_remote_url(repo_root: Path) -> str | None:
+    """Return the raw git remote URL for origin without transformation."""
+    ok, remote = _run_git_command(["remote", "get-url", "origin"], repo_root)
     if not ok:
         return None
-    return out
+    return remote
 
 
-def _detect_default_branch(repo_root: Path) -> Optional[str]:
+def _detect_default_branch(repo_root: Path) -> str | None:
     # Try symbolic-ref of remote HEAD first
     ok, out = _run_git_command(["symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
     if ok and out:
@@ -59,7 +105,7 @@ def _detect_default_branch(repo_root: Path) -> Optional[str]:
     return None
 
 
-def _detect_storage_provider(repository_url: Optional[str]) -> str:
+def _detect_storage_provider(repository_url: str | None) -> str:
     if not repository_url:
         return "ORCHESTRA"
     url = repository_url.lower()
@@ -83,7 +129,10 @@ def _git_warnings(repo_root: Path) -> list[str]:
 
     # Not on latest commit of the branch / local vs remote mismatch
     # Try to compare local HEAD to upstream if it exists
-    ok, branch = _run_git_command(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], repo_root)
+    ok, branch = _run_git_command(
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        repo_root,
+    )
     if ok and branch:
         ok_head, head = _run_git_command(["rev-parse", "HEAD"], repo_root)
         ok_up, upstream = _run_git_command(["rev-parse", "@{u}"], repo_root)
@@ -96,7 +145,7 @@ def _git_warnings(repo_root: Path) -> list[str]:
     return warnings
 
 
-def _load_yaml(file: Path) -> tuple[Optional[dict], Optional[str]]:
+def _load_yaml(file: Path) -> tuple[dict | None, str | None]:
     try:
         with file.open("r") as f:
             data = yaml.safe_load(f)
@@ -105,7 +154,7 @@ def _load_yaml(file: Path) -> tuple[Optional[dict], Optional[str]]:
         return None, str(e)
 
 
-def _validate_yaml_with_api(data: dict) -> tuple[bool, Optional[str]]:
+def _validate_yaml_with_api(data: dict) -> tuple[bool, str | None]:
     try:
         response = httpx.post(API_URL.format("schema"), json=data, timeout=15)
     except Exception as e:
@@ -123,16 +172,26 @@ def _validate_yaml_with_api(data: dict) -> tuple[bool, Optional[str]]:
 def import_pipeline(
     alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
     path: Path = typer.Option(
-        ..., "--path", "-p", exists=True, file_okay=True, dir_okay=False, readable=True, resolve_path=True,
+        ...,
+        "--path",
+        "-p",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
         help="Path to pipeline YAML inside a git repository",
     ),
 ):
     """
     Create a pipeline in Orchestra by referencing a YAML file in your git repository.
     """
+
     if not path.exists():
         typer.echo(red(f"File not found: {path}"))
         raise typer.Exit(code=1)
+
+    api_key = os.getenv("ORCHESTRA_API_KEY")
 
     # Load and validate YAML with API first
     data, err = _load_yaml(path)
@@ -153,9 +212,9 @@ def import_pipeline(
         typer.echo(red("Not a git repository (could not detect repository root)"))
         raise typer.Exit(code=1)
 
-    repository_url = _detect_repository_url(repo_root)
+    repository_slug = _detect_repository_url(repo_root)
     default_branch = _detect_default_branch(repo_root)
-    if repository_url is None or default_branch is None:
+    if repository_slug is None or default_branch is None:
         typer.echo(red("Could not detect repository URL or default branch from git"))
         raise typer.Exit(code=1)
 
@@ -170,17 +229,28 @@ def import_pipeline(
     for w in _git_warnings(repo_root):
         typer.echo(yellow(f"⚠ {w}"))
 
-    storage_provider = _detect_storage_provider(repository_url)
+    # Use the raw remote URL to detect storage provider reliably
+    raw_remote = _get_remote_url(repo_root)
+    storage_provider = _detect_storage_provider(raw_remote)
 
     payload = {
         "storage_provider": storage_provider,
-        "repository": repository_url,
+        "repository": repository_slug,
         "default_branch": default_branch,
         "yaml_path": yaml_path,
+        "alias": alias,
     }
 
     try:
-        response = httpx.post(API_URL.format("import"), json=payload, timeout=20)
+        request_kwargs = {}
+        if api_key:
+            request_kwargs["headers"] = {"Authorization": f"Bearer {api_key}"}
+        response = httpx.post(
+            API_URL.format("import"),
+            json=payload,
+            timeout=30,
+            **request_kwargs,
+        )
     except Exception as e:
         typer.echo(red(f"HTTP request failed: {e}"))
         raise typer.Exit(code=1)
