@@ -38,22 +38,15 @@ def _detect_repository_url(repo_root: Path) -> str | None:
     if not ok or not remote:
         return None
 
-    # Normalize with regex and extract owner/repo from a variety of git URL formats
-    url = remote.strip()
-    # Strip scheme (e.g., https://, ssh://, git://)
-    url = re.sub(r"^\w+://", "", url)
-    # Strip leading auth (e.g., git@)
-    url = re.sub(r"^[^@/]+@", "", url)
-    # Convert scp-like syntax host:owner/repo to host/owner/repo
-    url = re.sub(r"^([^/:]+):", r"\1/", url)
-    # Drop hostname to get path portion
-    path = re.sub(r"^[^/]+/", "", url)
-    # Remove common service-specific path segments
-    path = re.sub(r"/(?:_git|scm|v3)(?=/)", "", path)
-    # Capture last two path segments as owner/repo, trimming optional .git suffix
-    m = re.search(r"([^/]+)/([^/]+?)(?:\.git)?/?$", path)
-    if m:
-        return f"{m.group(1)}/{m.group(2)}"
+    # First, handle special cases like Azure URLs by removing segments like /_git/
+    cleaned_remote = re.sub(r"/(?:_git|scm|v3)(?=/)", "", remote.strip())
+
+    # A single regex can then capture the owner/repo from the cleaned URL
+    pattern = r".*[:/]([^/]+)/([^/]+?)(?:\.git)?/?$"
+
+    if match := re.search(pattern, cleaned_remote):
+        return f"{match.group(1)}/{match.group(2)}"
+
     return None
 
 
