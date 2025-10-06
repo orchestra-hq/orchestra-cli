@@ -31,18 +31,25 @@ def mock_env(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "git_origin",
+    "git_origin, storage_provider, repository",
     [
-        "https://github.com/org/repo.git",
-        "git@github.com:org/repo.git",
-        "https://gitlab.com/org/repo.git",
-        "git@gitlab.com:org/repo.git",
-        "https://dev.azure.com/org/project/_git/repo",
-        "https://org@dev.azure.com/org/project/_git/repo",
-        "git@ssh.dev.azure.com:v3/org/project/repo",
+        ("https://github.com/org/repo.git", "GITHUB", "org/repo"),
+        ("git@github.com:org/repo.git", "GITHUB", "org/repo"),
+        ("https://gitlab.com/org/repo.git", "GITLAB", "org/repo"),
+        ("git@gitlab.com:org/repo.git", "GITLAB", "org/repo"),
+        ("https://dev.azure.com/org/project/_git/repo", "AZURE_DEVOPS", "project/repo"),
+        ("https://org@dev.azure.com/org/project/_git/repo", "AZURE_DEVOPS", "project/repo"),
+        ("git@ssh.dev.azure.com:v3/org/project/repo", "AZURE_DEVOPS", "project/repo"),
     ],
 )
-def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock, git_origin: str):
+def test_import_success(
+    monkeypatch,
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
+    git_origin: str,
+    storage_provider: str,
+    repository: str,
+):
     # Arrange repo with YAML inside
     repo_root = tmp_path
     yaml_file = repo_root / "pipe.yaml"
@@ -60,6 +67,13 @@ def test_import_success(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock, git_
         url="https://app.getorchestra.io/api/engine/public/pipelines/import",
         json={"id": mock_pipeline_id},
         status_code=201,
+        match_json={
+            "storage_provider": storage_provider,
+            "repository": repository,
+            "default_branch": "main",
+            "yaml_path": "pipe.yaml",
+            "alias": "demo",
+        },
     )
 
     # Mock git

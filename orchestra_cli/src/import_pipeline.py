@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import subprocess
 from pathlib import Path
 
 import httpx
@@ -9,32 +8,12 @@ import typer
 import yaml
 
 from ..utils.constants import get_api_url
-from ..utils.git import detect_repo_root, git_warnings
+from ..utils.git import detect_repo_root, git_warnings, run_git_command
 from ..utils.styling import bold, green, indent_message, red, yellow
 
 
-def _run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
-    try:
-        result = subprocess.run(
-            ["git", *args],
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            return True, result.stdout.strip()
-        return False, result.stderr.strip() or result.stdout.strip()
-    except Exception as e:
-        return False, str(e)
-
-
-def _detect_repo_root_local(start_path: Path) -> Path | None:
-    return detect_repo_root(start_path)
-
-
 def _detect_repository_url(repo_root: Path) -> str | None:
-    ok, remote = _run_git_command(["remote", "get-url", "origin"], repo_root)
+    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
     if not ok or not remote:
         return None
 
@@ -52,7 +31,7 @@ def _detect_repository_url(repo_root: Path) -> str | None:
 
 def _get_remote_url(repo_root: Path) -> str | None:
     """Return the raw git remote URL for origin without transformation."""
-    ok, remote = _run_git_command(["remote", "get-url", "origin"], repo_root)
+    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
     if not ok:
         return None
     return remote
@@ -60,12 +39,12 @@ def _get_remote_url(repo_root: Path) -> str | None:
 
 def _detect_default_branch(repo_root: Path) -> str | None:
     # Try symbolic-ref of remote HEAD first
-    ok, out = _run_git_command(["symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
+    ok, out = run_git_command(["symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
     if ok and out:
         # refs/remotes/origin/main -> main
         return out.split("/")[-1]
     # Fallback to parsing `git remote show origin`
-    ok, out = _run_git_command(["remote", "show", "origin"], repo_root)
+    ok, out = run_git_command(["remote", "show", "origin"], repo_root)
     if ok and out:
         m = re.search(r"HEAD branch:\s*(\S+)", out)
         if m:
@@ -86,10 +65,6 @@ def _detect_storage_provider(repository_url: str | None) -> str:
         return "AZURE_DEVOPS"
     typer.echo(red("Could not detect storage provider - no matching host"))
     raise typer.Exit(code=1)
-
-
-def _git_warnings_local(repo_root: Path) -> list[str]:
-    return git_warnings(repo_root)
 
 
 def _load_yaml(file: Path) -> tuple[dict | None, str | None]:
@@ -157,7 +132,7 @@ def import_pipeline(
         raise typer.Exit(code=1)
 
     # Detect git repository info
-    repo_root = _detect_repo_root_local(path.parent)
+    repo_root = detect_repo_root(path.parent)
     if repo_root is None:
         typer.echo(red("Not a git repository (could not detect repository root)"))
         raise typer.Exit(code=1)
@@ -179,7 +154,7 @@ def import_pipeline(
         raise typer.Exit(code=1)
 
     # Show warnings
-    for w in _git_warnings_local(repo_root):
+    for w in git_warnings(repo_root):
         typer.echo(yellow(f"⚠ {w}"))
 
     payload = {
