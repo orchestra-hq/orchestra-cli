@@ -127,18 +127,10 @@ def run_pipeline(
             except Exception:
                 status_body = {}
 
-            status_value = (
-                status_body.get("runStatus")
-                or status_body.get("run_status")
-                or status_body.get("status")
-                or ""
-            ).upper()
-            pipeline_name = (
-                status_body.get("pipelineName") or status_body.get("pipeline_name") or alias
-            )
+            status_value = status_body.get("runStatus")
 
             if status_value:
-                typer.echo(f"Pipeline ({pipeline_name}) status: {status_value}")
+                typer.echo(f"Pipeline ({alias}) status: {status_value}")
 
             if status_value == "SUCCEEDED":
                 typer.echo(green("✅ Pipeline succeeded"))
@@ -151,6 +143,11 @@ def run_pipeline(
                 typer.echo(str(pipeline_run_id))
                 raise typer.Exit(code=0)
 
+            if status_value == "SKIPPED":
+                typer.echo(yellow("⚠ Pipeline skipped"))
+                typer.echo(str(pipeline_run_id))
+                raise typer.Exit(code=0)
+
             if status_value in {"FAILED", "CANCELLED"}:
                 typer.echo(
                     red(
@@ -160,7 +157,11 @@ def run_pipeline(
                 typer.echo(yellow(lineage_url))
                 raise typer.Exit(code=1)
 
-    typer.echo(red(f"❌ Run failed with status {response.status_code}"))
+            typer.echo(
+                red(f"❌ Invalid status value: {status_value}\nResponse body: {status_body}"),
+            )
+
+    typer.echo(red(f"❌ Run failed with status code {response.status_code}"))
     try:
         typer.echo(
             yellow(
