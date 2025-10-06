@@ -19,6 +19,11 @@ def run_pipeline(
         "--wait/--no-wait",
         help="Poll the pipeline run until it completes",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help="Ignore any warnings and run the pipeline anyway",
+    ),
 ):
     """
     Run a pipeline in Orchestra.
@@ -36,12 +41,13 @@ def run_pipeline(
         if warnings:
             for w in warnings:
                 typer.echo(yellow(f"⚠ {w}"))
-            typer.echo(bold(yellow("Press Enter to continue or Ctrl+C to abort")))
-            try:
-                input()
-            except KeyboardInterrupt:
-                typer.echo(red("Aborted"))
-                raise typer.Exit(code=1)
+            if not force:
+                typer.echo(bold(yellow("Press Enter to continue or Ctrl+C to abort")))
+                try:
+                    input()
+                except KeyboardInterrupt:
+                    typer.echo(red("Aborted"))
+                    raise typer.Exit(code=1)
 
     payload: dict[str, str] = {}
     if branch:
@@ -134,7 +140,7 @@ def run_pipeline(
             if status_value:
                 typer.echo(f"Pipeline ({pipeline_name}) status: {status_value}")
 
-            if status_value in {"SUCCEEDED", "SUCCESS", "COMPLETED"}:
+            if status_value == "SUCCEEDED":
                 typer.echo(green("✅ Pipeline succeeded"))
                 # Print the run id at the end for easy scripting/grepping
                 typer.echo(str(pipeline_run_id))
@@ -145,7 +151,7 @@ def run_pipeline(
                 typer.echo(str(pipeline_run_id))
                 raise typer.Exit(code=0)
 
-            if status_value in {"FAILED", "CANCELLED", "CANCELED", "ERROR"}:
+            if status_value in {"FAILED", "CANCELLED"}:
                 typer.echo(
                     red(
                         f"❌ Pipeline ended with status {status_value}. See lineage for details.",
