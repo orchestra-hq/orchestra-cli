@@ -5,7 +5,7 @@ import httpx
 import typer
 import yaml
 
-from ..utils.constants import API_URL
+from ..utils.constants import get_api_url
 from ..utils.styling import bold, green, indent_message, red, yellow
 
 
@@ -38,7 +38,7 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
         raise typer.Exit(code=1)
 
     try:
-        response = httpx.post(API_URL.format("schema"), json=data, timeout=10)
+        response = httpx.post(get_api_url("schema"), json=data, timeout=10)
     except Exception as e:
         typer.echo(red(f"HTTP request failed: {e}"))
         raise typer.Exit(code=1)
