@@ -15,7 +15,7 @@ def run_pipeline(
     branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
     commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
     wait: bool = typer.Option(
-        False,
+        True,
         "--wait/--no-wait",
         help="Poll the pipeline run until it completes",
     ),
@@ -56,6 +56,7 @@ def run_pipeline(
         payload["commit"] = commit
 
     try:
+        typer.echo(f"Starting pipeline (alias: {alias})")
         response = httpx.post(
             get_api_url(f"{alias}/start"),
             json=payload if payload else None,

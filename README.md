@@ -13,6 +13,7 @@ orchestra-cli validate example.yaml
 - Make sure [uv](https://github.com/astral-sh/uv) is installed
 - Use `uv pip install -e ".[dev]"` to install the CLI in editable mode for development
 - For local development, run `uv run orchestra` to start the CLI
+  - you can use `uv run --env-file .env ...` to run the CLI with env vars
 - For testing, run `uv run pytest`
 - For linting, run `uv run ruff check .`
 - For formatting, run `uv run black --check .`
