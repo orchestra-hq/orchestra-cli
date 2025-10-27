@@ -52,6 +52,13 @@ def _detect_default_branch(repo_root: Path) -> str | None:
     return None
 
 
+def _detect_current_branch(repo_root: Path) -> str | None:
+    ok, out = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+    if ok and out:
+        return out
+    return None
+
+
 def _detect_storage_provider(repository_url: str | None) -> str:
     if not repository_url:
         typer.echo(red("Could not detect storage provider - no repository URL"))
@@ -104,6 +111,12 @@ def import_pipeline(
         resolve_path=True,
         help="Path to pipeline YAML inside a git repository",
     ),
+    working_branch: str | None = typer.Option(
+        None,
+        "--working-branch",
+        "-w",
+        help="Git branch to use for the imported pipeline (defaults to current local branch)",
+    ),
 ):
     """
     Create a pipeline in Orchestra by referencing a YAML file in your git repository.
@@ -146,6 +159,13 @@ def import_pipeline(
         typer.echo(red("Could not detect default branch from git"))
         raise typer.Exit(code=1)
 
+    # Determine working branch (explicit option or current branch)
+    if working_branch is None:
+        working_branch = _detect_current_branch(repo_root)
+        if not working_branch:
+            typer.echo(red("Could not detect current branch from git"))
+            raise typer.Exit(code=1)
+
     # Compute YAML path relative to repo root
     try:
         yaml_path = str(path.resolve().relative_to(repo_root.resolve()))
@@ -161,6 +181,7 @@ def import_pipeline(
         "storage_provider": _detect_storage_provider(_get_remote_url(repo_root)),
         "repository": repository_slug,
         "default_branch": default_branch,
+        "working_branch": working_branch,
         "yaml_path": yaml_path,
         "alias": alias,
     }

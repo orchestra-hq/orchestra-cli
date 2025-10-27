@@ -71,6 +71,7 @@ def test_import_success(
             "storage_provider": storage_provider,
             "repository": repository,
             "default_branch": "main",
+            "working_branch": "main",
             "yaml_path": "pipe.yaml",
             "alias": "demo",
         },
@@ -81,6 +82,7 @@ def test_import_success(
         ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
         ("remote", "get-url", "origin"): (0, git_origin, ""),
         ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
         ("status", "--porcelain"): (0, "", ""),
         # Do not provide upstream to skip that branch check path
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
@@ -148,6 +150,7 @@ def test_import_api_error(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
         ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
         ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
         ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
         ("status", "--porcelain"): (0, "", ""),
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
     }
@@ -228,6 +231,14 @@ def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
         url="https://app.getorchestra.io/api/engine/public/pipelines/import",
         json={"id": mock_pipeline_id},
         status_code=201,
+        match_json={
+            "storage_provider": "GITHUB",
+            "repository": "org/repo",
+            "default_branch": "main",
+            "working_branch": "some-branch",
+            "yaml_path": "p.yaml",
+            "alias": "demo",
+        },
     )
 
     import subprocess
@@ -236,6 +247,7 @@ def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
         ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
         ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
         ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "some-branch", ""),
         ("status", "--porcelain"): (0, " M p.yaml\n", ""),
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/main", ""),
         ("rev-parse", "HEAD"): (0, "aaaa", ""),

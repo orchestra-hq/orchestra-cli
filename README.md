@@ -76,7 +76,8 @@ export ORCHESTRA_API_KEY=...  # required
 
 orchestra import \
   --alias my-pipeline \
-  --path ./pipelines/pipeline.yaml
+  --path ./pipelines/pipeline.yaml \
+  --working-branch my-feature-branch   # optional; defaults to current local branch
 # or
 orchestra-cli import -a my-pipeline -p ./pipelines/pipeline.yaml
 ```
@@ -85,6 +86,7 @@ Options
 
 - `-a, --alias` (required): The alias you want to register the pipeline under.
 - `-p, --path` (required): Path to the YAML file. Must be inside a git repository.
+- `-w, --working-branch` (optional): Branch to associate as the working branch for this pipeline import. If omitted, the current local git branch is used.
 
 Notes
 
@@ -92,6 +94,7 @@ Notes
 - Git details are detected automatically:
   - Supported providers: GitHub, GitLab, Azure DevOps.
   - The default branch is detected from `origin`.
+  - The working branch defaults to your current local branch when not specified.
   - The YAML path is computed relative to the repository root.
 - On success, the command prints the created pipeline ID (or a success message).
 - Exit codes: `0` on success, `1` on failure.
