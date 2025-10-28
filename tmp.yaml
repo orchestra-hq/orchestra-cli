@@ -1,0 +1,33 @@
+version: v1
+name: Deletme
+pipeline:
+  task_group_1:
+    tasks:
+      task_1:
+        integration: TABLEAU_CLOUD
+        integration_job: TABLEAU_UPDATE_SUBSCRIPTION
+        parameters:
+          attribute_values: "something"
+          subscription_id: "1234567890"
+        depends_on: []
+        condition: null
+        name: Tableau Thing
+        tags: []
+    depends_on: []
+    condition: null
+    name: ""
+schedule:
+  - name: Daily
+    cron: 0 8 ? * * *
+    timezone: Europe/London
+sensors: {}
+trigger_events: []
+webhook:
+  enabled: true
+  operation_metadata: null
+  run_inputs: null
+configuration:
+  retries: 2
+  retry_delay: null
+  timeout: null
+inputs: null
