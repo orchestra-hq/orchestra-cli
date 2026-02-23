@@ -106,7 +106,7 @@ def run_pipeline(
         poll_interval_seconds = 5
         headers = {"Authorization": f"Bearer {api_key}"}
         status_url = f"{api_prefix}/pipeline_runs/{pipeline_run_id}/status"
-        in_progress_statuses = {"RUNNING", "QUEUED", "PENDING", "STARTING"}
+        in_progress_statuses = {"RUNNING", "QUEUED", "CREATED"}
 
         while True:
             time.sleep(poll_interval_seconds)
