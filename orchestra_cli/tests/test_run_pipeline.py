@@ -187,6 +187,7 @@ def test_run_wait_success(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         result.output.strip().splitlines()[1]
         == f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}"
     )  # noqa: E501
+    assert "Invalid status value: RUNNING" not in result.output
     assert result.output.strip().splitlines()[-2] == "✅ Pipeline succeeded"
     assert result.output.strip().splitlines()[-1] == mock_pipeline_run_id
 
@@ -225,6 +226,7 @@ def test_run_wait_failed(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
 
     result = runner.invoke(app, ["run", "--alias", "demo", "--wait"])
     assert result.exit_code == 1
+    assert "Invalid status value: RUNNING" not in result.output
     assert "status FAILED" in result.output
     assert "/pipeline-runs/run-xyz/lineage" in result.output
 
