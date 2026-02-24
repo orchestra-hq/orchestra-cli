@@ -106,6 +106,7 @@ def run_pipeline(
         poll_interval_seconds = 5
         headers = {"Authorization": f"Bearer {api_key}"}
         status_url = f"{api_prefix}/pipeline_runs/{pipeline_run_id}/status"
+        in_progress_statuses = {"RUNNING", "QUEUED", "CREATED"}
 
         while True:
             time.sleep(poll_interval_seconds)
@@ -157,6 +158,9 @@ def run_pipeline(
                 )
                 typer.echo(yellow(lineage_url))
                 raise typer.Exit(code=1)
+
+            if status_value in in_progress_statuses:
+                continue
 
             typer.echo(
                 red(f"❌ Invalid status value: {status_value}\nResponse body: {status_body}"),
