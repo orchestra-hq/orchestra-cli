@@ -4,6 +4,8 @@ Orchestra CLI for working with Orchestra pipelines from your terminal.
 
 Two entrypoints are available: `orchestra` and `orchestra-cli` (they are equivalent).
 
+See [`AGENTS.md`](AGENTS.md) for contributor and AI agent guidance (environment setup, code conventions, testing).
+
 ## Installation
 
 ```bash
