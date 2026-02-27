@@ -27,7 +27,7 @@ def test_create_success_default_no_publish(tmp_path: Path, httpx_mock: HTTPXMock
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"id": "pipeline-id"},
         status_code=201,
         match_json={
@@ -41,6 +41,7 @@ def test_create_success_default_no_publish(tmp_path: Path, httpx_mock: HTTPXMock
     result = runner.invoke(app, ["create-pipeline", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 0
     assert "created successfully" in result.output
+    assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
 
 
 def test_create_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
@@ -55,7 +56,7 @@ def test_create_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"id": "pipeline-id"},
         status_code=201,
         match_json={
@@ -72,6 +73,7 @@ def test_create_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
     )
     assert result.exit_code == 0
     assert "created successfully" in result.output
+    assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
 
 
 def test_create_missing_api_key(monkeypatch, tmp_path: Path):
@@ -121,7 +123,7 @@ def test_create_api_error(tmp_path: Path, httpx_mock: HTTPXMock):
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"detail": "bad"},
         status_code=400,
     )

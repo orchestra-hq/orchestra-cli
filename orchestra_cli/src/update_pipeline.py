@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 import typer
 
-from ..utils.constants import get_update_pipeline_url
+from ..utils.constants import get_pipeline_edit_url, get_update_pipeline_url
 from ..utils.styling import green, indent_message, red, yellow
 from .import_pipeline import _load_yaml, _validate_yaml_with_api
 
@@ -78,6 +78,7 @@ def update_pipeline(
         pipeline_id = body.get("id")
         if pipeline_id:
             typer.echo(green(f"✅ Pipeline '{alias}' updated successfully: {pipeline_id}"))
+            typer.echo(yellow(f"Edit URL: {get_pipeline_edit_url(str(pipeline_id))}"))
         else:
             typer.echo(green(f"✅ Pipeline '{alias}' updated successfully"))
         raise typer.Exit(code=0)

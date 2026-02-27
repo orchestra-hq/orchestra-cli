@@ -40,6 +40,7 @@ def test_update_success_default_no_publish(tmp_path: Path, httpx_mock: HTTPXMock
     result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 0
     assert "updated successfully" in result.output
+    assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
 
 
 def test_update_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
@@ -70,6 +71,7 @@ def test_update_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
     )
     assert result.exit_code == 0
     assert "updated successfully" in result.output
+    assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
 
 
 def test_update_missing_api_key(monkeypatch, tmp_path: Path):

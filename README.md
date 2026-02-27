@@ -21,8 +21,7 @@ pipx install orchestra-cli
 ## Environment variables
 
 - `ORCHESTRA_API_KEY`: Required for actions that call the API (`import`, `run`).
-- `BASE_URL`: Optional. Override the default API base
-  (`https://app.getorchestra.io/api/engine/public/pipelines/{}`) for non‑production/testing.
+- `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Commands overview
 
@@ -134,6 +133,7 @@ Behavior
 
 - Validates YAML against the Orchestra schema endpoint before creating.
 - Sends pipeline data to `POST /pipelines` with `storage_provider=ORCHESTRA`.
+- On success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
 - Exit codes: `0` on success, `1` on failure.
 
 ---
@@ -162,6 +162,7 @@ Behavior
 - Validates YAML against the Orchestra schema endpoint before updating.
 - Sends pipeline data to `PUT /pipelines/{alias}` with `storage_provider=ORCHESTRA`.
 - Only Orchestra-backed pipelines can be updated via this endpoint (Git-backed pipelines are rejected).
+- On success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
 - Exit codes: `0` on success, `1` on failure.
 
 ---
