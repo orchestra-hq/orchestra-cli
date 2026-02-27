@@ -43,6 +43,7 @@ No test markers (`@pytest.mark.*`) are defined beyond the standard set.
 ## Import Style
 
 Use absolute imports in test files:
+
 ```python
 from orchestra_cli.src.cli import app
 from orchestra_cli.src.run_pipeline import run_pipeline
@@ -54,6 +55,7 @@ from tests.conftest import make_git_subprocess_mock
 ## Gotchas
 
 **Polling / long-running behavior:** `run_pipeline.py` contains a `while True` loop with `time.sleep(5)`. Always mock sleep in tests that exercise the wait path:
+
 ```python
 monkeypatch.setattr(time, "sleep", lambda _: None)
 ```

@@ -21,13 +21,14 @@ pipx install orchestra-cli
 ## Environment variables
 
 - `ORCHESTRA_API_KEY`: Required for actions that call the API (`import`, `run`).
-- `BASE_URL`: Optional. Override the default API base
-  (`https://app.getorchestra.io/api/engine/public/pipelines/{}`) for non‑production/testing.
+- `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Commands overview
 
 - `validate`: Validate a pipeline YAML locally against the Orchestra API schema.
 - `import`: Register a pipeline YAML (from a git repo) with Orchestra under an alias.
+- `create-pipeline`: Create an Orchestra-backed pipeline from a local YAML file.
+- `update-pipeline`: Update an existing Orchestra-backed pipeline from a local YAML file.
 - `run`: Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion.
 
 Use `orchestra --help` or `orchestra <command> --help` for built-in help.
@@ -106,6 +107,63 @@ Common errors
 - Missing `ORCHESTRA_API_KEY`.
 - Not running inside a git repository, or no `origin` remote configured.
 - Could not detect storage provider or default branch.
+
+---
+
+## create-pipeline
+
+Create an Orchestra-backed pipeline directly from a local YAML file.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+orchestra create-pipeline \
+  --alias my-pipeline \
+  --path ./pipelines/pipeline.yaml \
+  --publish            # optional, defaults to --no-publish
+```
+
+Options
+
+- `-a, --alias` (required): Pipeline alias.
+- `-p, --path` (required): Path to pipeline YAML file.
+- `--publish/--no-publish` (optional, default `--no-publish`): Whether the pipeline is published.
+
+Behavior
+
+- Validates YAML against the Orchestra schema endpoint before creating.
+- Sends pipeline data to `POST /pipelines` with `storage_provider=ORCHESTRA`.
+- On success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
+- Exit codes: `0` on success, `1` on failure.
+
+---
+
+## update-pipeline
+
+Update an existing Orchestra-backed pipeline from a local YAML file.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+orchestra update-pipeline \
+  --alias my-pipeline \
+  --path ./pipelines/pipeline.yaml \
+  --no-publish         # default
+```
+
+Options
+
+- `-a, --alias` (required): Pipeline alias to update.
+- `-p, --path` (required): Path to pipeline YAML file.
+- `--publish/--no-publish` (optional, default `--no-publish`): Whether the pipeline is published.
+
+Behavior
+
+- Validates YAML against the Orchestra schema endpoint before updating.
+- Sends pipeline data to `PUT /pipelines/{alias}` with `storage_provider=ORCHESTRA`.
+- Only Orchestra-backed pipelines can be updated via this endpoint (Git-backed pipelines are rejected).
+- On success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
+- Exit codes: `0` on success, `1` on failure.
 
 ---
 

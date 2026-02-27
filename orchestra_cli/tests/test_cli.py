@@ -10,3 +10,5 @@ def test_help():
     assert result.exit_code == 0
     assert "Orchestra CLI" in result.output
     assert "validate" in result.output
+    assert "create-pipeline" in result.output
+    assert "update-pipeline" in result.output
