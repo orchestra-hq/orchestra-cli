@@ -131,3 +131,47 @@ def test_create_api_error(tmp_path: Path, httpx_mock: HTTPXMock):
     result = runner.invoke(app, ["create-pipeline", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "Create failed" in result.output
+
+
+def test_create_success_without_pipeline_id_fails(tmp_path: Path, httpx_mock: HTTPXMock):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        json={"alias": "demo"},
+        status_code=201,
+    )
+
+    result = runner.invoke(app, ["create-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    assert result.exit_code == 1
+    assert "success response did not include pipeline id" in result.output
+
+
+def test_create_success_with_invalid_json_fails(tmp_path: Path, httpx_mock: HTTPXMock):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        text="ok",
+        status_code=201,
+    )
+
+    result = runner.invoke(app, ["create-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    assert result.exit_code == 1
+    assert "success response was not valid JSON" in result.output

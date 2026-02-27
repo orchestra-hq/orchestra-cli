@@ -1,13 +1,18 @@
 import json
-import os
 from pathlib import Path
 
 import httpx
 import typer
 
-from ..utils.constants import get_create_pipeline_url, get_pipeline_edit_url
-from ..utils.styling import green, indent_message, red, yellow
-from .import_pipeline import _load_yaml, _validate_yaml_with_api
+from ..utils.constants import get_create_pipeline_url
+from ..utils.styling import indent_message, red, yellow
+from .pipeline_upsert import (
+    build_upsert_payload,
+    emit_success_with_edit_url,
+    load_validated_pipeline_data,
+    require_api_key,
+    require_pipeline_id_from_success_response,
+)
 
 
 def create_pipeline(
@@ -32,33 +37,9 @@ def create_pipeline(
     """
     Create an Orchestra-backed pipeline from a local YAML file.
     """
-    if not path.exists():
-        typer.echo(red(f"File not found: {path}"))
-        raise typer.Exit(code=1)
-
-    api_key = os.getenv("ORCHESTRA_API_KEY")
-    if not api_key:
-        typer.echo(red("ORCHESTRA_API_KEY is not set"))
-        raise typer.Exit(code=1)
-
-    data, err = _load_yaml(path)
-    if err is not None:
-        typer.echo(red(f"Invalid YAML: {err}"))
-        raise typer.Exit(code=1)
-
-    ok, err_msg = _validate_yaml_with_api(data or {})
-    if not ok:
-        typer.echo(red("❌ Validation failed"))
-        if err_msg:
-            typer.echo(yellow(indent_message(err_msg)))
-        raise typer.Exit(code=1)
-
-    payload = {
-        "alias": alias,
-        "data": data or {},
-        "published": publish,
-        "storage_provider": "ORCHESTRA",
-    }
+    api_key = require_api_key()
+    data = load_validated_pipeline_data(path)
+    payload = build_upsert_payload(data, publish, alias=alias)
 
     try:
         response = httpx.post(
@@ -72,16 +53,8 @@ def create_pipeline(
         raise typer.Exit(code=1)
 
     if response.status_code == 201:
-        try:
-            body = response.json()
-        except Exception:
-            body = {}
-        pipeline_id = body.get("id")
-        if pipeline_id:
-            typer.echo(green(f"✅ Pipeline '{alias}' created successfully: {pipeline_id}"))
-            typer.echo(yellow(f"Edit URL: {get_pipeline_edit_url(str(pipeline_id))}"))
-        else:
-            typer.echo(green(f"✅ Pipeline '{alias}' created successfully"))
+        pipeline_id = require_pipeline_id_from_success_response(response, "Create")
+        emit_success_with_edit_url(alias, "created", pipeline_id)
         raise typer.Exit(code=0)
 
     typer.echo(red(f"❌ Create failed with status {response.status_code}"))
