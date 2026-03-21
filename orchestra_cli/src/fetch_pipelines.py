@@ -19,14 +19,11 @@ def fetch_pipelines(
     Fetch pipelines available to the current Orchestra API key.
     """
     api_key = require_api_key()
-    params = None
-    if not fetch_latest_run_data:
-        params = {"fetch_latest_run_data": "false"}
 
     try:
         response = httpx.get(
             get_api_url(""),
-            params=params,
+            params={"fetch_latest_run_data": "true" if fetch_latest_run_data else "false"},
             timeout=30,
             headers={"Authorization": f"Bearer {api_key}"},
         )
