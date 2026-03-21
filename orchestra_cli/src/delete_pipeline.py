@@ -4,7 +4,7 @@ import httpx
 import typer
 
 from ..utils.constants import get_delete_pipeline_url
-from ..utils.styling import indent_message, green, red, yellow
+from ..utils.styling import green, indent_message, red, yellow
 from .pipeline_upsert import require_api_key
 
 
