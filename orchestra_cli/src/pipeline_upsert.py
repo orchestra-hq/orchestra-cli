@@ -29,15 +29,16 @@ def load_validated_pipeline_data(path: Path) -> dict:
         raise typer.Exit(code=1)
 
     ref_errors = _validate_task_group_references(data or {})
+    validation_failed = "❌ Validation failed\n"
     if ref_errors:
-        typer.echo(red("❌ Validation failed (local check)\n"))
+        typer.echo(red(validation_failed))
         for e in ref_errors:
             typer.echo(red(indent_message(e)))
         raise typer.Exit(code=1)
 
     ok, err_msg = _validate_yaml_with_api(data or {})
     if not ok:
-        typer.echo(red("❌ Validation failed"))
+        typer.echo(red(validation_failed))
         if err_msg:
             typer.echo(yellow(indent_message(err_msg)))
         raise typer.Exit(code=1)
