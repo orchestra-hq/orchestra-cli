@@ -7,6 +7,7 @@ import yaml
 
 from ..utils.constants import get_api_url
 from ..utils.styling import bold, green, indent_message, red, yellow
+from .import_pipeline import _validate_task_group_references
 
 
 def get_yaml_snippet(data: Any, loc: list[Any]) -> dict[str, Any] | None:
@@ -35,6 +36,13 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
             data = yaml.safe_load(f)
     except Exception as e:
         typer.echo(red(f"Invalid YAML: {e}"))
+        raise typer.Exit(code=1)
+
+    ref_errors = _validate_task_group_references(data)
+    if ref_errors:
+        typer.echo(red("❌ Validation failed (local check)\n"))
+        for e in ref_errors:
+            typer.echo(red(indent_message(e)))
         raise typer.Exit(code=1)
 
     try:

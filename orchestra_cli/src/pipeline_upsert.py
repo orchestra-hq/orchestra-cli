@@ -7,7 +7,7 @@ import typer
 
 from ..utils.constants import get_pipeline_edit_url
 from ..utils.styling import green, indent_message, red, yellow
-from .import_pipeline import _load_yaml, _validate_yaml_with_api
+from .import_pipeline import _load_yaml, _validate_task_group_references, _validate_yaml_with_api
 
 
 def require_api_key() -> str:
@@ -26,6 +26,13 @@ def load_validated_pipeline_data(path: Path) -> dict:
     data, err = _load_yaml(path)
     if err is not None:
         typer.echo(red(f"Invalid YAML: {err}"))
+        raise typer.Exit(code=1)
+
+    ref_errors = _validate_task_group_references(data or {})
+    if ref_errors:
+        typer.echo(red("❌ Validation failed (local check)\n"))
+        for e in ref_errors:
+            typer.echo(red(indent_message(e)))
         raise typer.Exit(code=1)
 
     ok, err_msg = _validate_yaml_with_api(data or {})

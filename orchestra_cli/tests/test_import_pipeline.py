@@ -215,6 +215,49 @@ def test_missing_repo_or_branch(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMo
     assert "Could not detect repository URL from git" in result.output
 
 
+def test_import_bad_task_group_reference_fails_locally(tmp_path: Path):
+    """A condition referencing a standalone task via task_groups[...] should fail
+    before any API or git call is made."""
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text(
+        "version: v1\n"
+        "name: test\n"
+        "pipeline:\n"
+        "  real_group:\n"
+        "    tasks:\n"
+        "      t1:\n"
+        "        integration: DBT_CORE\n"
+        "        integration_job: DBT_CORE_EXECUTE\n"
+        "        parameters: {}\n"
+        "        depends_on: []\n"
+        "    depends_on: []\n"
+        "    name: ''\n"
+        "  standalone_task:\n"
+        "    integration: ORCHESTRA\n"
+        "    integration_job: APPROVAL\n"
+        "    parameters: {}\n"
+        "    depends_on: []\n"
+        "    name: Approve\n"
+        "  consumer_group:\n"
+        "    tasks:\n"
+        "      t2:\n"
+        "        integration: PYTHON\n"
+        "        integration_job: PYTHON_EXECUTE_SCRIPT\n"
+        "        parameters: {}\n"
+        "        depends_on: []\n"
+        "    depends_on:\n"
+        "    - standalone_task\n"
+        "    condition: \"${{ task_groups['standalone_task'].any().status == 'SUCCEEDED' }}\"\n"
+        "    name: ''\n",
+    )
+
+    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(yaml_file)])
+
+    assert result.exit_code == 1
+    assert "local check" in result.output
+    assert "standalone_task" in result.output
+
+
 def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     repo_root = tmp_path
     f = repo_root / "p.yaml"

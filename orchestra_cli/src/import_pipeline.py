@@ -2,6 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 import httpx
 import typer
@@ -98,6 +99,36 @@ def _validate_yaml_with_api(data: dict) -> tuple[bool, str | None]:
         return False, response.text
 
 
+def _validate_task_group_references(data: dict) -> list[str]:
+    """Return error strings for any task_groups['<id>'] condition expression
+    that references a pipeline entry that is not a task group."""
+    pipeline = data.get("pipeline", {})
+    if not isinstance(pipeline, dict):
+        return []
+    task_group_ids = {k for k, v in pipeline.items() if isinstance(v, dict) and "tasks" in v}
+    pattern = re.compile(r"task_groups\['([^']+)'\]")
+    errors: list[str] = []
+
+    def scan(obj: Any, path: str = "") -> None:
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                scan(v, f"{path}.{k}" if path else k)
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                scan(item, f"{path}[{i}]")
+        elif isinstance(obj, str):
+            for m in pattern.finditer(obj):
+                ref_id = m.group(1)
+                if ref_id not in task_group_ids:
+                    errors.append(
+                        f"condition at '{path}' references task_groups['{ref_id}'], "
+                        f"but '{ref_id}' is not a task group (it has no 'tasks' key).",
+                    )
+
+    scan(data)
+    return errors
+
+
 def import_pipeline(
     alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
     path: Path = typer.Option(
@@ -135,6 +166,13 @@ def import_pipeline(
     data, err = _load_yaml(path)
     if err is not None:
         typer.echo(red(f"Invalid YAML: {err}"))
+        raise typer.Exit(code=1)
+
+    ref_errors = _validate_task_group_references(data or {})
+    if ref_errors:
+        typer.echo(red("❌ Validation failed (local check)\n"))
+        for e in ref_errors:
+            typer.echo(red(indent_message(e)))
         raise typer.Exit(code=1)
 
     ok, err_msg = _validate_yaml_with_api(data or {})
