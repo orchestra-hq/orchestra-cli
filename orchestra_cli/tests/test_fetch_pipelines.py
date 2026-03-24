@@ -15,7 +15,7 @@ def mock_env(monkeypatch):
     monkeypatch.setenv("BASE_URL", "")
 
 
-def test_fetch_pipelines_success_default(httpx_mock: HTTPXMock):
+def test_fetch_pipelines_success(httpx_mock: HTTPXMock):
     pipelines = [
         {
             "id": "pipe-1",
@@ -26,35 +26,13 @@ def test_fetch_pipelines_success_default(httpx_mock: HTTPXMock):
     ]
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipelines?fetch_latest_run_data=true",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json=pipelines,
         status_code=200,
         match_headers={"Authorization": "Bearer fake-key"},
     )
 
     result = runner.invoke(app, ["fetch-pipelines"])
-
-    assert result.exit_code == 0
-    assert result.output == f"{json.dumps(pipelines, indent=2)}\n"
-
-
-def test_fetch_pipelines_without_latest_run_data(httpx_mock: HTTPXMock):
-    pipelines = [
-        {
-            "id": "pipe-1",
-            "alias": "demo",
-            "name": "Demo pipeline",
-        },
-    ]
-    httpx_mock.add_response(
-        method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipelines?fetch_latest_run_data=false",
-        json=pipelines,
-        status_code=200,
-        match_headers={"Authorization": "Bearer fake-key"},
-    )
-
-    result = runner.invoke(app, ["fetch-pipelines", "--no-fetch-latest-run-data"])
 
     assert result.exit_code == 0
     assert result.output == f"{json.dumps(pipelines, indent=2)}\n"
@@ -72,7 +50,7 @@ def test_fetch_pipelines_missing_api_key(monkeypatch):
 def test_fetch_pipelines_api_error(httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipelines?fetch_latest_run_data=true",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"detail": "Forbidden"},
         status_code=403,
         match_headers={"Authorization": "Bearer fake-key"},
@@ -88,7 +66,7 @@ def test_fetch_pipelines_api_error(httpx_mock: HTTPXMock):
 def test_fetch_pipelines_invalid_success_json(httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipelines?fetch_latest_run_data=true",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         text="ok",
         status_code=200,
         match_headers={"Authorization": "Bearer fake-key"},

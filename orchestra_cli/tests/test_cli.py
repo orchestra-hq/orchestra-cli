@@ -12,4 +12,5 @@ def test_help():
     assert "validate" in result.output
     assert "fetch-pipelines" in result.output
     assert "create-pipeline" in result.output
+    assert "delete-pipeline" in result.output
     assert "update-pipeline" in result.output

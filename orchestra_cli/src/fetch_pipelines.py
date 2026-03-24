@@ -8,22 +8,17 @@ from ..utils.styling import indent_message, red, yellow
 from .pipeline_upsert import require_api_key
 
 
-def fetch_pipelines(
-    fetch_latest_run_data: bool = typer.Option(
-        True,
-        "--fetch-latest-run-data/--no-fetch-latest-run-data",
-        help="Whether to include each pipeline's latest run metadata",
-    ),
-):
+def fetch_pipelines():
     """
     Fetch pipelines available to the current Orchestra API key.
+
+    The API always includes each pipeline's latest run metadata.
     """
     api_key = require_api_key()
 
     try:
         response = httpx.get(
             get_api_url(""),
-            params={"fetch_latest_run_data": "true" if fetch_latest_run_data else "false"},
             timeout=30,
             headers={"Authorization": f"Bearer {api_key}"},
         )
