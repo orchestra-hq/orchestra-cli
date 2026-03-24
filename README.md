@@ -27,6 +27,7 @@ pipx install orchestra-cli
 
 - `validate`: Validate a pipeline YAML locally against the Orchestra API schema.
 - `import`: Register a pipeline YAML (from a git repo) with Orchestra under an alias.
+- `fetch-pipelines`: Fetch the pipelines visible to the current API key as JSON.
 - `create-pipeline`: Create an Orchestra-backed pipeline from a local YAML file.
 - `update-pipeline`: Update an existing Orchestra-backed pipeline from a local YAML file.
 - `delete-pipeline`: Delete an existing pipeline by alias.
@@ -135,6 +136,24 @@ Behavior
 - Validates YAML against the Orchestra schema endpoint before creating.
 - Sends pipeline data to `POST /pipelines` with `storage_provider=ORCHESTRA`.
 - On success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
+- Exit codes: `0` on success, `1` on failure.
+
+---
+
+## fetch-pipelines
+
+Fetch the pipelines available to the current Orchestra API key.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+orchestra fetch-pipelines
+```
+
+Behavior
+
+- Sends `GET /api/engine/public/pipelines`. Responses always include each pipeline's latest run metadata.
+- Prints the response payload as pretty JSON for scripting and inspection.
 - Exit codes: `0` on success, `1` on failure.
 
 ---
