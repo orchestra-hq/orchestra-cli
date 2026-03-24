@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`import`, `run`).
+- `ORCHESTRA_API_KEY`: Required for actions that call the API (`import`, `create-pipeline`, `update-pipeline`, `delete-pipeline`, `run`).
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Commands overview
@@ -29,6 +29,7 @@ pipx install orchestra-cli
 - `import`: Register a pipeline YAML (from a git repo) with Orchestra under an alias.
 - `create-pipeline`: Create an Orchestra-backed pipeline from a local YAML file.
 - `update-pipeline`: Update an existing Orchestra-backed pipeline from a local YAML file.
+- `delete-pipeline`: Delete an existing pipeline by alias.
 - `run`: Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion.
 
 Use `orchestra --help` or `orchestra <command> --help` for built-in help.
@@ -163,6 +164,29 @@ Behavior
 - Sends pipeline data to `PUT /pipelines/{alias}` with `storage_provider=ORCHESTRA`.
 - Only Orchestra-backed pipelines can be updated via this endpoint (Git-backed pipelines are rejected).
 - On success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
+- Exit codes: `0` on success, `1` on failure.
+
+---
+
+## delete-pipeline
+
+Delete a pipeline by alias.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+orchestra delete-pipeline --alias my-pipeline
+```
+
+Options
+
+- `-a, --alias` (required): Pipeline alias to delete.
+
+Behavior
+
+- Sends `DELETE /pipelines/{alias}` with API key authentication.
+- Deletes the pipeline resolved by alias within the authenticated account.
+- On success, exits with code `0` after printing a confirmation message.
 - Exit codes: `0` on success, `1` on failure.
 
 ---

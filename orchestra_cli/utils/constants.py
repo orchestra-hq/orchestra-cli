@@ -24,5 +24,9 @@ def get_update_pipeline_url(alias: str) -> str:
     return get_api_url(alias)
 
 
+def get_delete_pipeline_url(alias: str) -> str:
+    return get_api_url(alias)
+
+
 def get_pipeline_edit_url(pipeline_id: str) -> str:
     return f"{get_base_url()}/pipelines/{pipeline_id}/edit"
