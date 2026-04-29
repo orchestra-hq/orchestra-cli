@@ -93,7 +93,7 @@ def test_import_success(
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
     # Act
-    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "import", "--alias", "demo", "--path", str(yaml_file)])
 
     # Assert
     assert result.exit_code == 0
@@ -107,7 +107,7 @@ def test_import_success(
 def test_import_invalid_yaml(tmp_path: Path):
     bad = tmp_path / "bad.yaml"
     bad.write_text("name: [oops\n")
-    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(bad)])
+    result = runner.invoke(app, ["pipeline", "import", "--alias", "demo", "--path", str(bad)])
     assert result.exit_code == 1
     assert "Invalid YAML" in result.output
 
@@ -123,7 +123,7 @@ def test_import_schema_validation_error(tmp_path: Path, httpx_mock: HTTPXMock):
         status_code=400,
     )
 
-    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(good)])
+    result = runner.invoke(app, ["pipeline", "import", "--alias", "demo", "--path", str(good)])
     assert result.exit_code == 1
     assert "Validation failed" in result.output
 
@@ -159,7 +159,7 @@ def test_import_api_error(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
 
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "import", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "Import failed" in result.output
 
@@ -182,7 +182,7 @@ def test_not_a_git_repo(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "import", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "Not a git repository" in result.output
 
@@ -210,7 +210,7 @@ def test_missing_repo_or_branch(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMo
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(f)])
+    result = runner.invoke(app, ["pipeline", "import", "--alias", "demo", "--path", str(f)])
     assert result.exit_code == 1
     assert "Could not detect repository URL from git" in result.output
 
@@ -257,7 +257,7 @@ def test_warnings_printed(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
 
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
-    result = runner.invoke(app, ["import", "--alias", "demo", "--path", str(f)])
+    result = runner.invoke(app, ["pipeline", "import", "--alias", "demo", "--path", str(f)])
     assert result.exit_code == 0
     assert "⚠ Uncommitted changes" in result.output
     assert "Local branch SHA does not match remote branch SHA" in result.output

@@ -38,7 +38,7 @@ def test_run_success_simple(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         status_code=200,
     )
 
-    result = runner.invoke(app, ["run", "--alias", "demo", "--no-wait"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--no-wait"])
     assert result.exit_code == 0
     assert (
         result.output.strip()
@@ -69,6 +69,7 @@ def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Pa
     result = runner.invoke(
         app,
         [
+            "pipeline",
             "run",
             "--alias",
             "demo",
@@ -109,7 +110,7 @@ def test_run_warnings_prompt(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path)
     )
 
     # Simulate pressing Enter
-    result = runner.invoke(app, ["run", "--alias", "demo", "--no-wait"], input="\n")
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--no-wait"], input="\n")
     assert result.exit_code == 0
     assert "⚠ Uncommitted changes" in result.output
     assert "Local branch SHA does not match remote branch SHA" in result.output
@@ -138,7 +139,7 @@ def test_run_api_error(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         status_code=400,
     )
 
-    result = runner.invoke(app, ["run", "--alias", "demo", "--no-wait"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--no-wait"])
     assert result.exit_code == 1
     assert "Run failed" in result.output
 
@@ -179,7 +180,7 @@ def test_run_wait_success(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         status_code=200,
     )
 
-    result = runner.invoke(app, ["run", "--alias", "demo", "--wait"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
     assert result.exit_code == 0
     # Last printed line should be the run id
     assert result.output.strip().splitlines()[0] == "Starting pipeline (alias: demo)"
@@ -224,7 +225,7 @@ def test_run_wait_failed(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         status_code=200,
     )
 
-    result = runner.invoke(app, ["run", "--alias", "demo", "--wait"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
     assert result.exit_code == 1
     assert "Invalid status value: RUNNING" not in result.output
     assert "status FAILED" in result.output
@@ -257,6 +258,6 @@ def test_run_wait_warning(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         status_code=200,
     )
 
-    result = runner.invoke(app, ["run", "--alias", "demo", "--wait"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
     assert result.exit_code == 0
     assert result.output.strip().splitlines()[-1] == "run-warn"

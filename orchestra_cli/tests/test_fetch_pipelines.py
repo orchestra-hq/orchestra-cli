@@ -32,7 +32,7 @@ def test_fetch_pipelines_success(httpx_mock: HTTPXMock):
         match_headers={"Authorization": "Bearer fake-key"},
     )
 
-    result = runner.invoke(app, ["fetch-pipelines"])
+    result = runner.invoke(app, ["pipeline", "get"])
 
     assert result.exit_code == 0
     assert result.output == f"{json.dumps(pipelines, indent=2)}\n"
@@ -41,7 +41,7 @@ def test_fetch_pipelines_success(httpx_mock: HTTPXMock):
 def test_fetch_pipelines_missing_api_key(monkeypatch):
     monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
 
-    result = runner.invoke(app, ["fetch-pipelines"])
+    result = runner.invoke(app, ["pipeline", "get"])
 
     assert result.exit_code == 1
     assert "ORCHESTRA_API_KEY is not set" in result.output
@@ -56,7 +56,7 @@ def test_fetch_pipelines_api_error(httpx_mock: HTTPXMock):
         match_headers={"Authorization": "Bearer fake-key"},
     )
 
-    result = runner.invoke(app, ["fetch-pipelines"])
+    result = runner.invoke(app, ["pipeline", "get"])
 
     assert result.exit_code == 1
     assert "Fetch pipelines failed with status 403" in result.output
@@ -72,7 +72,7 @@ def test_fetch_pipelines_invalid_success_json(httpx_mock: HTTPXMock):
         match_headers={"Authorization": "Bearer fake-key"},
     )
 
-    result = runner.invoke(app, ["fetch-pipelines"])
+    result = runner.invoke(app, ["pipeline", "get"])
 
     assert result.exit_code == 1
     assert "success response was not valid JSON" in result.output
