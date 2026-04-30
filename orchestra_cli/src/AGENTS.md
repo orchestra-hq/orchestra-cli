@@ -34,7 +34,14 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 
 ## Patterns & Conventions
 
-**Error handling:** All commands use `typer.Exit(code=1)` for failures — no exceptions propagate to the user. HTTP errors are caught with `try/except Exception` and printed via styled `typer.echo`.
+**Error handling:** All commands use `typer.Exit(code=1)` for failures — no exceptions propagate to the user. Use the helpers in `orchestra_cli/utils/api.py` for the common patterns rather than rolling your own:
+
+- `require_api_key()` — resolves `ORCHESTRA_API_KEY` or exits.
+- `request_or_exit(httpx.<method>, url, ...)` — wraps the request in a uniform transport-error handler.
+- `fail_with_response("Action", response)` — uniform `❌ Action failed with status <code>` output for non-success HTTP responses.
+- `auth_headers(api_key)` — builds the `Authorization` header.
+
+**YAML loading:** Commands that take a `--path` to a pipeline YAML should use `load_validated_pipeline_data(path)` from `orchestra_cli/utils/yaml_loader.py` — it loads, schema-validates against the API, and exits cleanly on any failure.
 
 **No models/schemas:** Data is passed directly as plain `dict` to `httpx` and parsed from JSON responses with `.get()`. Do not introduce Pydantic or dataclasses.
 
@@ -49,9 +56,11 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 **Import style:** Use relative imports within `src/`:
 
 ```python
+from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_api_url
 from ..utils.styling import red, green
 from ..utils.git import detect_repo_root
+from ..utils.yaml_loader import load_validated_pipeline_data
 ```
 
 **Naming conventions:**

@@ -29,6 +29,20 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 - `bold(msg)` — emphasis
 - `indent_message(msg)` — indents multi-line strings with two spaces
 
+**`api.py`** — Shared HTTP/auth helpers. Every command should call into these instead of constructing headers, try/except blocks, or error rendering by hand:
+
+- `require_api_key()` — returns `ORCHESTRA_API_KEY` from the environment, or echoes `"ORCHESTRA_API_KEY is not set"` and exits with code 1.
+- `auth_headers(api_key)` — returns `{"Authorization": f"Bearer {api_key}"}`.
+- `request_or_exit(httpx_func, *args, **kwargs)` — invokes an `httpx` callable (e.g. `httpx.post`, `httpx.delete`) and on any transport exception echoes `"HTTP request failed: <msg>"` in red and exits with code 1.
+- `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
+- `fail_with_response(action, response)` — echoes `"❌ <action> failed with status <code>"` followed by `echo_response_error_body(response)` and exits with code 1. Use this for any non-success path of an HTTP call.
+
+**`yaml_loader.py`** — YAML loading + schema validation:
+
+- `load_yaml(path)` — returns `(data, None)` on success or `(None, error_message)`.
+- `validate_yaml_with_api(data)` — POSTs to the `schema` endpoint; returns `(ok, err_message)`.
+- `load_validated_pipeline_data(path)` — convenience wrapper that loads, validates, and exits cleanly on any failure. Used by every command that takes a `--path` to a YAML file.
+
 ---
 
 ## When to Add a New Utility
