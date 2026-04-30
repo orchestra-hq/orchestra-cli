@@ -1,11 +1,14 @@
-import json
-
 import httpx
 import typer
 
+from ..utils.api import (
+    auth_headers,
+    fail_with_response,
+    request_or_exit,
+    require_api_key,
+)
 from ..utils.constants import get_delete_pipeline_url
-from ..utils.styling import green, indent_message, red, yellow
-from .pipeline_upsert import require_api_key
+from ..utils.styling import green
 
 
 def delete_pipeline(
@@ -16,24 +19,15 @@ def delete_pipeline(
     """
     api_key = require_api_key()
 
-    try:
-        response = httpx.delete(
-            get_delete_pipeline_url(alias),
-            timeout=30,
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
-    except Exception as e:
-        typer.echo(red(f"HTTP request failed: {e}"))
-        raise typer.Exit(code=1)
+    response = request_or_exit(
+        httpx.delete,
+        get_delete_pipeline_url(alias),
+        timeout=30,
+        headers=auth_headers(api_key),
+    )
 
     if response.status_code == 204:
         typer.echo(green(f"✅ Pipeline '{alias}' deleted successfully"))
         raise typer.Exit(code=0)
 
-    typer.echo(red(f"❌ Delete failed with status {response.status_code}"))
-    try:
-        typer.echo(yellow(indent_message(json.dumps(response.json(), indent=2))))
-    except Exception:
-        if response.text:
-            typer.echo(yellow(indent_message(response.text)))
-    raise typer.Exit(code=1)
+    fail_with_response("Delete", response)
