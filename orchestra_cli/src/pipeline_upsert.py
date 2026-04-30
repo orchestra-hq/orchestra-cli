@@ -1,41 +1,17 @@
+"""Helpers shared between ``create_pipeline`` and ``update_pipeline``.
+
+Both commands share the same payload shape, success-response handling, and
+post-success edit-URL output, so those bits live here. Anything not specific
+to upsert (API key resolution, YAML loading) lives in ``orchestra_cli.utils``.
+"""
+
 import json
-import os
-from pathlib import Path
 
 import httpx
 import typer
 
 from ..utils.constants import get_pipeline_edit_url
 from ..utils.styling import green, indent_message, red, yellow
-from .import_pipeline import _load_yaml, _validate_yaml_with_api
-
-
-def require_api_key() -> str:
-    api_key = os.getenv("ORCHESTRA_API_KEY")
-    if not api_key:
-        typer.echo(red("ORCHESTRA_API_KEY is not set"))
-        raise typer.Exit(code=1)
-    return api_key
-
-
-def load_validated_pipeline_data(path: Path) -> dict:
-    if not path.exists():
-        typer.echo(red(f"File not found: {path}"))
-        raise typer.Exit(code=1)
-
-    data, err = _load_yaml(path)
-    if err is not None:
-        typer.echo(red(f"Invalid YAML: {err}"))
-        raise typer.Exit(code=1)
-
-    ok, err_msg = _validate_yaml_with_api(data or {})
-    if not ok:
-        typer.echo(red("❌ Validation failed"))
-        if err_msg:
-            typer.echo(yellow(indent_message(err_msg)))
-        raise typer.Exit(code=1)
-
-    return data or {}
 
 
 def build_upsert_payload(data: dict, publish: bool, alias: str | None = None) -> dict:
