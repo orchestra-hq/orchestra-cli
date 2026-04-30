@@ -85,12 +85,12 @@ No system-level dependencies beyond Python 3.12 and git (used at runtime by the 
 ```bash
 # Run via uv (no install required)
 uv run orchestra --help
-uv run orchestra validate valid.yaml
-uv run orchestra import --alias my-pipeline --path ./valid.yaml
-uv run orchestra run --alias my-pipeline --no-wait
+uv run orchestra pipeline validate valid.yaml
+uv run orchestra pipeline import --alias my-pipeline --path ./valid.yaml
+uv run orchestra pipeline run --alias my-pipeline --no-wait
 
 # With env vars from a .env file
-uv run --env-file .env orchestra run --alias my-pipeline
+uv run --env-file .env orchestra pipeline run --alias my-pipeline
 
 # After editable install
 orchestra --help
@@ -98,6 +98,8 @@ orchestra-cli --help   # equivalent alias
 ```
 
 Both `orchestra` and `orchestra-cli` entry points map to `orchestra_cli.src.cli:app`.
+
+The CLI uses a `noun verb` structure (currently the only noun is `pipeline`): `orchestra pipeline validate`, `orchestra pipeline import`, `orchestra pipeline new`, `orchestra pipeline update`, `orchestra pipeline get`, `orchestra pipeline delete`, `orchestra pipeline run`. The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`, `create-pipeline`, `update-pipeline`, `delete-pipeline`) are registered as hidden top-level aliases for backwards compatibility. Prefer the noun/verb form in new code and docs.
 
 ---
 
@@ -165,13 +167,13 @@ uv run pytest                       # fast, no network, no side effects
 uv run ruff check .                 # read-only lint
 uv run black --check .              # read-only format check
 uv run pyright                      # type checking
-uv run orchestra validate <file>    # calls the Orchestra API (schema endpoint, no auth required)
+uv run orchestra pipeline validate <file>  # calls the Orchestra API (schema endpoint, no auth required)
 ```
 
 **Requires caution:**
 ```bash
-uv run orchestra import ...         # creates a pipeline in the Orchestra backend (requires API key)
-uv run orchestra run ...            # starts a live pipeline run (requires API key, has polling loop)
+uv run orchestra pipeline import ...       # creates a pipeline in the Orchestra backend (requires API key)
+uv run orchestra pipeline run ...          # starts a live pipeline run (requires API key, has polling loop)
 uv build                            # builds a distributable package
 uv publish                          # publishes to PyPI — only run intentionally with correct version
 make publish                        # same as uv publish

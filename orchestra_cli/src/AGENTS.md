@@ -4,17 +4,31 @@ Command implementation guidance. See the root `AGENTS.md` for project overview, 
 
 ---
 
+## CLI Structure
+
+The CLI is organised as `orchestra <noun> <verb>`. The only noun today is `pipeline`, exposed as a Typer sub-app (`pipeline_app`) attached to the root `app` in `cli.py`. Verbs (`validate`, `import`, `new`, `update`, `get`, `delete`, `run`) are registered on `pipeline_app`.
+
+The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`, `create-pipeline`, `update-pipeline`, `delete-pipeline`) are also registered on the root `app` as **hidden** aliases (`hidden=True`) so existing scripts keep working. They do not appear in `--help` output.
+
 ## Adding a New CLI Command
 
 1. Create `orchestra_cli/src/<command_name>.py` with a single function decorated with Typer option/argument parameters.
-2. Register it in `orchestra_cli/src/cli.py`:
+2. Register it on the appropriate sub-app in `orchestra_cli/src/cli.py`:
 
    ```python
    from .<command_name> import <function_name>
-   app.command(name="<command_name>")(<function_name>)
+   pipeline_app.command(name="<verb>")(<function_name>)
    ```
 
-3. Add a corresponding `orchestra_cli/tests/test_<command_name>.py`.
+   If the command does not belong to an existing noun, add a new `typer.Typer()` sub-app and `app.add_typer(...)` it under the appropriate noun.
+
+3. If you need to preserve a legacy flat name, add a hidden top-level alias:
+
+   ```python
+   app.command(name="<legacy-name>", hidden=True)(<function_name>)
+   ```
+
+4. Add a corresponding `orchestra_cli/tests/test_<command_name>.py`.
 
 ---
 

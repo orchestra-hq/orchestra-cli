@@ -20,31 +20,51 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`import`, `create-pipeline`, `update-pipeline`, `delete-pipeline`, `run`).
+- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline delete`, `pipeline run`).
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
-## Commands overview
+## Command structure
 
-- `validate`: Validate a pipeline YAML locally against the Orchestra API schema.
-- `import`: Register a pipeline YAML (from a git repo) with Orchestra under an alias.
-- `fetch-pipelines`: Fetch the pipelines visible to the current API key as JSON.
-- `create-pipeline`: Create an Orchestra-backed pipeline from a local YAML file.
-- `update-pipeline`: Update an existing Orchestra-backed pipeline from a local YAML file.
-- `delete-pipeline`: Delete an existing pipeline by alias.
-- `run`: Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion.
+Commands follow a `noun verb` shape. The current noun is `pipeline`:
 
-Use `orchestra --help` or `orchestra <command> --help` for built-in help.
+| Command | Description |
+|---|---|
+| `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema. |
+| `orchestra pipeline import` | Register a pipeline YAML (from a git repo) with Orchestra under an alias. |
+| `orchestra pipeline get` | Fetch the pipelines visible to the current API key as JSON. |
+| `orchestra pipeline new` | Create an Orchestra-backed pipeline from a local YAML file. |
+| `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
+| `orchestra pipeline delete` | Delete an existing pipeline by alias. |
+| `orchestra pipeline run` | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
+
+Use `orchestra --help`, `orchestra pipeline --help`, or `orchestra pipeline <verb> --help` for built-in help.
+
+### Legacy command names
+
+The previous flat command names continue to work as hidden top-level aliases so existing scripts keep running:
+
+| Legacy alias | New canonical form |
+|---|---|
+| `orchestra validate` | `orchestra pipeline validate` |
+| `orchestra import` | `orchestra pipeline import` |
+| `orchestra fetch-pipelines` | `orchestra pipeline get` |
+| `orchestra create-pipeline` | `orchestra pipeline new` |
+| `orchestra update-pipeline` | `orchestra pipeline update` |
+| `orchestra delete-pipeline` | `orchestra pipeline delete` |
+| `orchestra run` | `orchestra pipeline run` |
+
+New code and documentation should prefer the noun/verb form.
 
 ---
 
-## validate
+## pipeline validate
 
 Validate a YAML file against the Orchestra API schema.
 
 ```bash
-orchestra validate path/to/pipeline.yaml
+orchestra pipeline validate path/to/pipeline.yaml
 # or
-orchestra-cli validate path/to/pipeline.yaml
+orchestra-cli pipeline validate path/to/pipeline.yaml
 ```
 
 Options
@@ -72,19 +92,19 @@ pipeline:
 
 ---
 
-## import
+## pipeline import
 
 Create (import) a pipeline in Orchestra by referencing a YAML file inside a git repository. The command infers your repository host/provider, default branch, and YAML path relative to the repo root.
 
 ```bash
 export ORCHESTRA_API_KEY=...  # required
 
-orchestra import \
+orchestra pipeline import \
   --alias my-pipeline \
   --path ./pipelines/pipeline.yaml \
   --working-branch my-feature-branch   # optional; defaults to current local branch
 # or
-orchestra-cli import -a my-pipeline -p ./pipelines/pipeline.yaml
+orchestra-cli pipeline import -a my-pipeline -p ./pipelines/pipeline.yaml
 ```
 
 Options
@@ -112,14 +132,14 @@ Common errors
 
 ---
 
-## create-pipeline
+## pipeline new
 
 Create an Orchestra-backed pipeline directly from a local YAML file.
 
 ```bash
 export ORCHESTRA_API_KEY=...
 
-orchestra create-pipeline \
+orchestra pipeline new \
   --alias my-pipeline \
   --path ./pipelines/pipeline.yaml \
   --publish            # optional, defaults to --no-publish
@@ -140,14 +160,14 @@ Behavior
 
 ---
 
-## fetch-pipelines
+## pipeline get
 
 Fetch the pipelines available to the current Orchestra API key.
 
 ```bash
 export ORCHESTRA_API_KEY=...
 
-orchestra fetch-pipelines
+orchestra pipeline get
 ```
 
 Behavior
@@ -158,14 +178,14 @@ Behavior
 
 ---
 
-## update-pipeline
+## pipeline update
 
 Update an existing Orchestra-backed pipeline from a local YAML file.
 
 ```bash
 export ORCHESTRA_API_KEY=...
 
-orchestra update-pipeline \
+orchestra pipeline update \
   --alias my-pipeline \
   --path ./pipelines/pipeline.yaml \
   --no-publish         # default
@@ -187,14 +207,14 @@ Behavior
 
 ---
 
-## delete-pipeline
+## pipeline delete
 
 Delete a pipeline by alias.
 
 ```bash
 export ORCHESTRA_API_KEY=...
 
-orchestra delete-pipeline --alias my-pipeline
+orchestra pipeline delete --alias my-pipeline
 ```
 
 Options
@@ -210,7 +230,7 @@ Behavior
 
 ---
 
-## run
+## pipeline run
 
 Start a pipeline run by alias. Optionally specify a branch and/or commit. By default, the command waits and polls the run status until completion.
 
@@ -218,13 +238,13 @@ Start a pipeline run by alias. Optionally specify a branch and/or commit. By def
 export ORCHESTRA_API_KEY=...
 
 # Start and wait for completion
-orchestra run --alias my-pipeline
+orchestra pipeline run --alias my-pipeline
 
 # Start without waiting (prints run id and exits)
-orchestra run -a my-pipeline --no-wait
+orchestra pipeline run -a my-pipeline --no-wait
 
 # Start for a specific branch/commit
-orchestra run -a my-pipeline -b feature/my-change -c 0123abc
+orchestra pipeline run -a my-pipeline -b feature/my-change -c 0123abc
 ```
 
 Options
@@ -253,16 +273,16 @@ Non-interactive usage
 
 ```bash
 # Validate a pipeline file
-orchestra validate ./examples/etl.yaml
+orchestra pipeline validate ./examples/etl.yaml
 
 # Import a pipeline and capture the created ID
-PIPELINE_ID=$(orchestra import -a finance-etl -p ./pipelines/etl.yaml)
+PIPELINE_ID=$(orchestra pipeline import -a finance-etl -p ./pipelines/etl.yaml)
 
 # Start a run and wait for completion
-orchestra run -a finance-etl
+orchestra pipeline run -a finance-etl
 
 # Start a run and exit immediately
-orchestra run -a finance-etl --no-wait
+orchestra pipeline run -a finance-etl --no-wait
 ```
 
 ---

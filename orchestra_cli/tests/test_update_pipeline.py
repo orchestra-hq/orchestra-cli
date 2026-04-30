@@ -37,7 +37,7 @@ def test_update_success_default_no_publish(tmp_path: Path, httpx_mock: HTTPXMock
         },
     )
 
-    result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "update", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 0
     assert "updated successfully" in result.output
     assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
@@ -79,7 +79,7 @@ def test_update_missing_api_key(monkeypatch, tmp_path: Path):
     yaml_file.write_text("name: demo\n")
 
     monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
-    result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "update", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "ORCHESTRA_API_KEY is not set" in result.output
 
@@ -88,7 +88,7 @@ def test_update_invalid_yaml(tmp_path: Path):
     bad = tmp_path / "bad.yaml"
     bad.write_text("name: [oops\n")
 
-    result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(bad)])
+    result = runner.invoke(app, ["pipeline", "update", "--alias", "demo", "--path", str(bad)])
     assert result.exit_code == 1
     assert "Invalid YAML" in result.output
 
@@ -104,7 +104,7 @@ def test_update_schema_validation_error(tmp_path: Path, httpx_mock: HTTPXMock):
         status_code=400,
     )
 
-    result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "update", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "Validation failed" in result.output
 
@@ -126,7 +126,7 @@ def test_update_api_error_orchestra_backed_only(tmp_path: Path, httpx_mock: HTTP
         status_code=400,
     )
 
-    result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "update", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "Update failed" in result.output
     assert "Only orchestra-backed pipelines can be updated via this endpoint." in result.output
@@ -149,7 +149,7 @@ def test_update_success_without_pipeline_id_fails(tmp_path: Path, httpx_mock: HT
         status_code=200,
     )
 
-    result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "update", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "success response did not include pipeline id" in result.output
 
@@ -171,6 +171,6 @@ def test_update_success_with_invalid_json_fails(tmp_path: Path, httpx_mock: HTTP
         status_code=200,
     )
 
-    result = runner.invoke(app, ["update-pipeline", "--alias", "demo", "--path", str(yaml_file)])
+    result = runner.invoke(app, ["pipeline", "update", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "success response was not valid JSON" in result.output

@@ -24,7 +24,7 @@ def test_delete_success(httpx_mock: HTTPXMock):
         status_code=204,
     )
 
-    result = runner.invoke(app, ["delete-pipeline", "--alias", alias])
+    result = runner.invoke(app, ["pipeline", "delete", "--alias", alias])
 
     assert result.exit_code == 0
     assert "deleted successfully" in result.output
@@ -39,7 +39,7 @@ def test_delete_uuid_like_alias_uses_alias_path(httpx_mock: HTTPXMock):
         status_code=204,
     )
 
-    result = runner.invoke(app, ["delete-pipeline", "--alias", alias])
+    result = runner.invoke(app, ["pipeline", "delete", "--alias", alias])
 
     assert result.exit_code == 0
     assert "deleted successfully" in result.output
@@ -48,7 +48,7 @@ def test_delete_uuid_like_alias_uses_alias_path(httpx_mock: HTTPXMock):
 def test_delete_missing_api_key(monkeypatch):
     monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
 
-    result = runner.invoke(app, ["delete-pipeline", "--alias", "demo"])
+    result = runner.invoke(app, ["pipeline", "delete", "--alias", "demo"])
 
     assert result.exit_code == 1
     assert "ORCHESTRA_API_KEY is not set" in result.output
@@ -60,7 +60,7 @@ def test_delete_http_request_failure(monkeypatch):
 
     monkeypatch.setattr(httpx, "delete", raise_timeout)
 
-    result = runner.invoke(app, ["delete-pipeline", "--alias", "demo"])
+    result = runner.invoke(app, ["pipeline", "delete", "--alias", "demo"])
 
     assert result.exit_code == 1
     assert "HTTP request failed" in result.output
@@ -75,7 +75,7 @@ def test_delete_api_error(httpx_mock: HTTPXMock):
         status_code=404,
     )
 
-    result = runner.invoke(app, ["delete-pipeline", "--alias", "demo"])
+    result = runner.invoke(app, ["pipeline", "delete", "--alias", "demo"])
 
     assert result.exit_code == 1
     assert "Delete failed with status 404" in result.output
