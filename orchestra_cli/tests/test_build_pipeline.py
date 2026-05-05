@@ -135,7 +135,7 @@ def test_build_creates_draft_on_missing_alias(httpx_mock: HTTPXMock, monkeypatch
 
     result = runner.invoke(
         app,
-        ["build", "--alias", "demo", "--path", str(yaml_file), "--no-wait"],
+        ["pipeline", "build", "--alias", "demo", "--path", str(yaml_file), "--no-wait"],
     )
 
     assert result.exit_code == 0

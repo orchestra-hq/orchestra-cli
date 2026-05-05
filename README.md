@@ -2,7 +2,7 @@
 
 Orchestra CLI for working with Orchestra pipelines from your terminal.
 
-Three entrypoints are available: `orchestra`, `orchestra-cli`, and `orc` (they are equivalent).
+Two entrypoints are available: `orchestra` and `orchestra-cli` (they are equivalent).
 
 See [`AGENTS.md`](AGENTS.md) for contributor and AI agent guidance (environment setup, code conventions, testing).
 
@@ -53,8 +53,6 @@ The previous flat command names continue to work as hidden top-level aliases so 
 | `orchestra update-pipeline` | `orchestra pipeline update` |
 | `orchestra delete-pipeline` | `orchestra pipeline delete` |
 | `orchestra run` | `orchestra pipeline run` |
-| `orchestra build` | `orchestra pipeline build` |
-
 New code and documentation should prefer the noun/verb form.
 
 ---
@@ -281,12 +279,6 @@ export ORCHESTRA_API_KEY=...
 # Build from a local YAML file and wait for completion
 orchestra pipeline build --alias my-pipeline --path ./pipelines/pipeline.yaml
 
-# Shorthand entrypoint
-orc pipeline build -a my-pipeline -p ./pipelines/pipeline.yaml
-
-# Hidden top-level alias for the shorthand
-orc build -a my-pipeline -p ./pipelines/pipeline.yaml --no-wait
-
 # Run against a specific branch/commit override
 orchestra pipeline build -a my-pipeline -p ./pipelines/pipeline.yaml -b feature/my-change -c 0123abc
 ```
@@ -325,7 +317,7 @@ orchestra pipeline run -a finance-etl
 orchestra pipeline run -a finance-etl --no-wait
 
 # Build a draft pipeline from local YAML and start it
-orc build -a finance-etl -p ./pipelines/etl.yaml
+orchestra pipeline build -a finance-etl -p ./pipelines/etl.yaml
 ```
 
 ---

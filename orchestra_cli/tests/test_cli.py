@@ -39,7 +39,6 @@ def test_legacy_aliases_still_invokable():
         "validate",
         "import",
         "run",
-        "build",
         "fetch-pipelines",
         "create-pipeline",
         "update-pipeline",
