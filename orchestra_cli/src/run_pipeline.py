@@ -16,7 +16,7 @@ from ..utils.git import detect_repo_root, git_warnings
 from ..utils.styling import bold, green, indent_message, red, yellow
 
 
-def _confirm_warnings_or_exit(force: bool) -> None:
+def confirm_warnings_or_exit(force: bool) -> None:
     """Print git warnings and prompt for confirmation unless ``--force`` was passed."""
     repo_root = detect_repo_root(Path.cwd())
     if repo_root is None:
@@ -202,7 +202,7 @@ def run_pipeline(
     """
     api_key = require_api_key()
 
-    _confirm_warnings_or_exit(force)
+    confirm_warnings_or_exit(force)
 
     start_pipeline_run(
         alias=alias,

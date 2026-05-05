@@ -295,6 +295,7 @@ Options
 Behavior
 
 - Validates the local YAML with the schema endpoint before any pipeline mutation.
+- Requires both `--alias` and `--path`: the alias identifies which draft pipeline to create or update in Orchestra, while the path provides the local YAML content to validate and upload.
 - Attempts to update the existing draft pipeline first; if the alias does not exist, creates a new draft pipeline.
 - Starts the returned draft `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
 - Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.

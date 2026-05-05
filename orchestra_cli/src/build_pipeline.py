@@ -8,7 +8,7 @@ from ..utils.constants import get_create_pipeline_url, get_update_pipeline_url
 from ..utils.styling import green, indent_message, red, yellow
 from ..utils.yaml_loader import load_validated_pipeline_data
 from .pipeline_upsert import build_upsert_payload
-from .run_pipeline import _confirm_warnings_or_exit, build_run_payload, start_pipeline_run
+from .run_pipeline import build_run_payload, confirm_warnings_or_exit, start_pipeline_run
 
 
 def _extract_pipeline_version(response: httpx.Response, action: str) -> int:
@@ -19,7 +19,9 @@ def _extract_pipeline_version(response: httpx.Response, action: str) -> int:
         typer.echo(yellow(indent_message(response.text)))
         raise typer.Exit(code=1)
 
-    version_number = body.get("latestVersionNumber") or body.get("currentVersionNumber")
+    version_number = body.get("latestVersionNumber")
+    if version_number is None:
+        version_number = body.get("currentVersionNumber")
     if not isinstance(version_number, int):
         typer.echo(
             red(f"❌ {action} failed: success response did not include draft version number"),
@@ -97,7 +99,7 @@ def build_pipeline(
     Validate local YAML, create or update a draft pipeline, and start the draft version.
     """
     api_key = require_api_key()
-    _confirm_warnings_or_exit(force)
+    confirm_warnings_or_exit(force)
     version_number = _upsert_draft_pipeline(alias, path, api_key)
 
     start_pipeline_run(
