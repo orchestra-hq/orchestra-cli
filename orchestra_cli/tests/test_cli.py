@@ -15,7 +15,7 @@ def test_help():
 def test_pipeline_help_lists_verbs():
     result = runner.invoke(app, ["pipeline", "--help"])
     assert result.exit_code == 0
-    for verb in ("validate", "import", "new", "update", "get", "run", "delete"):
+    for verb in ("validate", "import", "new", "update", "get", "run", "build", "delete"):
         assert verb in result.output
 
 
@@ -39,6 +39,7 @@ def test_legacy_aliases_still_invokable():
         "validate",
         "import",
         "run",
+        "build",
         "fetch-pipelines",
         "create-pipeline",
         "update-pipeline",

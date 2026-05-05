@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from typing import Any
 
 import httpx
 import typer
@@ -110,34 +111,30 @@ def _poll_until_terminal(
         )
 
 
-def run_pipeline(
-    alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
-    branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
-    commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
-    wait: bool = typer.Option(
-        True,
-        "--wait/--no-wait",
-        help="Poll the pipeline run until it completes",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force/--no-force",
-        help="Ignore any warnings and run the pipeline anyway",
-    ),
-):
-    """
-    Run a pipeline in Orchestra.
-    """
-    api_key = require_api_key()
-
-    _confirm_warnings_or_exit(force)
-
-    payload: dict[str, str] = {}
+def build_run_payload(
+    *,
+    branch: str | None = None,
+    commit: str | None = None,
+    version_number: int | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
     if branch:
         payload["branch"] = branch
     if commit:
         payload["commit"] = commit
+    if version_number is not None:
+        payload["versionNumber"] = version_number
+    return payload
 
+
+def start_pipeline_run(
+    *,
+    alias: str,
+    api_key: str,
+    payload: dict[str, Any] | None,
+    wait: bool,
+    failure_action: str,
+) -> None:
     typer.echo(f"Starting pipeline (alias: {alias})")
     response = request_or_exit(
         httpx.post,
@@ -182,4 +179,35 @@ def run_pipeline(
         )
         return
 
-    fail_with_response("Run", response)
+    fail_with_response(failure_action, response)
+
+
+def run_pipeline(
+    alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
+    branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
+    commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
+    wait: bool = typer.Option(
+        True,
+        "--wait/--no-wait",
+        help="Poll the pipeline run until it completes",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help="Ignore any warnings and run the pipeline anyway",
+    ),
+):
+    """
+    Run a pipeline in Orchestra.
+    """
+    api_key = require_api_key()
+
+    _confirm_warnings_or_exit(force)
+
+    start_pipeline_run(
+        alias=alias,
+        api_key=api_key,
+        payload=build_run_payload(branch=branch, commit=commit),
+        wait=wait,
+        failure_action="Run",
+    )

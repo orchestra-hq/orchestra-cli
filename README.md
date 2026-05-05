@@ -2,7 +2,7 @@
 
 Orchestra CLI for working with Orchestra pipelines from your terminal.
 
-Two entrypoints are available: `orchestra` and `orchestra-cli` (they are equivalent).
+Three entrypoints are available: `orchestra`, `orchestra-cli`, and `orc` (they are equivalent).
 
 See [`AGENTS.md`](AGENTS.md) for contributor and AI agent guidance (environment setup, code conventions, testing).
 
@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline delete`, `pipeline run`).
+- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline delete`, `pipeline run`, `pipeline build`).
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -36,6 +36,7 @@ Commands follow a `noun verb` shape. The current noun is `pipeline`:
 | `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
 | `orchestra pipeline delete` | Delete an existing pipeline by alias. |
 | `orchestra pipeline run` | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
+| `orchestra pipeline build` | Validate local YAML, create or update a draft pipeline, and start that draft version. |
 
 Use `orchestra --help`, `orchestra pipeline --help`, or `orchestra pipeline <verb> --help` for built-in help.
 
@@ -52,6 +53,7 @@ The previous flat command names continue to work as hidden top-level aliases so 
 | `orchestra update-pipeline` | `orchestra pipeline update` |
 | `orchestra delete-pipeline` | `orchestra pipeline delete` |
 | `orchestra run` | `orchestra pipeline run` |
+| `orchestra build` | `orchestra pipeline build` |
 
 New code and documentation should prefer the noun/verb form.
 
@@ -269,6 +271,44 @@ Non-interactive usage
 
 ---
 
+## pipeline build
+
+Validate a local pipeline YAML, create or update its draft pipeline definition, then start that draft version. This is intended for quick local iteration without publishing a pipeline first.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+# Build from a local YAML file and wait for completion
+orchestra pipeline build --alias my-pipeline --path ./pipelines/pipeline.yaml
+
+# Shorthand entrypoint
+orc pipeline build -a my-pipeline -p ./pipelines/pipeline.yaml
+
+# Hidden top-level alias for the shorthand
+orc build -a my-pipeline -p ./pipelines/pipeline.yaml --no-wait
+
+# Run against a specific branch/commit override
+orchestra pipeline build -a my-pipeline -p ./pipelines/pipeline.yaml -b feature/my-change -c 0123abc
+```
+
+Options
+
+- `-a, --alias` (required): Pipeline alias to build.
+- `-p, --path` (required): Path to pipeline YAML file.
+- `-b, --branch` (optional): Git branch name to associate with the draft run.
+- `-c, --commit` (optional): Commit SHA to associate with the draft run.
+- `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
+- `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
+
+Behavior
+
+- Validates the local YAML with the schema endpoint before any pipeline mutation.
+- Attempts to update the existing draft pipeline first; if the alias does not exist, creates a new draft pipeline.
+- Starts the returned draft `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
+- Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.
+
+---
+
 ## Examples
 
 ```bash
@@ -283,6 +323,9 @@ orchestra pipeline run -a finance-etl
 
 # Start a run and exit immediately
 orchestra pipeline run -a finance-etl --no-wait
+
+# Build a draft pipeline from local YAML and start it
+orc build -a finance-etl -p ./pipelines/etl.yaml
 ```
 
 ---

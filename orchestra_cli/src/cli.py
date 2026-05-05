@@ -1,5 +1,6 @@
 import typer
 
+from .build_pipeline import build_pipeline
 from .create_pipeline import create_pipeline
 from .delete_pipeline import delete_pipeline
 from .fetch_pipelines import fetch_pipelines
@@ -19,6 +20,7 @@ pipeline_app.command(name="new")(create_pipeline)
 pipeline_app.command(name="update")(update_pipeline)
 pipeline_app.command(name="get")(fetch_pipelines)
 pipeline_app.command(name="run")(run_pipeline)
+pipeline_app.command(name="build")(build_pipeline)
 pipeline_app.command(name="delete")(delete_pipeline)
 
 # Legacy top-level aliases (hidden) - keep the old `orchestra <command>` syntax working
@@ -27,6 +29,7 @@ pipeline_app.command(name="delete")(delete_pipeline)
 app.command(name="validate", hidden=True)(validate)
 app.command(name="import", hidden=True)(import_pipeline)
 app.command(name="run", hidden=True)(run_pipeline)
+app.command(name="build", hidden=True)(build_pipeline)
 app.command(name="fetch-pipelines", hidden=True)(fetch_pipelines)
 app.command(name="create-pipeline", hidden=True)(create_pipeline)
 app.command(name="update-pipeline", hidden=True)(update_pipeline)
