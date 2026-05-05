@@ -21,7 +21,9 @@ def _extract_pipeline_version(response: httpx.Response, action: str) -> int:
 
     version_number = body.get("latestVersionNumber") or body.get("currentVersionNumber")
     if not isinstance(version_number, int):
-        typer.echo(red(f"❌ {action} failed: success response did not include draft version number"))
+        typer.echo(
+            red(f"❌ {action} failed: success response did not include draft version number"),
+        )
         raise typer.Exit(code=1)
 
     return version_number
