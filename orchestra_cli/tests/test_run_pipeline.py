@@ -61,7 +61,7 @@ def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Pa
         method="POST",
         url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"branch": "main", "commit": "deadbeef"},
+        match_json={"alias": "demo", "branch": "main", "commit": "deadbeef"},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=201,
     )
@@ -85,6 +85,34 @@ def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Pa
         result.output.strip()
         == f"Starting pipeline (alias: demo)\nStarted pipeline (alias: demo), run id: {mock_pipeline_run_id}"  # noqa: E501
     )
+
+
+def test_run_success_by_pipeline_id(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={"pipeline_id": "pipeline-id"},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--pipeline-id", "pipeline-id", "--no-wait"],
+    )
+    assert result.exit_code == 0
+    assert f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}" in result.output
 
 
 def test_run_warnings_prompt(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):

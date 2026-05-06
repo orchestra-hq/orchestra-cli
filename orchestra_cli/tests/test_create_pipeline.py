@@ -76,6 +76,37 @@ def test_create_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
     assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
 
 
+def test_create_generates_alias_from_path_outside_git(tmp_path: Path, httpx_mock: HTTPXMock):
+    yaml_file = tmp_path / "My Pipeline.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        json={"id": "pipeline-id"},
+        status_code=201,
+        match_json={
+            "alias": "my-pipeline",
+            "data": {"name": "demo", "version": 1},
+            "published": False,
+            "storage_provider": "ORCHESTRA",
+        },
+    )
+
+    result = runner.invoke(app, ["pipeline", "new", "--path", str(yaml_file)], input="\n")
+
+    assert result.exit_code == 0
+    assert "generating a pipeline alias from --path" in result.output
+    assert "Generated alias: my-pipeline" in result.output
+    assert "created successfully" in result.output
+
+
 def test_create_missing_api_key(monkeypatch, tmp_path: Path):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\n")

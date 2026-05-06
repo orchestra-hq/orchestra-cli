@@ -45,6 +45,28 @@ def test_delete_uuid_like_alias_uses_alias_path(httpx_mock: HTTPXMock):
     assert "deleted successfully" in result.output
 
 
+def test_delete_pipeline_id_uses_body_selector(httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        method="DELETE",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={"pipeline_id": "pipeline-id"},
+        status_code=204,
+    )
+
+    result = runner.invoke(app, ["pipeline", "delete", "--pipeline-id", "pipeline-id"])
+
+    assert result.exit_code == 0
+    assert "pipeline_id: pipeline-id" in result.output
+
+
+def test_delete_requires_selector():
+    result = runner.invoke(app, ["pipeline", "delete"])
+
+    assert result.exit_code == 1
+    assert "Provide one of --alias, --pipeline-id, or --path" in result.output
+
+
 def test_delete_missing_api_key(monkeypatch):
     monkeypatch.delenv("ORCHESTRA_API_KEY", raising=False)
 

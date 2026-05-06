@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import httpx
 import typer
 
@@ -8,26 +10,38 @@ from ..utils.api import (
     require_api_key,
 )
 from ..utils.constants import get_delete_pipeline_url
+from ..utils.pipeline_selector import (
+    pipeline_alias_option,
+    pipeline_id_option,
+    pipeline_path_option,
+    resolve_pipeline_selector,
+    selector_display,
+)
 from ..utils.styling import green
 
 
 def delete_pipeline(
-    alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
+    path: Path | None = pipeline_path_option(),
+    alias: str | None = pipeline_alias_option(),
+    pipeline_id: str | None = pipeline_id_option(),
 ):
     """
-    Delete a pipeline by alias.
+    Delete a pipeline by selector.
     """
     api_key = require_api_key()
+    selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
+    alias_path = selector.get("alias")
 
     response = request_or_exit(
         httpx.delete,
-        get_delete_pipeline_url(alias),
+        get_delete_pipeline_url(alias_path),
+        json=None if alias_path else selector,
         timeout=30,
         headers=auth_headers(api_key),
     )
 
     if response.status_code == 204:
-        typer.echo(green(f"✅ Pipeline '{alias}' deleted successfully"))
+        typer.echo(green(f"✅ Pipeline ({selector_display(selector)}) deleted successfully"))
         raise typer.Exit(code=0)
 
     fail_with_response("Delete", response)

@@ -12,6 +12,13 @@ from ..utils.api import (
 )
 from ..utils.constants import get_api_url, get_base_url, get_public_api_url
 from ..utils.git import detect_repo_root, git_warnings
+from ..utils.pipeline_selector import (
+    pipeline_alias_option,
+    pipeline_id_option,
+    pipeline_path_option,
+    resolve_pipeline_selector,
+    selector_display,
+)
 from ..utils.styling import bold, green, indent_message, red, yellow
 
 
@@ -41,7 +48,7 @@ def _confirm_warnings_or_exit(force: bool) -> None:
 
 def _poll_until_terminal(
     *,
-    alias: str,
+    selector_name: str,
     pipeline_run_id: str,
     api_key: str,
     lineage_url: str,
@@ -76,7 +83,7 @@ def _poll_until_terminal(
         status_value = status_body.get("runStatus")
 
         if status_value:
-            typer.echo(f"Pipeline ({alias}) status: {status_value}")
+            typer.echo(f"Pipeline ({selector_name}) status: {status_value}")
 
         if status_value == "SUCCEEDED":
             typer.echo(green("✅ Pipeline succeeded"))
@@ -111,7 +118,9 @@ def _poll_until_terminal(
 
 
 def run_pipeline(
-    alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
+    path: Path | None = pipeline_path_option(),
+    alias: str | None = pipeline_alias_option(),
+    pipeline_id: str | None = pipeline_id_option(),
     branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
     commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
     wait: bool = typer.Option(
@@ -129,19 +138,24 @@ def run_pipeline(
     Run a pipeline in Orchestra.
     """
     api_key = require_api_key()
+    selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
+    selector_name = selector_display(selector)
 
     _confirm_warnings_or_exit(force)
 
-    payload: dict[str, str] = {}
+    payload: dict[str, str] = dict(selector)
     if branch:
         payload["branch"] = branch
     if commit:
         payload["commit"] = commit
 
-    typer.echo(f"Starting pipeline (alias: {alias})")
+    alias_path = selector.get("alias")
+    start_path = f"{alias_path}/start" if alias_path else "start"
+
+    typer.echo(f"Starting pipeline ({selector_name})")
     response = request_or_exit(
         httpx.post,
-        get_api_url(f"{alias}/start"),
+        get_api_url(start_path),
         json=payload if payload else None,
         timeout=30,
         headers=auth_headers(api_key),
@@ -158,24 +172,24 @@ def run_pipeline(
         if not pipeline_run_id:
             typer.echo(
                 yellow(
-                    f"Started pipeline (alias: {alias}), "
+                    f"Started pipeline ({selector_name}), "
                     "but could not determine run id from response",
                 ),
             )
             raise typer.Exit(code=0)
 
         if not wait:
-            typer.echo(f"Started pipeline (alias: {alias}), run id: {str(pipeline_run_id)}")
+            typer.echo(f"Started pipeline ({selector_name}), run id: {str(pipeline_run_id)}")
             raise typer.Exit(code=0)
 
         lineage_url = f"{get_base_url()}/pipeline-runs/{pipeline_run_id}/lineage"
 
-        typer.echo(green(f"Started pipeline (alias: {alias}), run id: {pipeline_run_id}"))
+        typer.echo(green(f"Started pipeline ({selector_name}), run id: {pipeline_run_id}"))
         typer.echo(yellow(f"Lineage: {lineage_url}"))
         typer.echo(bold("Polling pipeline status... (Ctrl+C to stop)"))
 
         _poll_until_terminal(
-            alias=alias,
+            selector_name=selector_name,
             pipeline_run_id=str(pipeline_run_id),
             api_key=api_key,
             lineage_url=lineage_url,

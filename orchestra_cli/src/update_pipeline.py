@@ -10,6 +10,14 @@ from ..utils.api import (
     require_api_key,
 )
 from ..utils.constants import get_update_pipeline_url
+from ..utils.pipeline_selector import (
+    pipeline_alias_option,
+    pipeline_id_option,
+    pipeline_path_option,
+    resolve_pipeline_selector,
+    selector_display,
+)
+from ..utils.styling import red
 from ..utils.yaml_loader import load_validated_pipeline_data
 from .pipeline_upsert import (
     build_upsert_payload,
@@ -19,18 +27,9 @@ from .pipeline_upsert import (
 
 
 def update_pipeline(
-    alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
-    path: Path = typer.Option(
-        ...,
-        "--path",
-        "-p",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        resolve_path=True,
-        help="Path to pipeline YAML",
-    ),
+    path: Path | None = pipeline_path_option(),
+    alias: str | None = pipeline_alias_option(),
+    pipeline_id: str | None = pipeline_id_option(),
     publish: bool = typer.Option(
         False,
         "--publish/--no-publish",
@@ -41,12 +40,17 @@ def update_pipeline(
     Update an Orchestra-backed pipeline from a local YAML file.
     """
     api_key = require_api_key()
+    if path is None:
+        typer.echo(red("Provide --path to update a pipeline from YAML"))
+        raise typer.Exit(code=1)
+    selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
     data = load_validated_pipeline_data(path)
-    payload = build_upsert_payload(data, publish)
+    payload = build_upsert_payload(data, publish, selector)
+    alias_path = selector.get("alias")
 
     response = request_or_exit(
         httpx.put,
-        get_update_pipeline_url(alias),
+        get_update_pipeline_url(alias_path),
         json=payload,
         timeout=30,
         headers=auth_headers(api_key),
@@ -54,7 +58,7 @@ def update_pipeline(
 
     if response.status_code == 200:
         pipeline_id = require_pipeline_id_from_success_response(response, "Update")
-        emit_success_with_edit_url(alias, "updated", pipeline_id)
+        emit_success_with_edit_url(selector_display(selector), "updated", pipeline_id)
         raise typer.Exit(code=0)
 
     fail_with_response("Update", response)

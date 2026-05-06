@@ -31,6 +31,7 @@ def test_update_success_default_no_publish(tmp_path: Path, httpx_mock: HTTPXMock
         json={"id": "pipeline-id"},
         status_code=200,
         match_json={
+            "alias": "demo",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -59,6 +60,7 @@ def test_update_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
         json={"id": "pipeline-id"},
         status_code=200,
         match_json={
+            "alias": "demo",
             "data": {"name": "demo", "version": 1},
             "published": True,
             "storage_provider": "ORCHESTRA",
@@ -72,6 +74,37 @@ def test_update_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
     assert result.exit_code == 0
     assert "updated successfully" in result.output
     assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
+
+
+def test_update_success_by_pipeline_id(tmp_path: Path, httpx_mock: HTTPXMock):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PUT",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        json={"id": "pipeline-id"},
+        status_code=200,
+        match_json={
+            "pipeline_id": "pipeline-id",
+            "data": {"name": "demo", "version": 1},
+            "published": False,
+            "storage_provider": "ORCHESTRA",
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "update", "--pipeline-id", "pipeline-id", "--path", str(yaml_file)],
+    )
+    assert result.exit_code == 0
+    assert "updated successfully" in result.output
 
 
 def test_update_missing_api_key(monkeypatch, tmp_path: Path):

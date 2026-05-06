@@ -20,12 +20,16 @@ def get_create_pipeline_url() -> str:
     return get_api_url("")
 
 
-def get_update_pipeline_url(alias: str) -> str:
-    return get_api_url(alias)
+def get_pipeline_url() -> str:
+    return f"{get_base_url()}/api/engine/public/pipeline"
 
 
-def get_delete_pipeline_url(alias: str) -> str:
-    return get_api_url(alias)
+def get_update_pipeline_url(alias: str | None = None) -> str:
+    return get_api_url(alias or "")
+
+
+def get_delete_pipeline_url(alias: str | None = None) -> str:
+    return get_api_url(alias or "")
 
 
 def get_pipeline_edit_url(pipeline_id: str) -> str:
