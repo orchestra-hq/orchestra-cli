@@ -2,8 +2,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
 import typer
+from pydantic import BaseModel
 
 from .git import detect_repo_root, detect_repository_slug
 from .styling import bold, red, yellow
