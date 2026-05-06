@@ -5,6 +5,7 @@ from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
+from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
 

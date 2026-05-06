@@ -192,7 +192,11 @@ def test_run_path_checks_selected_repo_warnings(httpx_mock: HTTPXMock, monkeypat
         status_code=200,
     )
 
-    result = runner.invoke(app, ["pipeline", "run", "--path", str(yaml_file), "--no-wait"], input="\n")
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--path", str(yaml_file), "--no-wait"],
+        input="\n",
+    )
 
     assert result.exit_code == 0
     assert "⚠ Uncommitted changes" in result.output
