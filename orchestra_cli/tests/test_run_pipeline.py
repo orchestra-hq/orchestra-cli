@@ -112,7 +112,10 @@ def test_run_success_by_pipeline_id(httpx_mock: HTTPXMock, monkeypatch, tmp_path
         ["pipeline", "run", "--pipeline-id", "pipeline-id", "--no-wait"],
     )
     assert result.exit_code == 0
-    assert f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}" in result.output
+    assert (
+        f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}"
+        in result.output
+    )
 
 
 def test_run_warnings_prompt(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
