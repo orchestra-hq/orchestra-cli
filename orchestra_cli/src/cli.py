@@ -18,6 +18,7 @@ pipeline_app.command(name="import")(import_pipeline)
 pipeline_app.command(name="new")(create_pipeline)
 pipeline_app.command(name="update")(update_pipeline)
 pipeline_app.command(name="get")(get_pipeline)
+pipeline_app.command(name="list")(fetch_pipelines)
 pipeline_app.command(name="run")(run_pipeline)
 pipeline_app.command(name="delete")(delete_pipeline)
 

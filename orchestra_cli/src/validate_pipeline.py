@@ -37,7 +37,7 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
         typer.echo(red(f"Invalid YAML: {err}"))
         raise typer.Exit(code=1)
 
-    response = request_or_exit(httpx.post, get_api_url("schema"), json=data, timeout=10)
+    response = request_or_exit(httpx.post, get_api_url("pipelines/schema"), json=data, timeout=10)
 
     if response.status_code == 200:
         typer.echo(green("✅ Validation passed!"))

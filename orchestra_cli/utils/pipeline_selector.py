@@ -2,12 +2,30 @@ import re
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
 import typer
 
 from .git import detect_repo_root, detect_repository_slug
 from .styling import bold, red, yellow
 
-PipelineSelector = dict[str, str]
+
+class PipelineSelector(BaseModel):
+    alias: str | None = None
+    pipeline_id: str | None = None
+    repository: str | None = None
+    yaml_path: str | None = None
+
+    def to_payload(self) -> dict[str, str]:
+        return {key: str(value) for key, value in self.model_dump(exclude_none=True).items()}
+
+    def display(self) -> str:
+        if self.alias:
+            return f"alias: {self.alias}"
+        if self.pipeline_id:
+            return f"pipeline_id: {self.pipeline_id}"
+        if self.repository and self.yaml_path:
+            return f"repository: {self.repository}, yaml_path: {self.yaml_path}"
+        return "no selector"
 
 
 def pipeline_alias_option() -> Any:
@@ -38,7 +56,6 @@ def generate_alias_from_path(path: Path) -> str:
 
 
 def resolve_pipeline_selector(
-    *,
     alias: str | None,
     pipeline_id: str | None = None,
     path: Path | None = None,
@@ -46,13 +63,13 @@ def resolve_pipeline_selector(
     required: bool = True,
 ) -> PipelineSelector:
     if alias:
-        return {"alias": alias}
+        return PipelineSelector(alias=alias)
 
     if pipeline_id:
         if not allow_pipeline_id:
             typer.echo(red("--pipeline-id is not supported for this command"))
             raise typer.Exit(code=1)
-        return {"pipeline_id": pipeline_id}
+        return PipelineSelector(pipeline_id=pipeline_id)
 
     if path is not None:
         return _resolve_path_selector(path)
@@ -61,17 +78,7 @@ def resolve_pipeline_selector(
         typer.echo(red("Provide one of --alias, --pipeline-id, or --path"))
         raise typer.Exit(code=1)
 
-    return {}
-
-
-def selector_display(selector: PipelineSelector) -> str:
-    if alias := selector.get("alias"):
-        return f"alias: {alias}"
-    if pipeline_id := selector.get("pipeline_id"):
-        return f"pipeline_id: {pipeline_id}"
-    if repository := selector.get("repository"):
-        return f"repository: {repository}, yaml_path: {selector['yaml_path']}"
-    return "no selector"
+    return PipelineSelector()
 
 
 def _resolve_path_selector(path: Path) -> PipelineSelector:
@@ -86,7 +93,7 @@ def _resolve_path_selector(path: Path) -> PipelineSelector:
         except Exception:
             typer.echo(red("YAML file must be inside the git repository"))
             raise typer.Exit(code=1)
-        return {"repository": repository, "yaml_path": yaml_path}
+        return PipelineSelector(repository=repository, yaml_path=yaml_path)
 
     generated_alias = generate_alias_from_path(path)
     typer.echo(yellow("Not inside a git repository; generating a pipeline alias from --path."))
@@ -98,4 +105,4 @@ def _resolve_path_selector(path: Path) -> PipelineSelector:
         typer.echo(red("Aborted"))
         raise typer.Exit(code=1)
 
-    return {"alias": generated_alias}
+    return PipelineSelector(alias=generated_alias)

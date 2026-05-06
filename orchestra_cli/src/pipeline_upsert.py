@@ -11,13 +11,14 @@ import httpx
 import typer
 
 from ..utils.constants import get_pipeline_edit_url
+from ..utils.pipeline_selector import PipelineSelector
 from ..utils.styling import green, indent_message, red, yellow
 
 
 def build_upsert_payload(
     data: dict,
     publish: bool,
-    selector: dict[str, str] | None = None,
+    selector: PipelineSelector | None = None,
 ) -> dict:
     payload: dict[str, object] = {
         "data": data,
@@ -25,7 +26,7 @@ def build_upsert_payload(
         "storage_provider": "ORCHESTRA",
     }
     if selector:
-        payload.update(selector)
+        payload.update(selector.to_payload())
     return payload
 
 

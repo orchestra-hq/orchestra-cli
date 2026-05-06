@@ -29,7 +29,7 @@ def load_yaml(file: Path) -> tuple[dict | None, str | None]:
 def validate_yaml_with_api(data: dict) -> tuple[bool, str | None]:
     """POST a YAML payload to the schema endpoint and return ``(ok, err_message)``."""
     try:
-        response = httpx.post(get_api_url("schema"), json=data, timeout=15)
+        response = httpx.post(get_api_url("pipelines/schema"), json=data, timeout=15)
     except Exception as e:
         return False, f"HTTP request failed: {e}"
 

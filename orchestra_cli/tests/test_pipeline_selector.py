@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
 from orchestra_cli.utils.pipeline_selector import (
+    PipelineSelector,
     generate_alias_from_path,
     resolve_pipeline_selector,
 )
@@ -24,7 +25,7 @@ def test_alias_takes_precedence_over_pipeline_id_and_path(tmp_path: Path):
         path=yaml_file,
     )
 
-    assert selector == {"alias": "demo"}
+    assert selector == PipelineSelector(alias="demo")
 
 
 def test_pipeline_id_takes_precedence_over_path(tmp_path: Path):
@@ -37,7 +38,7 @@ def test_pipeline_id_takes_precedence_over_path(tmp_path: Path):
         path=yaml_file,
     )
 
-    assert selector == {"pipeline_id": "pipeline-id"}
+    assert selector == PipelineSelector(pipeline_id="pipeline-id")
 
 
 def test_path_inside_git_resolves_repository_and_yaml_path(monkeypatch, tmp_path: Path):
@@ -56,7 +57,7 @@ def test_path_inside_git_resolves_repository_and_yaml_path(monkeypatch, tmp_path
 
     selector = resolve_pipeline_selector(alias=None, pipeline_id=None, path=yaml_file)
 
-    assert selector == {"repository": "org/repo", "yaml_path": "pipelines/pipe.yaml"}
+    assert selector == PipelineSelector(repository="org/repo", yaml_path="pipelines/pipe.yaml")
 
 
 def test_generate_alias_from_path_slugifies_filename():

@@ -29,12 +29,12 @@ def get_pipeline(
     Fetch one pipeline using the shared selector model.
     """
     api_key = require_api_key()
-    selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
+    selector = resolve_pipeline_selector(alias, pipeline_id, path)
 
     response = request_or_exit(
         httpx.get,
         get_pipeline_url(),
-        params=selector,
+        params=selector.to_payload(),
         timeout=30,
         headers=auth_headers(api_key),
     )
@@ -63,7 +63,7 @@ def fetch_pipelines():
 
     response = request_or_exit(
         httpx.get,
-        get_api_url(""),
+        get_api_url("pipelines"),
         timeout=30,
         headers=auth_headers(api_key),
     )

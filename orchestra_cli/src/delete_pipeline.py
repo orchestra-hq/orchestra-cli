@@ -15,7 +15,6 @@ from ..utils.pipeline_selector import (
     pipeline_id_option,
     pipeline_path_option,
     resolve_pipeline_selector,
-    selector_display,
 )
 from ..utils.styling import green
 
@@ -29,28 +28,18 @@ def delete_pipeline(
     Delete a pipeline by selector.
     """
     api_key = require_api_key()
-    selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
-    alias_path = selector.get("alias")
+    selector = resolve_pipeline_selector(alias, pipeline_id, path)
 
-    if alias_path:
-        response = request_or_exit(
-            httpx.delete,
-            get_delete_pipeline_url(alias_path),
-            timeout=30,
-            headers=auth_headers(api_key),
-        )
-    else:
-        response = request_or_exit(
-            httpx.request,
-            "DELETE",
-            get_delete_pipeline_url(),
-            json=selector,
-            timeout=30,
-            headers=auth_headers(api_key),
-        )
+    response = request_or_exit(
+        httpx.delete,
+        get_delete_pipeline_url(),
+        params=selector.to_payload(),
+        timeout=30,
+        headers=auth_headers(api_key),
+    )
 
     if response.status_code == 204:
-        typer.echo(green(f"✅ Pipeline ({selector_display(selector)}) deleted successfully"))
+        typer.echo(green(f"✅ Pipeline ({selector.display()}) deleted successfully"))
         raise typer.Exit(code=0)
 
     fail_with_response("Delete", response)

@@ -14,7 +14,6 @@ from ..utils.pipeline_selector import (
     pipeline_alias_option,
     pipeline_path_option,
     resolve_pipeline_selector,
-    selector_display,
 )
 from ..utils.styling import red
 from ..utils.yaml_loader import load_validated_pipeline_data
@@ -41,7 +40,7 @@ def create_pipeline(
     if path is None:
         typer.echo(red("Provide --path to create a pipeline from YAML"))
         raise typer.Exit(code=1)
-    selector = resolve_pipeline_selector(alias=alias, path=path, allow_pipeline_id=False)
+    selector = resolve_pipeline_selector(alias, path=path, allow_pipeline_id=False)
     data = load_validated_pipeline_data(path)
     payload = build_upsert_payload(data, publish, selector)
 
@@ -55,7 +54,7 @@ def create_pipeline(
 
     if response.status_code == 201:
         pipeline_id = require_pipeline_id_from_success_response(response, "Create")
-        emit_success_with_edit_url(selector_display(selector), "created", pipeline_id)
+        emit_success_with_edit_url(selector.display(), "created", pipeline_id)
         raise typer.Exit(code=0)
 
     fail_with_response("Create", response)

@@ -10,14 +10,13 @@ from ..utils.api import (
     request_or_exit,
     require_api_key,
 )
-from ..utils.constants import get_api_url, get_base_url, get_public_api_url
+from ..utils.constants import get_api_url, get_base_url
 from ..utils.git import detect_repo_root, git_warnings
 from ..utils.pipeline_selector import (
     pipeline_alias_option,
     pipeline_id_option,
     pipeline_path_option,
     resolve_pipeline_selector,
-    selector_display,
 )
 from ..utils.styling import bold, green, indent_message, red, yellow
 
@@ -56,7 +55,7 @@ def _poll_until_terminal(
     """Poll the run status endpoint until the run reaches a terminal state."""
     poll_interval_seconds = 5
     headers = auth_headers(api_key)
-    status_url = get_public_api_url(f"pipeline_runs/{pipeline_run_id}/status")
+    status_url = get_api_url(f"pipeline_runs/{pipeline_run_id}/status")
     in_progress_statuses = {"RUNNING", "QUEUED", "CREATED"}
 
     while True:
@@ -138,19 +137,18 @@ def run_pipeline(
     Run a pipeline in Orchestra.
     """
     api_key = require_api_key()
-    selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
-    selector_name = selector_display(selector)
+    selector = resolve_pipeline_selector(alias, pipeline_id, path)
+    selector_name = selector.display()
 
     _confirm_warnings_or_exit(force)
 
-    payload: dict[str, str] = dict(selector)
+    payload = selector.to_payload()
     if branch:
         payload["branch"] = branch
     if commit:
         payload["commit"] = commit
 
-    alias_path = selector.get("alias")
-    start_path = f"{alias_path}/start" if alias_path else "start"
+    start_path = f"pipelines/{selector.alias}/start" if selector.alias else "pipelines/start"
 
     typer.echo(f"Starting pipeline ({selector_name})")
     response = request_or_exit(

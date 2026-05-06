@@ -7,7 +7,12 @@ authors = [
     { name = "Orchestra Technologies", email = "support@getorchestra.io" },
 ]
 requires-python = ">=3.10"
-dependencies = ["httpx>=0.28.1", "pyyaml>=6.0.2", "typer>=0.16.0"]
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.13.4",
+    "pyyaml>=6.0.2",
+    "typer>=0.16.0",
+]
 
 [project.scripts]
 orchestra-cli = "orchestra_cli.src.cli:app"

@@ -126,7 +126,7 @@ def import_pipeline(
 
     response = request_or_exit(
         httpx.post,
-        get_api_url("import"),
+        get_api_url("pipelines/import"),
         json=payload,
         timeout=30,
         headers=auth_headers(api_key),

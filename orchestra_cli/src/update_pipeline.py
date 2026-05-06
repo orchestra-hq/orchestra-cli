@@ -15,7 +15,6 @@ from ..utils.pipeline_selector import (
     pipeline_id_option,
     pipeline_path_option,
     resolve_pipeline_selector,
-    selector_display,
 )
 from ..utils.styling import red
 from ..utils.yaml_loader import load_validated_pipeline_data
@@ -43,14 +42,13 @@ def update_pipeline(
     if path is None:
         typer.echo(red("Provide --path to update a pipeline from YAML"))
         raise typer.Exit(code=1)
-    selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
+    selector = resolve_pipeline_selector(alias, pipeline_id, path)
     data = load_validated_pipeline_data(path)
     payload = build_upsert_payload(data, publish, selector)
-    alias_path = selector.get("alias")
 
     response = request_or_exit(
         httpx.put,
-        get_update_pipeline_url(alias_path),
+        get_update_pipeline_url(),
         json=payload,
         timeout=30,
         headers=auth_headers(api_key),
@@ -58,7 +56,7 @@ def update_pipeline(
 
     if response.status_code == 200:
         pipeline_id = require_pipeline_id_from_success_response(response, "Update")
-        emit_success_with_edit_url(selector_display(selector), "updated", pipeline_id)
+        emit_success_with_edit_url(selector.display(), "updated", pipeline_id)
         raise typer.Exit(code=0)
 
     fail_with_response("Update", response)
