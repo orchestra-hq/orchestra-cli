@@ -107,6 +107,44 @@ def test_update_success_by_pipeline_id(tmp_path: Path, httpx_mock: HTTPXMock):
     assert "updated successfully" in result.output
 
 
+def test_update_path_inside_git_generates_alias(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
+    repo_root = tmp_path
+    yaml_file = repo_root / "My Pipeline.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PUT",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        json={"id": "pipeline-id"},
+        status_code=200,
+        match_json={
+            "alias": "my-pipeline",
+            "data": {"name": "demo", "version": 1},
+            "published": False,
+            "storage_provider": "ORCHESTRA",
+        },
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(app, ["pipeline", "update", "--path", str(yaml_file)], input="\n")
+
+    assert result.exit_code == 0
+    assert "Generated alias: my-pipeline" in result.output
+    assert "updated successfully" in result.output
+
+
 def test_update_missing_api_key(monkeypatch, tmp_path: Path):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\n")

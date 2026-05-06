@@ -21,9 +21,10 @@ from ..utils.pipeline_selector import (
 from ..utils.styling import bold, green, indent_message, red, yellow
 
 
-def _confirm_warnings_or_exit(force: bool) -> None:
+def _confirm_warnings_or_exit(force: bool, path: Path | None = None) -> None:
     """Print git warnings and prompt for confirmation unless ``--force`` was passed."""
-    repo_root = detect_repo_root(Path.cwd())
+    start_path = path.parent if path is not None else Path.cwd()
+    repo_root = detect_repo_root(start_path)
     if repo_root is None:
         return
 
@@ -140,7 +141,7 @@ def run_pipeline(
     selector = resolve_pipeline_selector(alias, pipeline_id, path)
     selector_name = selector.display()
 
-    _confirm_warnings_or_exit(force)
+    _confirm_warnings_or_exit(force, path)
 
     payload = selector.to_payload()
     if branch:

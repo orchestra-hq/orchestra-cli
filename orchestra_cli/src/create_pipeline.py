@@ -40,7 +40,12 @@ def create_pipeline(
     if path is None:
         typer.echo(red("Provide --path to create a pipeline from YAML"))
         raise typer.Exit(code=1)
-    selector = resolve_pipeline_selector(alias, path=path, allow_pipeline_id=False)
+    selector = resolve_pipeline_selector(
+        alias,
+        path=path,
+        allow_pipeline_id=False,
+        allow_repository_path=False,
+    )
     data = load_validated_pipeline_data(path)
     payload = build_upsert_payload(data, publish, selector)
 
