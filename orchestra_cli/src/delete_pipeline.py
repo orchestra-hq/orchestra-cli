@@ -32,13 +32,22 @@ def delete_pipeline(
     selector = resolve_pipeline_selector(alias=alias, pipeline_id=pipeline_id, path=path)
     alias_path = selector.get("alias")
 
-    response = request_or_exit(
-        httpx.delete,
-        get_delete_pipeline_url(alias_path),
-        json=None if alias_path else selector,
-        timeout=30,
-        headers=auth_headers(api_key),
-    )
+    if alias_path:
+        response = request_or_exit(
+            httpx.delete,
+            get_delete_pipeline_url(alias_path),
+            timeout=30,
+            headers=auth_headers(api_key),
+        )
+    else:
+        response = request_or_exit(
+            httpx.request,
+            "DELETE",
+            get_delete_pipeline_url(),
+            json=selector,
+            timeout=30,
+            headers=auth_headers(api_key),
+        )
 
     if response.status_code == 204:
         typer.echo(green(f"✅ Pipeline ({selector_display(selector)}) deleted successfully"))
