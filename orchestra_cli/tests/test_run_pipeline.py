@@ -167,7 +167,11 @@ def test_run_path_checks_selected_repo_warnings(httpx_mock: HTTPXMock, monkeypat
 
     def run_git(args, cwd=None, capture_output=False, text=False, check=False):  # noqa: ARG001
         key = tuple(args[1:])
-        if key == ("rev-parse", "--show-toplevel") and cwd is not None and Path(cwd) == outside_repo:
+        if (
+            key == ("rev-parse", "--show-toplevel")
+            and cwd is not None
+            and Path(cwd) == outside_repo
+        ):
             return Result(1, "", "fatal: not a git repo")
         mapping = {
             ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
