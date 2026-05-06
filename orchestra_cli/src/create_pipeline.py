@@ -44,7 +44,7 @@ def create_pipeline(
         alias,
         path=path,
         allow_pipeline_id=False,
-        allow_repository_path=False,
+        use_git_path_selector=False,
     )
     data = load_validated_pipeline_data(path)
     payload = build_upsert_payload(data, publish, selector)
