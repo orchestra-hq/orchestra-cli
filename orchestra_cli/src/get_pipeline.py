@@ -121,13 +121,10 @@ def _format_value(value: object) -> str:
 
 def _humanize_key(key: str) -> str:
     words = re.sub(r"(?<!^)(?=[A-Z])", " ", key).replace("_", " ").replace("-", " ")
-    label = words.title()
     replacements = {
-        "Api": "API",
-        "Id": "ID",
-        "Url": "URL",
-        "Yaml": "YAML",
+        "api": "API",
+        "id": "ID",
+        "url": "URL",
+        "yaml": "YAML",
     }
-    for old, new in replacements.items():
-        label = label.replace(old, new)
-    return label
+    return " ".join(replacements.get(word.lower(), word.title()) for word in words.split())

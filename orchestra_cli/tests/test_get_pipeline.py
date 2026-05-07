@@ -43,6 +43,33 @@ def test_get_pipeline_success_by_alias(httpx_mock: HTTPXMock):
     )
 
 
+def test_get_pipeline_humanizes_abbreviations_without_corrupting_words(
+    httpx_mock: HTTPXMock,
+):
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        json={
+            "identity": "external-key",
+            "api_url": "https://example.com",
+            "idle_timeout": 30,
+            "yaml_path": "pipe.yaml",
+        },
+        status_code=200,
+        match_headers={"Authorization": "Bearer fake-key"},
+    )
+
+    result = runner.invoke(app, ["pipeline", "get", "--alias", "demo"])
+
+    assert result.exit_code == 0
+    assert "  Identity: external-key" in result.output
+    assert "  API URL: https://example.com" in result.output
+    assert "  Idle Timeout: 30" in result.output
+    assert "  YAML Path: pipe.yaml" in result.output
+    assert "IDentity" not in result.output
+    assert "IDle" not in result.output
+
+
 def test_get_pipeline_success_by_pipeline_id(httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="GET",
