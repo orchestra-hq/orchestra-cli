@@ -5,6 +5,7 @@ from .delete_pipeline import delete_pipeline
 from .fetch_pipelines import fetch_pipelines, get_pipeline
 from .import_pipeline import import_pipeline
 from .run_pipeline import run_pipeline
+from .task_logs import task_logs
 from .update_pipeline import update_pipeline
 from .validate_pipeline import validate
 
@@ -12,6 +13,8 @@ app = typer.Typer(help="Orchestra CLI – perform operations with Orchestra loca
 
 pipeline_app = typer.Typer(help="Manage Orchestra pipelines (validate, import, run, ...).")
 app.add_typer(pipeline_app, name="pipeline")
+task_app = typer.Typer(help="Inspect Orchestra task runs.")
+app.add_typer(task_app, name="task")
 
 pipeline_app.command(name="validate")(validate)
 pipeline_app.command(name="import")(import_pipeline)
@@ -21,6 +24,7 @@ pipeline_app.command(name="get")(get_pipeline)
 pipeline_app.command(name="list")(fetch_pipelines)
 pipeline_app.command(name="run")(run_pipeline)
 pipeline_app.command(name="delete")(delete_pipeline)
+task_app.command(name="logs")(task_logs)
 
 # Legacy top-level aliases (hidden) - keep the old `orchestra <command>` syntax working
 # so existing scripts and CI pipelines do not break. Hidden from `--help` to keep the

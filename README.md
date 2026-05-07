@@ -25,7 +25,7 @@ pipx install orchestra-cli
 
 ## Command structure
 
-Commands follow a `noun verb` shape. The current noun is `pipeline`:
+Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`:
 
 | Command | Description |
 |---|---|
@@ -36,8 +36,9 @@ Commands follow a `noun verb` shape. The current noun is `pipeline`:
 | `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
 | `orchestra pipeline delete` | Delete an existing pipeline by alias. |
 | `orchestra pipeline run` | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
+| `orchestra task logs` | Follow logs for a single task run. |
 
-Use `orchestra --help`, `orchestra pipeline --help`, or `orchestra pipeline <verb> --help` for built-in help.
+Use `orchestra --help`, `orchestra <noun> --help`, or `orchestra <noun> <verb> --help` for built-in help.
 
 ### Legacy command names
 
@@ -269,6 +270,34 @@ Non-interactive usage
 
 ---
 
+## task logs
+
+Follow logs for a single task run.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+# Select a log file interactively, then follow it
+orchestra task logs --task-run-id 3d68b5dc-54eb-43db-8294-4734d032ff92
+
+# Follow a specific log file
+orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log
+```
+
+Options
+
+- `-tr, --task-run-id` (required): Task run ID to fetch logs for.
+- `-f, --filename` (optional): Specific log filename to follow.
+
+Behavior
+
+- Resolves the task run's pipeline run ID automatically.
+- If no filename is provided, lists available log files and prompts for a selection.
+- Polls the log download endpoint using byte ranges and prints only new content as it arrives.
+- Press `Ctrl+C` to stop following logs.
+
+---
+
 ## Examples
 
 ```bash
@@ -283,6 +312,9 @@ orchestra pipeline run -a finance-etl
 
 # Start a run and exit immediately
 orchestra pipeline run -a finance-etl --no-wait
+
+# Follow task run logs
+orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log
 ```
 
 ---
