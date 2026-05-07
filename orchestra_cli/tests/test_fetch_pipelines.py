@@ -59,5 +59,3 @@ def test_list_pipelines_success(httpx_mock: HTTPXMock):
 
     assert result.exit_code == 0
     assert result.output == f"{json.dumps(pipelines, indent=2)}\n"
-
-

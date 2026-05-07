@@ -21,7 +21,6 @@ from ..utils.pipeline_selector import (
 )
 from ..utils.styling import indent_message, red, yellow
 
-
 _PREFERRED_FIELD_ORDER = (
     "id",
     "pipeline_id",
