@@ -68,7 +68,7 @@ def resolve_pipeline_selector(
 
     if pipeline_id:
         if not allow_pipeline_id:
-            typer.echo(red("Passing pipeline IDs is not supported for this command"))
+            typer.echo(red("--pipeline-id (-i) is not supported for this command"))
             raise typer.Exit(code=1)
         return PipelineSelector(pipeline_id=pipeline_id)
 
