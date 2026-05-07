@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 
@@ -23,6 +24,20 @@ def detect_repo_root(start_path: Path) -> Path | None:
     if not ok:
         return None
     return Path(out)
+
+
+def detect_repository_slug(repo_root: Path) -> str | None:
+    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
+    if not ok or not remote:
+        return None
+
+    cleaned_remote = re.sub(r"/(?:_git|scm|v3)(?=/)", "", remote.strip())
+    pattern = r".*[:/]([^/]+)/([^/]+?)(?:\.git)?/?$"
+
+    if match := re.search(pattern, cleaned_remote):
+        return f"{match.group(1)}/{match.group(2)}"
+
+    return None
 
 
 def git_warnings(repo_root: Path) -> list[str]:

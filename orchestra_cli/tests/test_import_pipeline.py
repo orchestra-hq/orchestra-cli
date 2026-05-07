@@ -112,6 +112,50 @@ def test_import_invalid_yaml(tmp_path: Path):
     assert "Invalid YAML" in result.output
 
 
+def test_import_alias_is_optional(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
+    repo_root = tmp_path
+    yaml_file = repo_root / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/import",
+        json={"id": mock_pipeline_id},
+        status_code=201,
+        match_json={
+            "storage_provider": "GITHUB",
+            "repository": "org/repo",
+            "default_branch": "main",
+            "working_branch": "main",
+            "yaml_path": "pipe.yaml",
+        },
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(app, ["pipeline", "import", "--path", str(yaml_file)])
+
+    assert result.exit_code == 0
+    assert "imported successfully" in result.output
+
+
 def test_import_schema_validation_error(tmp_path: Path, httpx_mock: HTTPXMock):
     good = tmp_path / "ok.yaml"
     good.write_text("name: ok\n")

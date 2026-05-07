@@ -12,26 +12,10 @@ from ..utils.api import (
     require_api_key,
 )
 from ..utils.constants import get_api_url
-from ..utils.git import detect_repo_root, git_warnings, run_git_command
+from ..utils.git import detect_repo_root, detect_repository_slug, git_warnings, run_git_command
+from ..utils.pipeline_selector import pipeline_alias_option, pipeline_path_option
 from ..utils.styling import bold, green, red, yellow
 from ..utils.yaml_loader import load_validated_pipeline_data
-
-
-def _detect_repository_url(repo_root: Path) -> str | None:
-    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
-    if not ok or not remote:
-        return None
-
-    # First, handle special cases like Azure URLs by removing segments like /_git/
-    cleaned_remote = re.sub(r"/(?:_git|scm|v3)(?=/)", "", remote.strip())
-
-    # A single regex can then capture the owner/repo from the cleaned URL
-    pattern = r".*[:/]([^/]+)/([^/]+?)(?:\.git)?/?$"
-
-    if match := re.search(pattern, cleaned_remote):
-        return f"{match.group(1)}/{match.group(2)}"
-
-    return None
 
 
 def _get_remote_url(repo_root: Path) -> str | None:
@@ -80,18 +64,8 @@ def _detect_storage_provider(repository_url: str | None) -> str:
 
 
 def import_pipeline(
-    alias: str = typer.Option(..., "--alias", "-a", help="Pipeline alias"),
-    path: Path = typer.Option(
-        ...,
-        "--path",
-        "-p",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        resolve_path=True,
-        help="Path to pipeline YAML inside a git repository",
-    ),
+    path: Path | None = pipeline_path_option("Path to pipeline YAML inside a git repository"),
+    alias: str | None = pipeline_alias_option(),
     working_branch: str | None = typer.Option(
         None,
         "--working-branch",
@@ -103,6 +77,9 @@ def import_pipeline(
     Create a pipeline in Orchestra by referencing a YAML file in your git repository.
     """
     api_key = require_api_key()
+    if path is None:
+        typer.echo(red("Provide --path to import a pipeline from git"))
+        raise typer.Exit(code=1)
     load_validated_pipeline_data(path)
 
     # Detect git repository info
@@ -111,7 +88,7 @@ def import_pipeline(
         typer.echo(red("Not a git repository (could not detect repository root)"))
         raise typer.Exit(code=1)
 
-    repository_slug = _detect_repository_url(repo_root)
+    repository_slug = detect_repository_slug(repo_root)
     if not repository_slug:
         typer.echo(red("Could not detect repository URL from git"))
         raise typer.Exit(code=1)
@@ -143,12 +120,13 @@ def import_pipeline(
         "default_branch": default_branch,
         "working_branch": working_branch,
         "yaml_path": yaml_path,
-        "alias": alias,
     }
+    if alias:
+        payload["alias"] = alias
 
     response = request_or_exit(
         httpx.post,
-        get_api_url("import"),
+        get_api_url("pipelines/import"),
         json=payload,
         timeout=30,
         headers=auth_headers(api_key),
@@ -161,7 +139,8 @@ def import_pipeline(
             body = {}
         pipeline_id = body.get("id")
         if pipeline_id:
-            typer.echo(f"Pipeline with alias '{alias}' imported successfully: {pipeline_id}")
+            identifier = f"alias '{alias}'" if alias else f"{repository_slug}/{yaml_path}"
+            typer.echo(f"Pipeline with {identifier} imported successfully: {pipeline_id}")
             raise typer.Exit(code=0)
         # Fallback if server does not return a field we expect
         typer.echo(green("✅ Pipeline imported successfully"))
