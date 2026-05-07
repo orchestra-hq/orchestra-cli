@@ -64,7 +64,7 @@ def test_generate_alias_from_path_slugifies_filename():
     assert generate_alias_from_path(Path("My Pipeline.yaml")) == "my-pipeline"
 
 
-def test_pipeline_id_can_be_disallowed():
+def test_pipeline_id_can_be_disallowed(capsys):
     with pytest.raises(typer.Exit):
         resolve_pipeline_selector(
             alias=None,
@@ -72,6 +72,8 @@ def test_pipeline_id_can_be_disallowed():
             path=None,
             allow_pipeline_id=False,
         )
+
+    assert "Passing pipeline IDs is not supported for this command" in capsys.readouterr().out
 
 
 def test_create_command_does_not_accept_pipeline_id():
