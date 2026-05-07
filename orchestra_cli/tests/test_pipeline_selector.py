@@ -73,7 +73,7 @@ def test_pipeline_id_can_be_disallowed(capsys):
             allow_pipeline_id=False,
         )
 
-    assert "--pipeline-id (-i) is not supported for this command" in capsys.readouterr().out
+    assert "Passing pipeline IDs is not supported for this command" in capsys.readouterr().out
 
 
 def test_create_command_does_not_accept_pipeline_id():
