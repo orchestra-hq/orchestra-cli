@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline delete`, `pipeline run`).
+- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`).
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -31,7 +31,8 @@ Commands follow a `noun verb` shape. The current noun is `pipeline`:
 |---|---|
 | `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema. |
 | `orchestra pipeline import` | Register a pipeline YAML (from a git repo) with Orchestra under an alias. |
-| `orchestra pipeline get` | Fetch the pipelines visible to the current API key as JSON. |
+| `orchestra pipeline get` | Fetch one pipeline by path, alias, or pipeline ID. |
+| `orchestra pipeline list` | Fetch the pipelines visible to the current API key as JSON. |
 | `orchestra pipeline new` | Create an Orchestra-backed pipeline from a local YAML file. |
 | `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
 | `orchestra pipeline delete` | Delete an existing pipeline by alias. |
@@ -47,7 +48,7 @@ The previous flat command names continue to work as hidden top-level aliases so 
 |---|---|
 | `orchestra validate` | `orchestra pipeline validate` |
 | `orchestra import` | `orchestra pipeline import` |
-| `orchestra fetch-pipelines` | `orchestra pipeline get` |
+| `orchestra fetch-pipelines` | `orchestra pipeline list` |
 | `orchestra create-pipeline` | `orchestra pipeline new` |
 | `orchestra update-pipeline` | `orchestra pipeline update` |
 | `orchestra delete-pipeline` | `orchestra pipeline delete` |
@@ -162,12 +163,39 @@ Behavior
 
 ## pipeline get
 
+Fetch one pipeline using the shared pipeline selector flags.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+orchestra pipeline get --alias my-pipeline
+orchestra pipeline get --pipeline-id f374e795-50aa-4aeb-9936-d68d2b90475c
+orchestra pipeline get --path ./pipelines/pipeline.yaml
+```
+
+Options
+
+- `-a, --alias` (optional): Pipeline alias.
+- `-i, --pipeline-id` (optional): Pipeline ID.
+- `-p, --path` (optional): Path to pipeline YAML file. Inside a git repository, this resolves to `repository` and `yaml_path`; outside a git repository, the CLI prompts to use a generated alias.
+
+Behavior
+
+- Resolves the selector using the shared rules: alias first, then pipeline ID, then path.
+- Sends `GET /api/engine/public/pipeline` with the resolved selector.
+- Prints the returned pipeline metadata in a labeled, human-readable format.
+- Exit codes: `0` on success, `1` on failure.
+
+---
+
+## pipeline list
+
 Fetch the pipelines available to the current Orchestra API key.
 
 ```bash
 export ORCHESTRA_API_KEY=...
 
-orchestra pipeline get
+orchestra pipeline list
 ```
 
 Behavior

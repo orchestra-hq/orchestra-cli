@@ -11,7 +11,8 @@ CLI command implementations. See `AGENTS.md` for conventions, patterns, and how 
 | `import_pipeline.py` | `orchestra pipeline import` — registers a pipeline from a git repo under an alias |
 | `create_pipeline.py` | `orchestra pipeline new` — creates an Orchestra-backed pipeline from a local YAML |
 | `update_pipeline.py` | `orchestra pipeline update` — updates an Orchestra-backed pipeline from a local YAML |
-| `fetch_pipelines.py` | `orchestra pipeline get` — fetches pipelines visible to the current API key |
+| `get_pipeline.py` | `orchestra pipeline get` — fetches one pipeline by selector |
+| `fetch_pipelines.py` | `orchestra pipeline list` — fetches pipelines visible to the current API key |
 | `delete_pipeline.py` | `orchestra pipeline delete` — deletes a pipeline by alias |
 | `run_pipeline.py` | `orchestra pipeline run` — starts a pipeline run; optionally polls until completion |
 
