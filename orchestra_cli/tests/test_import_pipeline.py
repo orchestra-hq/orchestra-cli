@@ -156,6 +156,62 @@ def test_import_alias_is_optional(monkeypatch, tmp_path: Path, httpx_mock: HTTPX
     assert "imported successfully" in result.output
 
 
+def test_import_accepts_explicit_default_branch(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
+    repo_root = tmp_path
+    yaml_file = repo_root / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/import",
+        json={"id": mock_pipeline_id},
+        status_code=201,
+        match_json={
+            "storage_provider": "GITHUB",
+            "repository": "org/repo",
+            "default_branch": "trunk",
+            "working_branch": "feature/import",
+            "yaml_path": "pipe.yaml",
+            "alias": "demo",
+        },
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "feature/import", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(
+        app,
+        [
+            "pipeline",
+            "import",
+            "--alias",
+            "demo",
+            "--path",
+            str(yaml_file),
+            "--default-branch",
+            "trunk",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "imported successfully" in result.output
+
+
 def test_import_schema_validation_error(tmp_path: Path, httpx_mock: HTTPXMock):
     good = tmp_path / "ok.yaml"
     good.write_text("name: ok\n")
