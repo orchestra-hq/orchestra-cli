@@ -165,6 +165,7 @@ def _upsert_draft_pipeline(
             return PipelineSelector(pipeline_id=pipeline_id), version_number
 
         fail_with_response("Build", create_response)
+        raise typer.Exit(code=1)
 
     assert existing_pipeline is not None
     storage_provider = _storage_provider(existing_pipeline)
