@@ -208,7 +208,9 @@ def test_import_accepts_explicit_default_branch(monkeypatch, tmp_path: Path, htt
 
 
 def test_import_empty_default_branch_falls_back_to_git(
-    monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock
+    monkeypatch,
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
 ):
     repo_root = tmp_path
     yaml_file = repo_root / "pipe.yaml"
