@@ -97,7 +97,7 @@ def import_pipeline(
     if not repository_slug:
         typer.echo(red("Could not detect repository URL from git"))
         raise typer.Exit(code=1)
-    if default_branch is None:
+    if not default_branch:
         default_branch = _detect_default_branch(repo_root)
         if not default_branch:
             typer.echo(red("Could not detect default branch from git"))
