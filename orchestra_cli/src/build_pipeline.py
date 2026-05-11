@@ -7,6 +7,7 @@ import typer
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_create_pipeline_url, get_pipeline_url, get_update_pipeline_url
+from ..utils.git import confirm_git_warnings_or_exit
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -17,7 +18,7 @@ from ..utils.pipeline_selector import (
 from ..utils.styling import green, indent_message, red, yellow
 from ..utils.yaml_loader import load_validated_pipeline_data
 from .pipeline_upsert import build_upsert_payload
-from .run_pipeline import build_run_payload, confirm_warnings_or_exit, start_pipeline_run
+from .run_pipeline import build_run_payload, start_pipeline_run
 
 
 def _parse_success_response_body(response: httpx.Response, action: str) -> dict[str, object]:
@@ -227,7 +228,7 @@ def build_pipeline(
         raise typer.Exit(code=1)
     lookup_selector = resolve_pipeline_selector(alias, pipeline_id, path)
 
-    confirm_warnings_or_exit(force, path)
+    confirm_git_warnings_or_exit(force, path)
     run_selector, version_number = _upsert_draft_pipeline(
         alias=alias,
         path=path,

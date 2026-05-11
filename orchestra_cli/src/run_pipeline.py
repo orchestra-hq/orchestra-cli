@@ -7,7 +7,7 @@ import typer
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_api_url, get_base_url
-from ..utils.git import detect_repo_root, git_warnings
+from ..utils.git import confirm_git_warnings_or_exit
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -16,31 +16,6 @@ from ..utils.pipeline_selector import (
     resolve_pipeline_selector,
 )
 from ..utils.styling import bold, green, indent_message, red, yellow
-
-
-def confirm_warnings_or_exit(force: bool, path: Path | None = None) -> None:
-    """Print git warnings and prompt for confirmation unless ``--force`` was passed."""
-    start_path = path.parent if path is not None else Path.cwd()
-    repo_root = detect_repo_root(start_path)
-    if repo_root is None:
-        return
-
-    warnings = git_warnings(repo_root)
-    if not warnings:
-        return
-
-    for warning in warnings:
-        typer.echo(yellow(f"⚠ {warning}"))
-
-    if force:
-        return
-
-    typer.echo(bold(yellow("Press Enter to continue or Ctrl+C to abort")))
-    try:
-        input()
-    except KeyboardInterrupt:
-        typer.echo(red("Aborted"))
-        raise typer.Exit(code=1)
 
 
 def _poll_until_terminal(
@@ -212,7 +187,7 @@ def run_pipeline(
     api_key = require_api_key()
     selector = resolve_pipeline_selector(alias, pipeline_id, path)
 
-    confirm_warnings_or_exit(force, path)
+    confirm_git_warnings_or_exit(force, path)
 
     start_pipeline_run(
         selector=selector,
