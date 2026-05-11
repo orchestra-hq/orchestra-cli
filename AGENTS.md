@@ -186,3 +186,14 @@ make publish                        # same as uv publish
 4. For HTTP-touching changes, add/update tests using `HTTPXMock` to intercept calls; avoid real network calls in tests
 5. For git-detection changes, use `make_git_subprocess_mock` from `conftest.py` to simulate git output
 
+---
+
+## Cursor Cloud specific instructions
+
+- **uv** may not be pre-installed on the VM. The update script handles this, but if running manually: `export PATH="$HOME/.local/bin:$PATH"` ensures uv is on PATH after install.
+- **No local services required.** This is a pure CLI tool — no databases, Docker, or background processes to start.
+- **Lint + test quick check:** `make test` runs both `make lint` and `make unit` in one command.
+- **`validate` works without an API key** and hits the Orchestra schema endpoint. Use `uv run orchestra pipeline validate valid.yaml` for a quick smoke test.
+- **Commands requiring `ORCHESTRA_API_KEY`:** `import`, `run`, `new`, `update`, `delete`, `get`. These are API-bound and need the key set as an env var or via `--env-file .env`.
+- All tests are fully offline (HTTP mocked via `pytest-httpx`, git mocked via `conftest.py` helper). No network access needed for `make unit`.
+

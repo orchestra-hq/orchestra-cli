@@ -5,6 +5,7 @@ from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
+from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
 
@@ -27,10 +28,11 @@ def test_update_success_default_no_publish(tmp_path: Path, httpx_mock: HTTPXMock
     )
     httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"id": "pipeline-id"},
         status_code=200,
         match_json={
+            "alias": "demo",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -55,10 +57,11 @@ def test_update_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
     )
     httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"id": "pipeline-id"},
         status_code=200,
         match_json={
+            "alias": "demo",
             "data": {"name": "demo", "version": 1},
             "published": True,
             "storage_provider": "ORCHESTRA",
@@ -72,6 +75,75 @@ def test_update_publish_flag(tmp_path: Path, httpx_mock: HTTPXMock):
     assert result.exit_code == 0
     assert "updated successfully" in result.output
     assert "https://app.getorchestra.io/pipelines/pipeline-id/edit" in result.output
+
+
+def test_update_success_by_pipeline_id(tmp_path: Path, httpx_mock: HTTPXMock):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PUT",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        json={"id": "pipeline-id"},
+        status_code=200,
+        match_json={
+            "pipeline_id": "pipeline-id",
+            "data": {"name": "demo", "version": 1},
+            "published": False,
+            "storage_provider": "ORCHESTRA",
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "update", "--pipeline-id", "pipeline-id", "--path", str(yaml_file)],
+    )
+    assert result.exit_code == 0
+    assert "updated successfully" in result.output
+
+
+def test_update_path_inside_git_generates_alias(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
+    repo_root = tmp_path
+    yaml_file = repo_root / "My Pipeline.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PUT",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        json={"id": "pipeline-id"},
+        status_code=200,
+        match_json={
+            "alias": "my-pipeline",
+            "data": {"name": "demo", "version": 1},
+            "published": False,
+            "storage_provider": "ORCHESTRA",
+        },
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(app, ["pipeline", "update", "--path", str(yaml_file)], input="\n")
+
+    assert result.exit_code == 0
+    assert "Generated alias: my-pipeline" in result.output
+    assert "updated successfully" in result.output
 
 
 def test_update_missing_api_key(monkeypatch, tmp_path: Path):
@@ -121,7 +193,7 @@ def test_update_api_error_orchestra_backed_only(tmp_path: Path, httpx_mock: HTTP
     )
     httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"detail": "Only orchestra-backed pipelines can be updated via this endpoint."},
         status_code=400,
     )
@@ -144,7 +216,7 @@ def test_update_success_without_pipeline_id_fails(tmp_path: Path, httpx_mock: HT
     )
     httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"alias": "demo"},
         status_code=200,
     )
@@ -166,7 +238,7 @@ def test_update_success_with_invalid_json_fails(tmp_path: Path, httpx_mock: HTTP
     )
     httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         text="ok",
         status_code=200,
     )

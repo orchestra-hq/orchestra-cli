@@ -23,7 +23,7 @@ def fetch_pipelines():
 
     response = request_or_exit(
         httpx.get,
-        get_api_url(""),
+        get_api_url("pipelines"),
         timeout=30,
         headers=auth_headers(api_key),
     )

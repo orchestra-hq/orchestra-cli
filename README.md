@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline delete`, `pipeline run`, `pipeline build`).
+- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`).
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -31,7 +31,8 @@ Commands follow a `noun verb` shape. The current noun is `pipeline`:
 |---|---|
 | `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema. |
 | `orchestra pipeline import` | Register a pipeline YAML (from a git repo) with Orchestra under an alias. |
-| `orchestra pipeline get` | Fetch the pipelines visible to the current API key as JSON. |
+| `orchestra pipeline get` | Fetch one pipeline by path, alias, or pipeline ID. |
+| `orchestra pipeline list` | Fetch the pipelines visible to the current API key as JSON. |
 | `orchestra pipeline new` | Create an Orchestra-backed pipeline from a local YAML file. |
 | `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
 | `orchestra pipeline delete` | Delete an existing pipeline by alias. |
@@ -48,7 +49,7 @@ The previous flat command names continue to work as hidden top-level aliases so 
 |---|---|
 | `orchestra validate` | `orchestra pipeline validate` |
 | `orchestra import` | `orchestra pipeline import` |
-| `orchestra fetch-pipelines` | `orchestra pipeline get` |
+| `orchestra fetch-pipelines` | `orchestra pipeline list` |
 | `orchestra create-pipeline` | `orchestra pipeline new` |
 | `orchestra update-pipeline` | `orchestra pipeline update` |
 | `orchestra delete-pipeline` | `orchestra pipeline delete` |
@@ -162,12 +163,39 @@ Behavior
 
 ## pipeline get
 
+Fetch one pipeline using the shared pipeline selector flags.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+orchestra pipeline get --alias my-pipeline
+orchestra pipeline get --pipeline-id f374e795-50aa-4aeb-9936-d68d2b90475c
+orchestra pipeline get --path ./pipelines/pipeline.yaml
+```
+
+Options
+
+- `-a, --alias` (optional): Pipeline alias.
+- `-i, --pipeline-id` (optional): Pipeline ID.
+- `-p, --path` (optional): Path to pipeline YAML file. Inside a git repository, this resolves to `repository` and `yaml_path`; outside a git repository, the CLI prompts to use a generated alias.
+
+Behavior
+
+- Resolves the selector using the shared rules: alias first, then pipeline ID, then path.
+- Sends `GET /api/engine/public/pipeline` with the resolved selector.
+- Prints the returned pipeline metadata in a labeled, human-readable format.
+- Exit codes: `0` on success, `1` on failure.
+
+---
+
+## pipeline list
+
 Fetch the pipelines available to the current Orchestra API key.
 
 ```bash
 export ORCHESTRA_API_KEY=...
 
-orchestra pipeline get
+orchestra pipeline list
 ```
 
 Behavior
@@ -277,16 +305,21 @@ Validate a local pipeline YAML, create or update its draft pipeline definition, 
 export ORCHESTRA_API_KEY=...
 
 # Build from a local YAML file and wait for completion
-orchestra pipeline build --alias my-pipeline --path ./pipelines/pipeline.yaml
+orchestra pipeline build --path ./pipelines/pipeline.yaml
+
+# Build a specific pipeline by alias or pipeline ID
+orchestra pipeline build --path ./pipelines/pipeline.yaml --alias my-pipeline
+orchestra pipeline build --path ./pipelines/pipeline.yaml --pipeline-id f374e795-50aa-4aeb-9936-d68d2b90475c
 
 # Run against a specific branch/commit override
-orchestra pipeline build -a my-pipeline -p ./pipelines/pipeline.yaml -b feature/my-change -c 0123abc
+orchestra pipeline build -p ./pipelines/pipeline.yaml -a my-pipeline -b feature/my-change -c 0123abc
 ```
 
 Options
 
-- `-a, --alias` (required): Pipeline alias to build.
 - `-p, --path` (required): Path to pipeline YAML file.
+- `-a, --alias` (optional): Pipeline alias.
+- `-i, --pipeline-id` (optional): Pipeline ID.
 - `-b, --branch` (optional): Git branch name to associate with the draft run.
 - `-c, --commit` (optional): Commit SHA to associate with the draft run.
 - `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
@@ -295,9 +328,11 @@ Options
 Behavior
 
 - Validates the local YAML with the schema endpoint before any pipeline mutation.
-- Requires both `--alias` and `--path`: the alias identifies which draft pipeline to create or update in Orchestra, while the path provides the local YAML content to validate and upload.
-- Attempts to update the existing draft pipeline first; if the alias does not exist, creates a new draft pipeline.
-- Starts the returned draft `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
+- Resolves the target pipeline using the shared selector rules: alias first, then pipeline ID, then path.
+- When only `--path` is provided inside a git repository, the CLI looks up the existing pipeline using `repository` + `yaml_path`.
+- When the pipeline does not exist, the CLI creates a draft Orchestra-backed pipeline from the local YAML, generating an alias from `--path` when needed.
+- When the pipeline exists and is Orchestra-backed, the CLI updates that draft and starts the returned `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
+- Existing git-backed pipelines are detected during lookup and currently exit with a clear error rather than attempting an unsupported update flow.
 - Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.
 
 ---

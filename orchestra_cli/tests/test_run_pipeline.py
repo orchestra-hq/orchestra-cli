@@ -61,7 +61,7 @@ def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Pa
         method="POST",
         url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"branch": "main", "commit": "deadbeef"},
+        match_json={"alias": "demo", "branch": "main", "commit": "deadbeef"},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=201,
     )
@@ -84,6 +84,37 @@ def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Pa
     assert (
         result.output.strip()
         == f"Starting pipeline (alias: demo)\nStarted pipeline (alias: demo), run id: {mock_pipeline_run_id}"  # noqa: E501
+    )
+
+
+def test_run_success_by_pipeline_id(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={"pipeline_id": "pipeline-id"},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--pipeline-id", "pipeline-id", "--no-wait"],
+    )
+    assert result.exit_code == 0
+    assert (
+        f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}"
+        in result.output
     )
 
 
@@ -118,6 +149,62 @@ def test_run_warnings_prompt(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path)
     assert result.output.strip().endswith(
         f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}",
     )
+
+
+def test_run_path_checks_selected_repo_warnings(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    yaml_file = repo_root / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+    outside_repo = tmp_path / "outside"
+    outside_repo.mkdir()
+
+    class Result:
+        def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def run_git(args, cwd=None, capture_output=False, text=False, check=False):  # noqa: ARG001
+        key = tuple(args[1:])
+        if (
+            key == ("rev-parse", "--show-toplevel")
+            and cwd is not None
+            and Path(cwd) == outside_repo
+        ):
+            return Result(1, "", "fatal: not a git repo")
+        mapping = {
+            ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+            ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+            ("status", "--porcelain"): (0, " M pipe.yaml\n", ""),
+            ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+        }
+        rc, out, err = mapping.get(key, (1, "", ""))
+        return Result(rc, out, err)
+
+    import subprocess
+
+    monkeypatch.chdir(outside_repo)
+    monkeypatch.setattr(subprocess, "run", run_git)
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={"repository": "org/repo", "yaml_path": "pipe.yaml"},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--path", str(yaml_file), "--no-wait"],
+        input="\n",
+    )
+
+    assert result.exit_code == 0
+    assert "⚠ Uncommitted changes" in result.output
+    assert "Started pipeline (repository: org/repo, yaml_path: pipe.yaml)" in result.output
 
 
 def test_run_api_error(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):

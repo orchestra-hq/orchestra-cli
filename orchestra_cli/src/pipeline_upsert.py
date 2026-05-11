@@ -11,17 +11,22 @@ import httpx
 import typer
 
 from ..utils.constants import get_pipeline_edit_url
+from ..utils.pipeline_selector import PipelineSelector
 from ..utils.styling import green, indent_message, red, yellow
 
 
-def build_upsert_payload(data: dict, publish: bool, alias: str | None = None) -> dict:
+def build_upsert_payload(
+    data: dict,
+    publish: bool,
+    selector: PipelineSelector | None = None,
+) -> dict:
     payload: dict[str, object] = {
         "data": data,
         "published": publish,
         "storage_provider": "ORCHESTRA",
     }
-    if alias is not None:
-        payload["alias"] = alias
+    if selector:
+        payload.update(selector.to_payload())
     return payload
 
 
@@ -45,6 +50,6 @@ def require_pipeline_id_from_success_response(
     return str(pipeline_id)
 
 
-def emit_success_with_edit_url(alias: str, action: str, pipeline_id: str) -> None:
-    typer.echo(green(f"✅ Pipeline '{alias}' {action} successfully: {pipeline_id}"))
+def emit_success_with_edit_url(name: str, action: str, pipeline_id: str) -> None:
+    typer.echo(green(f"✅ Pipeline ({name}) {action} successfully: {pipeline_id}"))
     typer.echo(yellow(f"Edit URL: {get_pipeline_edit_url(pipeline_id)}"))

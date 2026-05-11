@@ -18,7 +18,7 @@ def mock_env(monkeypatch):
     monkeypatch.setenv("BASE_URL", "")
 
 
-def test_build_updates_existing_draft_and_starts_version(
+def test_build_updates_existing_draft_and_starts_version_by_repo_path(
     httpx_mock: HTTPXMock,
     monkeypatch,
     tmp_path: Path,
@@ -28,6 +28,7 @@ def test_build_updates_existing_draft_and_starts_version(
 
     mapping = {
         ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
         ("status", "--porcelain"): (0, "", ""),
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
     }
@@ -42,10 +43,18 @@ def test_build_updates_existing_draft_and_starts_version(
         status_code=200,
     )
     httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"id": "pipeline-id", "storage_provider": "ORCHESTRA"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
+            "pipeline_id": "pipeline-id",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -55,9 +64,14 @@ def test_build_updates_existing_draft_and_starts_version(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"branch": "main", "commit": "deadbeef", "versionNumber": 12},
+        match_json={
+            "pipeline_id": "pipeline-id",
+            "branch": "main",
+            "commit": "deadbeef",
+            "versionNumber": 12,
+        },
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -67,8 +81,6 @@ def test_build_updates_existing_draft_and_starts_version(
         [
             "pipeline",
             "build",
-            "--alias",
-            "demo",
             "--path",
             str(yaml_file),
             "--branch",
@@ -80,18 +92,24 @@ def test_build_updates_existing_draft_and_starts_version(
     )
 
     assert result.exit_code == 0
+    assert "Updating draft pipeline (pipeline_id: pipeline-id)" in result.output
     assert "updated as version 12" in result.output
     assert result.output.strip().endswith(
-        f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}",
+        f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}",
     )
 
 
-def test_build_creates_draft_on_missing_alias(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+def test_build_creates_draft_when_pipeline_is_missing(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
 
     mapping = {
         ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
         ("status", "--porcelain"): (0, "", ""),
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
     }
@@ -106,8 +124,9 @@ def test_build_creates_draft_on_missing_alias(httpx_mock: HTTPXMock, monkeypatch
         status_code=200,
     )
     httpx_mock.add_response(
-        method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
         json={"detail": "not found"},
         status_code=404,
     )
@@ -116,7 +135,7 @@ def test_build_creates_draft_on_missing_alias(httpx_mock: HTTPXMock, monkeypatch
         url="https://app.getorchestra.io/api/engine/public/pipelines",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "alias": "demo",
+            "alias": "pipe",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -126,22 +145,25 @@ def test_build_creates_draft_on_missing_alias(httpx_mock: HTTPXMock, monkeypatch
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"versionNumber": 3},
+        match_json={"pipeline_id": "pipeline-id", "versionNumber": 3},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
 
     result = runner.invoke(
         app,
-        ["pipeline", "build", "--alias", "demo", "--path", str(yaml_file), "--no-wait"],
+        ["pipeline", "build", "--path", str(yaml_file), "--no-wait"],
+        input="\n",
     )
 
     assert result.exit_code == 0
+    assert "Generated alias: pipe" in result.output
+    assert "Creating draft pipeline (alias: pipe)" in result.output
     assert "created as version 3" in result.output
     assert result.output.strip().endswith(
-        f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}",
+        f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}",
     )
 
 
@@ -165,8 +187,14 @@ def test_build_fails_without_version_number(httpx_mock: HTTPXMock, monkeypatch, 
         status_code=200,
     )
     httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        json={"id": "pipeline-id", "storage_provider": "ORCHESTRA", "alias": "demo"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         json={"id": "pipeline-id"},
         status_code=200,
     )
@@ -180,12 +208,17 @@ def test_build_fails_without_version_number(httpx_mock: HTTPXMock, monkeypatch, 
     assert "did not include draft version number" in result.output
 
 
-def test_build_reports_non_404_update_error(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+def test_build_reports_git_backed_pipeline_as_unsupported(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
 
     mapping = {
         ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
         ("status", "--porcelain"): (0, "", ""),
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
     }
@@ -200,19 +233,17 @@ def test_build_reports_non_404_update_error(httpx_mock: HTTPXMock, monkeypatch, 
         status_code=200,
     )
     httpx_mock.add_response(
-        method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
-        json={"detail": "bad"},
-        status_code=400,
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"id": "pipeline-id", "storage_provider": "GITHUB"},
+        status_code=200,
     )
 
-    result = runner.invoke(
-        app,
-        ["pipeline", "build", "--alias", "demo", "--path", str(yaml_file), "--no-wait"],
-    )
+    result = runner.invoke(app, ["pipeline", "build", "--path", str(yaml_file), "--no-wait"])
 
     assert result.exit_code == 1
-    assert "Build failed" in result.output
+    assert "git-backed pipelines are not yet supported" in result.output
 
 
 def test_build_uses_zero_latest_version_number(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
@@ -235,10 +266,18 @@ def test_build_uses_zero_latest_version_number(httpx_mock: HTTPXMock, monkeypatc
         status_code=200,
     )
     httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"id": "pipeline-id", "storage_provider": "ORCHESTRA", "alias": "demo"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
         method="PUT",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
+            "pipeline_id": "pipeline-id",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -248,9 +287,9 @@ def test_build_uses_zero_latest_version_number(httpx_mock: HTTPXMock, monkeypatc
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"versionNumber": 0},
+        match_json={"pipeline_id": "pipeline-id", "versionNumber": 0},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
