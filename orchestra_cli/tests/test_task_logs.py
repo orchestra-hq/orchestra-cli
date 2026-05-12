@@ -81,6 +81,59 @@ def test_task_logs_with_filename_follows_new_content(httpx_mock: HTTPXMock, monk
     assert "hello\nworld\n" in result.output
 
 
+def test_task_logs_treats_post_content_s3_error_as_eof(httpx_mock: HTTPXMock, monkeypatch):
+    _mock_task_run_lookup(httpx_mock)
+    _stop_after_sleep_count(monkeypatch, stop_after=2)
+    download_url = (
+        "https://app.getorchestra.io/api/engine/public"
+        f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+        "/logs/download?filename=main.log"
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        content=b"hello\n",
+        status_code=206,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=6-"},
+        json={"detail": "Failed to download log file from S3"},
+        status_code=500,
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "logs", "--task-run-id", mock_task_run_id, "--filename", "main.log"],
+    )
+
+    assert result.exit_code == 0
+    assert "hello\n" in result.output
+    assert "Download task log failed" not in result.output
+
+
+def test_task_logs_initial_s3_error_still_fails(httpx_mock: HTTPXMock):
+    _mock_task_run_lookup(httpx_mock)
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            "https://app.getorchestra.io/api/engine/public"
+            f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+            "/logs/download?filename=main.log"
+        ),
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        json={"detail": "Failed to download log file from S3"},
+        status_code=500,
+    )
+
+    result = runner.invoke(app, ["task", "logs", "-tr", mock_task_run_id, "-f", "main.log"])
+
+    assert result.exit_code == 1
+    assert "Download task log failed" in result.output
+
+
 def test_task_logs_without_filename_prompts_for_log_file(httpx_mock: HTTPXMock, monkeypatch):
     _mock_task_run_lookup(httpx_mock)
     _stop_after_sleep_count(monkeypatch, stop_after=1)

@@ -155,6 +155,19 @@ def _new_content_from_response(content: bytes, offset: int, status_code: int) ->
     return content, offset + len(content)
 
 
+def _is_eof_response(response: httpx.Response) -> bool:
+    if response.status_code in {204, 416}:
+        return True
+    if response.status_code != 500:
+        return False
+
+    try:
+        detail = response.json().get("detail")
+    except Exception:
+        return False
+    return detail == "Failed to download log file from S3"
+
+
 def _follow_log_file(
     *,
     pipeline_run_id: str,
@@ -185,7 +198,7 @@ def _follow_log_file(
                 text = decoder.decode(new_content)
                 if text:
                     typer.echo(text, nl=False)
-            elif response.status_code in {204, 416}:
+            elif offset > 0 and _is_eof_response(response):
                 pass
             else:
                 fail_with_response("Download task log", response)
