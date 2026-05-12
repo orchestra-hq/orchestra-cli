@@ -315,6 +315,7 @@ def test_build_fails_when_pipeline_lookup_returns_error_status(
     assert result.exit_code == 1
     assert "Build failed with status 503" in result.output
     assert "did not include draft version number" not in result.output
+    assert "existing pipeline metadata did not include" not in result.output
 
 
 def test_build_reports_git_backed_pipeline_as_unsupported(

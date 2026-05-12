@@ -59,7 +59,7 @@ def _lookup_existing_pipeline(
     if response.status_code == 404:
         return None
     if response.status_code != 200:
-        fail_with_response("Build", response)
+        raise fail_with_response("Build", response)
 
     return require_pipeline_body_from_success_response(response, "Build")
 

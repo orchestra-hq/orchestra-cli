@@ -5,11 +5,31 @@ from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
+from orchestra_cli.src.run_pipeline import build_run_payload
+from orchestra_cli.utils.pipeline_selector import PipelineSelector
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
 mock_pipeline_run_id = "798d7121-6809-4148-aecb-26740cfabdf1"
 mock_api_key = "fake-key"
+
+
+def test_build_run_payload_includes_version_number_when_set() -> None:
+    selector = PipelineSelector(alias="demo")
+    payload = build_run_payload(selector, branch="main", commit="abc", version_number=9)
+    assert payload == {
+        "alias": "demo",
+        "branch": "main",
+        "commit": "abc",
+        "versionNumber": 9,
+    }
+
+
+def test_build_run_payload_omits_version_number_when_not_set() -> None:
+    selector = PipelineSelector(pipeline_id="pid-1")
+    payload = build_run_payload(selector)
+    assert "versionNumber" not in payload
+    assert payload == {"pipeline_id": "pid-1"}
 
 
 @pytest.fixture(autouse=True)
