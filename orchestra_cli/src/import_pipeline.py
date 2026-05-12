@@ -66,6 +66,11 @@ def _detect_storage_provider(repository_url: str | None) -> str:
 def import_pipeline(
     path: Path | None = pipeline_path_option("Path to pipeline YAML inside a git repository"),
     alias: str | None = pipeline_alias_option(),
+    default_branch: str | None = typer.Option(
+        None,
+        "--default-branch",
+        help="Default branch for the imported pipeline (defaults to the git remote default branch)",
+    ),
     working_branch: str | None = typer.Option(
         None,
         "--working-branch",
@@ -92,10 +97,11 @@ def import_pipeline(
     if not repository_slug:
         typer.echo(red("Could not detect repository URL from git"))
         raise typer.Exit(code=1)
-    default_branch = _detect_default_branch(repo_root)
     if not default_branch:
-        typer.echo(red("Could not detect default branch from git"))
-        raise typer.Exit(code=1)
+        default_branch = _detect_default_branch(repo_root)
+        if not default_branch:
+            typer.echo(red("Could not detect default branch from git"))
+            raise typer.Exit(code=1)
 
     # Determine working branch (explicit option or current branch)
     if working_branch is None:

@@ -2,7 +2,8 @@ import typer
 
 from .create_pipeline import create_pipeline
 from .delete_pipeline import delete_pipeline
-from .fetch_pipelines import fetch_pipelines, get_pipeline
+from .fetch_pipelines import fetch_pipelines
+from .get_pipeline import get_pipeline
 from .import_pipeline import import_pipeline
 from .run_pipeline import run_pipeline
 from .task_logs import task_logs

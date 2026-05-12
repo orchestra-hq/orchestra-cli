@@ -16,7 +16,7 @@ from ..utils.pipeline_selector import (
     pipeline_path_option,
     resolve_pipeline_selector,
 )
-from ..utils.styling import green
+from ..utils.styling import green, yellow
 
 
 def delete_pipeline(
@@ -29,6 +29,10 @@ def delete_pipeline(
     """
     api_key = require_api_key()
     selector = resolve_pipeline_selector(alias, pipeline_id, path)
+
+    if not typer.confirm(f"Delete pipeline ({selector.display()})?"):
+        typer.echo(yellow("Deletion aborted"))
+        raise typer.Exit(code=1)
 
     response = request_or_exit(
         httpx.delete,
