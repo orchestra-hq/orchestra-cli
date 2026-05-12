@@ -276,6 +276,47 @@ def test_build_fails_without_version_number(httpx_mock: HTTPXMock, monkeypatch, 
     assert "did not include draft version number" in result.output
 
 
+def test_build_fails_when_pipeline_lookup_returns_error_status(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"detail": "upstream error"},
+        status_code=503,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "build", "--alias", "demo", "--path", str(yaml_file), "--no-wait"],
+    )
+
+    assert result.exit_code == 1
+    assert "Build failed with status 503" in result.output
+    assert "did not include draft version number" not in result.output
+
+
 def test_build_reports_git_backed_pipeline_as_unsupported(
     httpx_mock: HTTPXMock,
     monkeypatch,
