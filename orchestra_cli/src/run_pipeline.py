@@ -183,7 +183,7 @@ def run_pipeline(
     Run a pipeline in Orchestra.
     """
     api_key = require_api_key()
-    selector = resolve_pipeline_selector(alias, pipeline_id, path)
+    selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
 
     confirm_git_warnings_or_exit(force, path)
 

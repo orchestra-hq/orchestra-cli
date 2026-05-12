@@ -171,6 +171,48 @@ def test_run_warnings_prompt(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path)
     )
 
 
+def test_run_path_only_outside_git_force_skips_alias_prompt(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "My Pipeline.yaml"
+    yaml_file.write_text("name: demo\n")
+
+    import subprocess
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        make_git_subprocess_mock(
+            {("rev-parse", "--show-toplevel"): (1, "", "fatal: not a git repo")},
+        ),
+    )
+
+    def fail_input() -> str:
+        raise AssertionError("input should not be called when --force is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/my-pipeline/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--path", str(yaml_file), "--no-wait", "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert "Press Enter to accept" not in result.output
+    assert "Generated alias: my-pipeline" in result.output
+    assert f"Started pipeline (alias: my-pipeline), run id: {mock_pipeline_run_id}" in result.output
+
+
 def test_run_path_checks_selected_repo_warnings(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
