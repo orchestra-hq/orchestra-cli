@@ -39,4 +39,4 @@ def fetch_pipelines():
         typer.echo(json.dumps(pipelines, indent=2))
         raise typer.Exit(code=0)
 
-    fail_with_response("Fetch pipelines", response)
+    raise fail_with_response("Fetch pipelines", response)

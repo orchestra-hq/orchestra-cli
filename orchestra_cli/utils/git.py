@@ -2,6 +2,10 @@ import re
 import subprocess
 from pathlib import Path
 
+import typer
+
+from .styling import bold, red, yellow
+
 
 def run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
     try:
@@ -63,3 +67,28 @@ def git_warnings(repo_root: Path) -> list[str]:
             if ok_stat and "behind" in stat:
                 warnings.append("You are not on latest HEAD of the branch (behind remote)")
     return warnings
+
+
+def confirm_git_warnings_or_exit(force: bool, path: Path | None = None) -> None:
+    """Show git warnings and require confirmation unless ``--force`` is passed."""
+    start_path = path.parent if path is not None else Path.cwd()
+    repo_root = detect_repo_root(start_path)
+    if repo_root is None:
+        return
+
+    warnings = git_warnings(repo_root)
+    if not warnings:
+        return
+
+    for warning in warnings:
+        typer.echo(yellow(f"⚠ {warning}"))
+
+    if force:
+        return
+
+    typer.echo(bold(yellow("Press Enter to continue or Ctrl+C to abort")))
+    try:
+        input()
+    except KeyboardInterrupt:
+        typer.echo(red("Aborted"))
+        raise typer.Exit(code=1)

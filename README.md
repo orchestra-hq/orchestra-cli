@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`).
+- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`).
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -37,6 +37,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`
 | `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
 | `orchestra pipeline delete` | Delete an existing pipeline by alias. |
 | `orchestra pipeline run` | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
+| `orchestra pipeline build` | Validate local YAML, create or update a draft pipeline, and start that draft version. |
 | `orchestra task logs` | Follow logs for a single task run. |
 
 Use `orchestra --help`, `orchestra <noun> --help`, or `orchestra <noun> <verb> --help` for built-in help.
@@ -54,7 +55,6 @@ The previous flat command names continue to work as hidden top-level aliases so 
 | `orchestra update-pipeline` | `orchestra pipeline update` |
 | `orchestra delete-pipeline` | `orchestra pipeline delete` |
 | `orchestra run` | `orchestra pipeline run` |
-
 New code and documentation should prefer the noun/verb form.
 
 ---
@@ -298,6 +298,48 @@ Non-interactive usage
 
 ---
 
+## pipeline build
+
+Validate a local pipeline YAML, create or update its draft pipeline definition, then start that draft version. This is intended for quick local iteration without publishing a pipeline first.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+# Build from a local YAML file and wait for completion.
+# Alias is optional; if omitted, the CLI resolves the pipeline from the shared selector rules
+# and generates an alias from --path when it needs to create a new draft.
+orchestra pipeline build --path ./pipelines/pipeline.yaml
+
+# Build a specific existing pipeline by alias or pipeline ID
+orchestra pipeline build --path ./pipelines/pipeline.yaml --alias my-pipeline
+orchestra pipeline build --path ./pipelines/pipeline.yaml --pipeline-id f374e795-50aa-4aeb-9936-d68d2b90475c
+
+# Run against a specific branch/commit override
+orchestra pipeline build -p ./pipelines/pipeline.yaml -a my-pipeline -b feature/my-change -c 0123abc
+```
+
+Options
+
+- `-p, --path` (required): Path to pipeline YAML file.
+- `-a, --alias` (optional): Pipeline alias. You can omit this flag entirely and still build from `--path` alone—the CLI resolves the target using the shared selector rules and only prompts for or generates an alias when it must create a new draft pipeline.
+- `-i, --pipeline-id` (optional): Pipeline ID.
+- `-b, --branch` (optional): Git branch name to associate with the draft run.
+- `-c, --commit` (optional): Commit SHA to associate with the draft run.
+- `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
+- `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
+
+Behavior
+
+- Validates the local YAML with the schema endpoint before any pipeline mutation.
+- Treats `--alias` as optional and resolves the target pipeline using the shared selector rules: alias first, then pipeline ID, then path.
+- When only `--path` is provided inside a git repository, the CLI looks up the existing pipeline using `repository` + `yaml_path`.
+- When the pipeline does not exist, the CLI creates a draft Orchestra-backed pipeline from the local YAML, generating an alias from `--path` via the shared selector helper when needed.
+- When the pipeline exists and is Orchestra-backed, the CLI updates that draft and starts the returned `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
+- Existing git-backed pipelines are detected during lookup and currently exit with a clear error rather than attempting an unsupported update flow.
+- Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.
+
+---
+
 ## task logs
 
 Follow logs for a single task run.
@@ -340,6 +382,9 @@ orchestra pipeline run -a finance-etl
 
 # Start a run and exit immediately
 orchestra pipeline run -a finance-etl --no-wait
+
+# Build a draft pipeline from local YAML and let the CLI generate an alias if needed
+orchestra pipeline build -p ./pipelines/etl.yaml
 
 # Follow task run logs
 orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log

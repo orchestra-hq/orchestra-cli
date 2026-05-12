@@ -62,4 +62,4 @@ def create_pipeline(
         emit_success_with_edit_url(selector.display(), "created", pipeline_id)
         raise typer.Exit(code=0)
 
-    fail_with_response("Create", response)
+    raise fail_with_response("Create", response)

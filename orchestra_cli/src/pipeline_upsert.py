@@ -30,10 +30,10 @@ def build_upsert_payload(
     return payload
 
 
-def require_pipeline_id_from_success_response(
+def require_pipeline_body_from_success_response(
     response: httpx.Response,
     action: str,
-) -> str:
+) -> dict[str, object]:
     try:
         body = response.json()
     except Exception:
@@ -41,13 +41,35 @@ def require_pipeline_id_from_success_response(
         typer.echo(yellow(indent_message(response.text)))
         raise typer.Exit(code=1)
 
-    pipeline_id = body.get("id")
+    if not isinstance(body, dict):
+        typer.echo(red(f"❌ {action} failed: success response was not a JSON object"))
+        typer.echo(yellow(indent_message(json.dumps(body, indent=2))))
+        raise typer.Exit(code=1)
+
+    return body
+
+
+def require_pipeline_id_from_success_body(
+    body: dict[str, object],
+    action: str,
+) -> str:
+    pipeline_id = body.get("id") or body.get("pipeline_id")
     if not pipeline_id:
         typer.echo(red(f"❌ {action} failed: success response did not include pipeline id"))
         typer.echo(yellow(indent_message(json.dumps(body, indent=2))))
         raise typer.Exit(code=1)
 
     return str(pipeline_id)
+
+
+def require_pipeline_id_from_success_response(
+    response: httpx.Response,
+    action: str,
+) -> str:
+    return require_pipeline_id_from_success_body(
+        require_pipeline_body_from_success_response(response, action),
+        action,
+    )
 
 
 def emit_success_with_edit_url(name: str, action: str, pipeline_id: str) -> None:

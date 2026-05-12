@@ -64,6 +64,27 @@ def test_generate_alias_from_path_slugifies_filename():
     assert generate_alias_from_path(Path("My Pipeline.yaml")) == "my-pipeline"
 
 
+def test_force_skips_generated_alias_prompt(monkeypatch, tmp_path: Path):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+
+    def fail_input() -> str:
+        raise AssertionError("input should not be called when force=True")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    selector = resolve_pipeline_selector(
+        None,
+        None,
+        yaml_file,
+        allow_pipeline_id=False,
+        use_git_path_selector=False,
+        force=True,
+    )
+
+    assert selector == PipelineSelector(alias="pipe")
+
+
 def test_pipeline_id_can_be_disallowed(capsys):
     with pytest.raises(typer.Exit):
         resolve_pipeline_selector(
@@ -81,3 +102,33 @@ def test_create_command_does_not_accept_pipeline_id():
 
     assert result.exit_code != 0
     assert "No such option" in result.output
+
+
+def test_build_style_resolve_generates_alias_from_path_without_alias_arg(
+    monkeypatch,
+    tmp_path: Path,
+):
+    """Same mode as ``pipeline build`` when creating a draft: path only, no repo+yaml selector."""
+    repo_root = tmp_path
+    yaml_file = repo_root / "pipelines" / "custom_name.yaml"
+    yaml_file.parent.mkdir(parents=True)
+    yaml_file.write_text("name: demo\n")
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    monkeypatch.setattr("builtins.input", lambda: "")
+
+    selector = resolve_pipeline_selector(
+        None,
+        None,
+        yaml_file,
+        allow_pipeline_id=False,
+        use_git_path_selector=False,
+    )
+
+    assert selector == PipelineSelector(alias="custom-name")

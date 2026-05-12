@@ -1,5 +1,6 @@
 import typer
 
+from .build_pipeline import build_pipeline
 from .create_pipeline import create_pipeline
 from .delete_pipeline import delete_pipeline
 from .fetch_pipelines import fetch_pipelines
@@ -24,6 +25,7 @@ pipeline_app.command(name="update")(update_pipeline)
 pipeline_app.command(name="get")(get_pipeline)
 pipeline_app.command(name="list")(fetch_pipelines)
 pipeline_app.command(name="run")(run_pipeline)
+pipeline_app.command(name="build")(build_pipeline)
 pipeline_app.command(name="delete")(delete_pipeline)
 task_app.command(name="logs")(task_logs)
 

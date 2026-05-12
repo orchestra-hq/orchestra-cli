@@ -154,4 +154,4 @@ def import_pipeline(
             typer.echo(bold(json.dumps(body)))
         raise typer.Exit(code=0)
 
-    fail_with_response("Import", response)
+    raise fail_with_response("Import", response)
