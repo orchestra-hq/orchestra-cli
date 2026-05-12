@@ -78,7 +78,7 @@ def get_pipeline(
         typer.echo(_format_pipeline_metadata(pipeline))
         raise typer.Exit(code=0)
 
-    fail_with_response("Get pipeline", response)
+    raise fail_with_response("Get pipeline", response)
 
 
 def _format_pipeline_metadata(pipeline: dict[str, object]) -> str:

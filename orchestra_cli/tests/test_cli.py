@@ -15,7 +15,7 @@ def test_help():
 def test_pipeline_help_lists_verbs():
     result = runner.invoke(app, ["pipeline", "--help"])
     assert result.exit_code == 0
-    for verb in ("validate", "import", "new", "update", "get", "list", "run", "delete"):
+    for verb in ("validate", "import", "new", "update", "get", "list", "run", "build", "delete"):
         assert verb in result.output
 
 

@@ -62,6 +62,7 @@ def resolve_pipeline_selector(
     allow_pipeline_id: bool = True,
     required: bool = True,
     use_git_path_selector: bool = True,
+    force: bool = False,
 ) -> PipelineSelector:
     if alias:
         return PipelineSelector(alias=alias)
@@ -73,12 +74,13 @@ def resolve_pipeline_selector(
         return PipelineSelector(pipeline_id=pipeline_id)
 
     if path is not None and use_git_path_selector:
-        return _resolve_path_selector(path)
+        return _resolve_path_selector(path, force=force)
 
     if path is not None:
         return _resolve_generated_alias_selector(
             path,
             inside_git_repo=detect_repo_root(path.parent) is not None,
+            force=force,
         )
 
     if required:
@@ -88,7 +90,7 @@ def resolve_pipeline_selector(
     return PipelineSelector()
 
 
-def _resolve_path_selector(path: Path) -> PipelineSelector:
+def _resolve_path_selector(path: Path, force: bool = False) -> PipelineSelector:
     repo_root = detect_repo_root(path.parent)
     if repo_root is not None:
         repository = detect_repository_slug(repo_root)
@@ -102,21 +104,26 @@ def _resolve_path_selector(path: Path) -> PipelineSelector:
             raise typer.Exit(code=1)
         return PipelineSelector(repository=repository, yaml_path=yaml_path)
 
-    return _resolve_generated_alias_selector(path, inside_git_repo=False)
+    return _resolve_generated_alias_selector(path, inside_git_repo=False, force=force)
 
 
-def _resolve_generated_alias_selector(path: Path, inside_git_repo: bool) -> PipelineSelector:
+def _resolve_generated_alias_selector(
+    path: Path,
+    inside_git_repo: bool,
+    force: bool = False,
+) -> PipelineSelector:
     generated_alias = generate_alias_from_path(path)
     if inside_git_repo:
         typer.echo(yellow("This command uses an alias selector; generating one from --path."))
     else:
         typer.echo(yellow("Not inside a git repository; generating a pipeline alias from --path."))
     typer.echo(bold(f"Generated alias: {generated_alias}"))
-    typer.echo(bold(yellow("Press Enter to accept this alias or Ctrl+C to abort")))
-    try:
-        input()
-    except KeyboardInterrupt:
-        typer.echo(red("Aborted"))
-        raise typer.Exit(code=1)
+    if not force:
+        typer.echo(bold(yellow("Press Enter to accept this alias or Ctrl+C to abort")))
+        try:
+            input()
+        except KeyboardInterrupt:
+            typer.echo(red("Aborted"))
+            raise typer.Exit(code=1)
 
     return PipelineSelector(alias=generated_alias)

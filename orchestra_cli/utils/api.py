@@ -58,8 +58,8 @@ def echo_response_error_body(response: httpx.Response) -> None:
         typer.echo(yellow(indent_message(response.text)))
 
 
-def fail_with_response(action: str, response: httpx.Response) -> None:
+def fail_with_response(action: str, response: httpx.Response) -> typer.Exit:
     """Echo a uniform ``❌ <action> failed with status <code>`` error and exit 1."""
     typer.echo(red(f"❌ {action} failed with status {response.status_code}"))
     echo_response_error_body(response)
-    raise typer.Exit(code=1)
+    return typer.Exit(code=1)

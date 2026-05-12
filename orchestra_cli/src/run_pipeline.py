@@ -1,49 +1,21 @@
 import time
 from pathlib import Path
+from typing import Any
 
 import httpx
 import typer
 
-from ..utils.api import (
-    auth_headers,
-    fail_with_response,
-    request_or_exit,
-    require_api_key,
-)
+from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_api_url, get_base_url
-from ..utils.git import detect_repo_root, git_warnings
+from ..utils.git import confirm_git_warnings_or_exit
 from ..utils.pipeline_selector import (
+    PipelineSelector,
     pipeline_alias_option,
     pipeline_id_option,
     pipeline_path_option,
     resolve_pipeline_selector,
 )
 from ..utils.styling import bold, green, indent_message, red, yellow
-
-
-def _confirm_warnings_or_exit(force: bool, path: Path | None = None) -> None:
-    """Print git warnings and prompt for confirmation unless ``--force`` was passed."""
-    start_path = path.parent if path is not None else Path.cwd()
-    repo_root = detect_repo_root(start_path)
-    if repo_root is None:
-        return
-
-    warnings = git_warnings(repo_root)
-    if not warnings:
-        return
-
-    for w in warnings:
-        typer.echo(yellow(f"⚠ {w}"))
-
-    if force:
-        return
-
-    typer.echo(bold(yellow("Press Enter to continue or Ctrl+C to abort")))
-    try:
-        input()
-    except KeyboardInterrupt:
-        typer.echo(red("Aborted"))
-        raise typer.Exit(code=1)
 
 
 def _poll_until_terminal(
@@ -63,8 +35,8 @@ def _poll_until_terminal(
         time.sleep(poll_interval_seconds)
         try:
             status_resp = httpx.get(status_url, headers=headers, timeout=30)
-        except Exception as e:
-            typer.echo(yellow(f"Polling request failed: {e}"))
+        except Exception as exc:
+            typer.echo(yellow(f"Polling request failed: {exc}"))
             continue
 
         if not (200 <= status_resp.status_code < 300):
@@ -117,45 +89,37 @@ def _poll_until_terminal(
         )
 
 
-def run_pipeline(
-    path: Path | None = pipeline_path_option(),
-    alias: str | None = pipeline_alias_option(),
-    pipeline_id: str | None = pipeline_id_option(),
-    branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
-    commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
-    wait: bool = typer.Option(
-        True,
-        "--wait/--no-wait",
-        help="Poll the pipeline run until it completes",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force/--no-force",
-        help="Ignore any warnings and run the pipeline anyway",
-    ),
-):
-    """
-    Run a pipeline in Orchestra.
-    """
-    api_key = require_api_key()
-    selector = resolve_pipeline_selector(alias, pipeline_id, path)
-    selector_name = selector.display()
-
-    _confirm_warnings_or_exit(force, path)
-
-    payload = selector.to_payload()
+def build_run_payload(
+    selector: PipelineSelector,
+    branch: str | None = None,
+    commit: str | None = None,
+    version_number: int | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = selector.to_payload()
     if branch:
         payload["branch"] = branch
     if commit:
         payload["commit"] = commit
+    if version_number is not None:
+        payload["versionNumber"] = version_number
+    return payload
 
+
+def start_pipeline_run(
+    selector: PipelineSelector,
+    api_key: str,
+    payload: dict[str, Any] | None,
+    wait: bool,
+    failure_action: str,
+) -> None:
+    selector_name = selector.display()
     start_path = f"pipelines/{selector.alias}/start" if selector.alias else "pipelines/start"
 
     typer.echo(f"Starting pipeline ({selector_name})")
     response = request_or_exit(
         httpx.post,
         get_api_url(start_path),
-        json=payload if payload else None,
+        json=payload if payload is not None else None,
         timeout=30,
         headers=auth_headers(api_key),
     )
@@ -195,4 +159,38 @@ def run_pipeline(
         )
         return
 
-    fail_with_response("Run", response)
+    raise fail_with_response(failure_action, response)
+
+
+def run_pipeline(
+    path: Path | None = pipeline_path_option(),
+    alias: str | None = pipeline_alias_option(),
+    pipeline_id: str | None = pipeline_id_option(),
+    branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
+    commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
+    wait: bool = typer.Option(
+        True,
+        "--wait/--no-wait",
+        help="Poll the pipeline run until it completes",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help="Ignore any warnings and run the pipeline anyway",
+    ),
+):
+    """
+    Run a pipeline in Orchestra.
+    """
+    api_key = require_api_key()
+    selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
+
+    confirm_git_warnings_or_exit(force, path)
+
+    start_pipeline_run(
+        selector=selector,
+        api_key=api_key,
+        payload=build_run_payload(selector, branch=branch, commit=commit),
+        wait=wait,
+        failure_action="Run",
+    )
