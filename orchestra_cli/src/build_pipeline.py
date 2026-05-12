@@ -1,6 +1,4 @@
-import json
 from pathlib import Path
-from typing import cast
 
 import httpx
 import typer
@@ -15,38 +13,14 @@ from ..utils.pipeline_selector import (
     pipeline_path_option,
     resolve_pipeline_selector,
 )
-from ..utils.styling import green, indent_message, red, yellow
+from ..utils.styling import green, red
 from ..utils.yaml_loader import load_validated_pipeline_data
-from .pipeline_upsert import build_upsert_payload
+from .pipeline_upsert import (
+    build_upsert_payload,
+    require_pipeline_body_from_success_response,
+    require_pipeline_id_from_success_body,
+)
 from .run_pipeline import build_run_payload, start_pipeline_run
-
-
-def _parse_success_response_body(response: httpx.Response, action: str) -> dict[str, object]:
-    try:
-        body = response.json()
-    except Exception:
-        typer.echo(red(f"❌ {action} failed: success response was not valid JSON"))
-        typer.echo(yellow(indent_message(response.text)))
-        raise typer.Exit(code=1)
-
-    if not isinstance(body, dict):
-        typer.echo(red(f"❌ {action} failed: success response was not a JSON object"))
-        typer.echo(yellow(indent_message(json.dumps(body, indent=2))))
-        raise typer.Exit(code=1)
-
-    return cast(dict[str, object], body)
-
-
-def _extract_pipeline_id(body: dict[str, object], action: str) -> str:
-    pipeline_id = body.get("id")
-    if pipeline_id is None:
-        pipeline_id = body.get("pipeline_id")
-    if not pipeline_id:
-        typer.echo(red(f"❌ {action} failed: success response did not include pipeline id"))
-        typer.echo(yellow(indent_message(json.dumps(body, indent=2))))
-        raise typer.Exit(code=1)
-
-    return str(pipeline_id)
 
 
 def _extract_pipeline_version(body: dict[str, object], action: str) -> int:
@@ -63,8 +37,11 @@ def _extract_pipeline_version(body: dict[str, object], action: str) -> int:
 
 
 def _extract_upsert_result(response: httpx.Response, action: str) -> tuple[str, int]:
-    body = _parse_success_response_body(response, action)
-    return _extract_pipeline_id(body, action), _extract_pipeline_version(body, action)
+    body = require_pipeline_body_from_success_response(response, action)
+    return require_pipeline_id_from_success_body(body, action), _extract_pipeline_version(
+        body,
+        action,
+    )
 
 
 def _lookup_existing_pipeline(
@@ -84,7 +61,7 @@ def _lookup_existing_pipeline(
     if response.status_code != 200:
         fail_with_response("Build", response)
 
-    return _parse_success_response_body(response, "Build")
+    return require_pipeline_body_from_success_response(response, "Build")
 
 
 def _build_update_selector(existing_pipeline: dict[str, object]) -> PipelineSelector:
