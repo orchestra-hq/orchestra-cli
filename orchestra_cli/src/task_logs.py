@@ -1,4 +1,5 @@
 import codecs
+import re
 import sys
 import time
 from collections.abc import Iterable
@@ -12,6 +13,8 @@ from ..utils.constants import get_api_url
 from ..utils.styling import bold, indent_message, red, yellow
 
 POLL_INTERVAL_SECONDS = 2
+CONTENT_RANGE_RE = re.compile(r"^bytes (?P<start>\d+)-(?P<end>\d+)/(?P<total>\d+|\*)$")
+CONTENT_RANGE_EOF_RE = re.compile(r"^bytes \*/(?P<total>\d+|\*)$")
 
 
 def _success_json_or_exit(response: httpx.Response, action: str) -> object:
@@ -32,7 +35,7 @@ def _resolve_pipeline_run_id(task_run_id: str, api_key: str) -> str:
         headers=auth_headers(api_key),
     )
     if response.status_code != 200:
-        fail_with_response("Resolve task run", response)
+        raise fail_with_response("Resolve task run", response)
 
     body = _success_json_or_exit(response, "Resolve task run")
     results = body.get("results") if isinstance(body, dict) else body
@@ -74,7 +77,7 @@ def _list_log_filenames(pipeline_run_id: str, task_run_id: str, api_key: str) ->
         headers=auth_headers(api_key),
     )
     if response.status_code != 200:
-        fail_with_response("List task logs", response)
+        raise fail_with_response("List task logs", response)
 
     body = _success_json_or_exit(response, "List task logs")
     filenames = body.get("filenames") if isinstance(body, dict) else None
@@ -147,12 +150,41 @@ def _select_filename(filenames: list[str]) -> str:
     return _select_filename_with_prompt(filenames)
 
 
-def _new_content_from_response(content: bytes, offset: int, status_code: int) -> tuple[bytes, int]:
-    if status_code == 200 and offset > 0:
+def _parse_content_range(response: httpx.Response) -> tuple[int | None, int | None]:
+    content_range = response.headers.get("content-range")
+    if not content_range:
+        return None, None
+
+    match = CONTENT_RANGE_RE.match(content_range)
+    if match:
+        total_text = match.group("total")
+        total_size = None if total_text == "*" else int(total_text)
+        return int(match.group("end")) + 1, total_size
+
+    match = CONTENT_RANGE_EOF_RE.match(content_range)
+    if match:
+        total_text = match.group("total")
+        total_size = None if total_text == "*" else int(total_text)
+        return None, total_size
+
+    return None, None
+
+
+def _file_status(response: httpx.Response) -> str | None:
+    raw_status = response.headers.get("x-file-status")
+    if not raw_status:
+        return None
+    return raw_status.strip().upper()
+
+
+def _response_content_and_offset(response: httpx.Response, offset: int) -> tuple[bytes, int]:
+    content = response.content
+    next_offset, _ = _parse_content_range(response)
+    if response.status_code == 200 and offset > 0:
         if len(content) <= offset:
-            return b"", len(content)
-        return content[offset:], len(content)
-    return content, offset + len(content)
+            return b"", next_offset if next_offset is not None else len(content)
+        return content[offset:], next_offset if next_offset is not None else len(content)
+    return content, next_offset if next_offset is not None else offset + len(content)
 
 
 def _is_eof_response(response: httpx.Response) -> bool:
@@ -177,6 +209,7 @@ def _follow_log_file(
 ) -> None:
     offset = 0
     decoder = codecs.getincrementaldecoder("utf-8")("replace")
+    latest_file_status: str | None = None
 
     try:
         while True:
@@ -190,18 +223,31 @@ def _follow_log_file(
             )
 
             if response.status_code in {200, 206}:
-                new_content, offset = _new_content_from_response(
-                    response.content,
-                    offset,
-                    response.status_code,
-                )
+                latest_file_status = _file_status(response) or latest_file_status
+                new_content, offset = _response_content_and_offset(response, offset)
                 text = decoder.decode(new_content)
                 if text:
                     typer.echo(text, nl=False)
+                _, total_size = _parse_content_range(response)
+                if (
+                    latest_file_status == "READY"
+                    and total_size is not None
+                    and offset >= total_size
+                ):
+                    break
+            elif response.status_code == 416:
+                _, total_size = _parse_content_range(response)
+                if (
+                    latest_file_status == "READY"
+                    and total_size is not None
+                    and offset >= total_size
+                ):
+                    break
+                raise fail_with_response("Download task log", response)
             elif offset > 0 and _is_eof_response(response):
-                pass
+                break
             else:
-                fail_with_response("Download task log", response)
+                raise fail_with_response("Download task log", response)
 
             time.sleep(POLL_INTERVAL_SECONDS)
     except KeyboardInterrupt:

@@ -27,18 +27,18 @@ pipx install orchestra-cli
 
 Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`:
 
-| Command | Description |
-|---|---|
-| `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema. |
-| `orchestra pipeline import` | Register a pipeline YAML (from a git repo) with Orchestra under an alias. |
-| `orchestra pipeline get` | Fetch one pipeline by path, alias, or pipeline ID. |
-| `orchestra pipeline list` | Fetch the pipelines visible to the current API key as JSON. |
-| `orchestra pipeline new` | Create an Orchestra-backed pipeline from a local YAML file. |
-| `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
-| `orchestra pipeline delete` | Delete an existing pipeline by alias. |
-| `orchestra pipeline run` | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
-| `orchestra pipeline build` | Validate local YAML, create or update a draft pipeline, and start that draft version. |
-| `orchestra task logs` | Follow logs for a single task run. |
+| Command                              | Description                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema.                          |
+| `orchestra pipeline import`          | Register a pipeline YAML (from a git repo) with Orchestra under an alias.                   |
+| `orchestra pipeline get`             | Fetch one pipeline by path, alias, or pipeline ID.                                          |
+| `orchestra pipeline list`            | Fetch the pipelines visible to the current API key as JSON.                                 |
+| `orchestra pipeline new`             | Create an Orchestra-backed pipeline from a local YAML file.                                 |
+| `orchestra pipeline update`          | Update an existing Orchestra-backed pipeline from a local YAML file.                        |
+| `orchestra pipeline delete`          | Delete an existing pipeline by alias.                                                       |
+| `orchestra pipeline run`             | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
+| `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
+| `orchestra task logs`                | Follow logs for a single task run.                                                          |
 
 Use `orchestra --help`, `orchestra <noun> --help`, or `orchestra <noun> <verb> --help` for built-in help.
 
@@ -46,15 +46,16 @@ Use `orchestra --help`, `orchestra <noun> --help`, or `orchestra <noun> <verb> -
 
 The previous flat command names continue to work as hidden top-level aliases so existing scripts keep running:
 
-| Legacy alias | New canonical form |
-|---|---|
-| `orchestra validate` | `orchestra pipeline validate` |
-| `orchestra import` | `orchestra pipeline import` |
-| `orchestra fetch-pipelines` | `orchestra pipeline list` |
-| `orchestra create-pipeline` | `orchestra pipeline new` |
-| `orchestra update-pipeline` | `orchestra pipeline update` |
-| `orchestra delete-pipeline` | `orchestra pipeline delete` |
-| `orchestra run` | `orchestra pipeline run` |
+| Legacy alias                | New canonical form            |
+| --------------------------- | ----------------------------- |
+| `orchestra validate`        | `orchestra pipeline validate` |
+| `orchestra import`          | `orchestra pipeline import`   |
+| `orchestra fetch-pipelines` | `orchestra pipeline list`     |
+| `orchestra create-pipeline` | `orchestra pipeline new`      |
+| `orchestra update-pipeline` | `orchestra pipeline update`   |
+| `orchestra delete-pipeline` | `orchestra pipeline delete`   |
+| `orchestra run`             | `orchestra pipeline run`      |
+
 New code and documentation should prefer the noun/verb form.
 
 ---
