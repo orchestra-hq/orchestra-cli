@@ -167,6 +167,74 @@ def test_build_creates_draft_when_pipeline_is_missing(
     )
 
 
+def test_build_without_alias_outside_git_generates_alias_from_path(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "My Pipeline.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    import subprocess
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        make_git_subprocess_mock(
+            {("rev-parse", "--show-toplevel"): (1, "", "fatal: not a git repo")},
+        ),
+    )
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"detail": "not found"},
+        status_code=404,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={
+            "alias": "my-pipeline",
+            "data": {"name": "demo", "version": 1},
+            "published": False,
+            "storage_provider": "ORCHESTRA",
+        },
+        json={"id": "pipeline-id", "currentVersionNumber": 7},
+        status_code=201,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={"pipeline_id": "pipeline-id", "versionNumber": 7},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "build", "--path", str(yaml_file), "--no-wait"],
+        input="\n",
+    )
+
+    assert result.exit_code == 0
+    assert "generating a pipeline alias from --path" in result.output
+    assert "Generated alias: my-pipeline" in result.output
+    assert "Creating draft pipeline (alias: my-pipeline)" in result.output
+    assert result.output.strip().endswith(
+        f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}",
+    )
+
+
 def test_build_fails_without_version_number(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")

@@ -304,10 +304,12 @@ Validate a local pipeline YAML, create or update its draft pipeline definition, 
 ```bash
 export ORCHESTRA_API_KEY=...
 
-# Build from a local YAML file and wait for completion
+# Build from a local YAML file and wait for completion.
+# Alias is optional; if omitted, the CLI resolves the pipeline from the shared selector rules
+# and generates an alias from --path when it needs to create a new draft.
 orchestra pipeline build --path ./pipelines/pipeline.yaml
 
-# Build a specific pipeline by alias or pipeline ID
+# Build a specific existing pipeline by alias or pipeline ID
 orchestra pipeline build --path ./pipelines/pipeline.yaml --alias my-pipeline
 orchestra pipeline build --path ./pipelines/pipeline.yaml --pipeline-id f374e795-50aa-4aeb-9936-d68d2b90475c
 
@@ -328,9 +330,9 @@ Options
 Behavior
 
 - Validates the local YAML with the schema endpoint before any pipeline mutation.
-- Resolves the target pipeline using the shared selector rules: alias first, then pipeline ID, then path.
+- Treats `--alias` as optional and resolves the target pipeline using the shared selector rules: alias first, then pipeline ID, then path.
 - When only `--path` is provided inside a git repository, the CLI looks up the existing pipeline using `repository` + `yaml_path`.
-- When the pipeline does not exist, the CLI creates a draft Orchestra-backed pipeline from the local YAML, generating an alias from `--path` when needed.
+- When the pipeline does not exist, the CLI creates a draft Orchestra-backed pipeline from the local YAML, generating an alias from `--path` via the shared selector helper when needed.
 - When the pipeline exists and is Orchestra-backed, the CLI updates that draft and starts the returned `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
 - Existing git-backed pipelines are detected during lookup and currently exit with a clear error rather than attempting an unsupported update flow.
 - Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.
@@ -352,8 +354,8 @@ orchestra pipeline run -a finance-etl
 # Start a run and exit immediately
 orchestra pipeline run -a finance-etl --no-wait
 
-# Build a draft pipeline from local YAML and start it
-orchestra pipeline build -a finance-etl -p ./pipelines/etl.yaml
+# Build a draft pipeline from local YAML and let the CLI generate an alias if needed
+orchestra pipeline build -p ./pipelines/etl.yaml
 ```
 
 ---
