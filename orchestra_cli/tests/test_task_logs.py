@@ -125,6 +125,48 @@ def test_task_logs_treats_post_content_s3_error_as_eof(httpx_mock: HTTPXMock, mo
     assert "Download task log failed" not in result.output
 
 
+def test_task_logs_416_while_writing_keeps_polling(httpx_mock: HTTPXMock, monkeypatch):
+    _mock_task_run_lookup(httpx_mock)
+    monkeypatch.setattr(task_logs_module.time, "sleep", lambda _: None)
+    download_url = (
+        "https://app.getorchestra.io/api/engine/public"
+        f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+        "/logs/download?filename=main.log"
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        content=b"hello\n",
+        headers={"content-range": "bytes 0-5/12", "x-file-status": "WRITING"},
+        status_code=206,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=6-"},
+        headers={"content-range": "bytes */12", "x-file-status": "WRITING"},
+        status_code=416,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=6-"},
+        content=b"world\n",
+        headers={"content-range": "bytes 6-11/12", "x-file-status": "READY"},
+        status_code=206,
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "logs", "--task-run-id", mock_task_run_id, "--filename", "main.log"],
+    )
+
+    assert result.exit_code == 0
+    assert "hello\nworld\n" in result.output
+    assert "Download task log failed" not in result.output
+
+
 def test_task_logs_initial_s3_error_still_fails(httpx_mock: HTTPXMock):
     _mock_task_run_lookup(httpx_mock)
     httpx_mock.add_response(
@@ -171,6 +213,43 @@ def test_task_logs_without_filename_prompts_for_log_file(httpx_mock: HTTPXMock):
     )
 
     result = runner.invoke(app, ["task", "logs", "-tr", mock_task_run_id], input="2\n")
+
+    assert result.exit_code == 0
+    assert "1. debug.log" in result.output
+    assert "2. main.log" in result.output
+    assert "selected log\n" in result.output
+
+
+def test_task_logs_empty_filename_prompts_for_log_file(httpx_mock: HTTPXMock):
+    _mock_task_run_lookup(httpx_mock)
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            "https://app.getorchestra.io/api/engine/public"
+            f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}/logs"
+        ),
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"filenames": ["debug.log", "main.log"]},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            "https://app.getorchestra.io/api/engine/public"
+            f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+            "/logs/download?filename=main.log"
+        ),
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        content=b"selected log\n",
+        headers={"content-range": "bytes 0-12/13", "x-file-status": "READY"},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "logs", "-tr", mock_task_run_id, "-f", ""],
+        input="2\n",
+    )
 
     assert result.exit_code == 0
     assert "1. debug.log" in result.output

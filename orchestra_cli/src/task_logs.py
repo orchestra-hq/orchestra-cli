@@ -188,7 +188,7 @@ def _response_content_and_offset(response: httpx.Response, offset: int) -> tuple
 
 
 def _is_eof_response(response: httpx.Response) -> bool:
-    if response.status_code in {204, 416}:
+    if response.status_code == 204:
         return True
     if response.status_code != 500:
         return False
@@ -201,7 +201,6 @@ def _is_eof_response(response: httpx.Response) -> bool:
 
 
 def _follow_log_file(
-    *,
     pipeline_run_id: str,
     task_run_id: str,
     filename: str,
@@ -236,14 +235,12 @@ def _follow_log_file(
                 ):
                     break
             elif response.status_code == 416:
+                latest_file_status = _file_status(response) or latest_file_status
                 _, total_size = _parse_content_range(response)
-                if (
-                    latest_file_status == "READY"
-                    and total_size is not None
-                    and offset >= total_size
-                ):
+                if latest_file_status == "READY" and (total_size is None or offset >= total_size):
                     break
-                raise fail_with_response("Download task log", response)
+                if offset == 0:
+                    raise fail_with_response("Download task log", response)
             elif offset > 0 and _is_eof_response(response):
                 break
             else:
@@ -277,7 +274,7 @@ def task_logs(
     api_key = require_api_key()
     pipeline_run_id = _resolve_pipeline_run_id(task_run_id, api_key)
     selected_filename = filename
-    if selected_filename is None:
+    if not selected_filename:
         selected_filename = _select_filename(
             _list_log_filenames(pipeline_run_id, task_run_id, api_key),
         )
