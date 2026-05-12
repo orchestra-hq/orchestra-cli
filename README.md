@@ -320,7 +320,7 @@ orchestra pipeline build -p ./pipelines/pipeline.yaml -a my-pipeline -b feature/
 Options
 
 - `-p, --path` (required): Path to pipeline YAML file.
-- `-a, --alias` (optional): Pipeline alias.
+- `-a, --alias` (optional): Pipeline alias. You can omit this flag entirely and still build from `--path` alone—the CLI resolves the target using the shared selector rules and only prompts for or generates an alias when it must create a new draft pipeline.
 - `-i, --pipeline-id` (optional): Pipeline ID.
 - `-b, --branch` (optional): Git branch name to associate with the draft run.
 - `-c, --commit` (optional): Commit SHA to associate with the draft run.

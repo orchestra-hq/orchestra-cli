@@ -81,3 +81,33 @@ def test_create_command_does_not_accept_pipeline_id():
 
     assert result.exit_code != 0
     assert "No such option" in result.output
+
+
+def test_build_style_resolve_generates_alias_from_path_without_alias_arg(
+    monkeypatch,
+    tmp_path: Path,
+):
+    """Same mode as ``pipeline build`` when creating a draft: path only, no repo+yaml selector."""
+    repo_root = tmp_path
+    yaml_file = repo_root / "pipelines" / "custom_name.yaml"
+    yaml_file.parent.mkdir(parents=True)
+    yaml_file.write_text("name: demo\n")
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    monkeypatch.setattr("builtins.input", lambda: "")
+
+    selector = resolve_pipeline_selector(
+        None,
+        None,
+        yaml_file,
+        allow_pipeline_id=False,
+        use_git_path_selector=False,
+    )
+
+    assert selector == PipelineSelector(alias="custom-name")

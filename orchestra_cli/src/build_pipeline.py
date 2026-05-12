@@ -60,7 +60,6 @@ def _lookup_existing_pipeline(
         return None
     if response.status_code != 200:
         fail_with_response("Build", response)
-        raise typer.Exit(code=1)
 
     return require_pipeline_body_from_success_response(response, "Build")
 
@@ -80,17 +79,12 @@ def _build_update_selector(existing_pipeline: dict[str, object]) -> PipelineSele
     raise typer.Exit(code=1)
 
 
-def _build_create_selector(
-    *,
-    path: Path,
-    alias: str | None,
-    lookup_selector: PipelineSelector,
-) -> PipelineSelector:
+def _build_create_selector(path: Path, lookup_selector: PipelineSelector) -> PipelineSelector:
     if lookup_selector.alias:
         return PipelineSelector(alias=lookup_selector.alias)
 
     return resolve_pipeline_selector(
-        alias,
+        None,
         path=path,
         allow_pipeline_id=False,
         use_git_path_selector=False,
@@ -106,8 +100,6 @@ def _storage_provider(existing_pipeline: dict[str, object]) -> str | None:
 
 
 def _upsert_draft_pipeline(
-    *,
-    alias: str | None,
     path: Path,
     lookup_selector: PipelineSelector,
     api_key: str,
@@ -116,11 +108,7 @@ def _upsert_draft_pipeline(
     existing_pipeline = _lookup_existing_pipeline(lookup_selector, api_key)
 
     if existing_pipeline is None:
-        create_selector = _build_create_selector(
-            path=path,
-            alias=alias,
-            lookup_selector=lookup_selector,
-        )
+        create_selector = _build_create_selector(path, lookup_selector)
         payload = build_upsert_payload(data, publish=False, selector=create_selector)
 
         typer.echo(f"Creating draft pipeline ({create_selector.display()})")
@@ -142,43 +130,41 @@ def _upsert_draft_pipeline(
             )
             return PipelineSelector(pipeline_id=pipeline_id), version_number
 
-        fail_with_response("Build", create_response)
-        raise typer.Exit(code=1)
+        raise fail_with_response("Build", create_response)
 
-    assert existing_pipeline is not None
-    storage_provider = _storage_provider(existing_pipeline)
-    if storage_provider is not None and storage_provider != "ORCHESTRA":
-        typer.echo(
-            red(
-                "❌ Build failed: git-backed pipelines are not yet supported by this command",
-            ),
+    else:
+        storage_provider = _storage_provider(existing_pipeline)
+        if storage_provider is not None and storage_provider != "ORCHESTRA":
+            typer.echo(
+                red(
+                    "❌ Build failed: git-backed pipelines are not yet supported by this command",
+                ),
+            )
+            raise typer.Exit(code=1)
+
+        update_selector = _build_update_selector(existing_pipeline)
+        payload = build_upsert_payload(data, publish=False, selector=update_selector)
+
+        typer.echo(f"Updating draft pipeline ({update_selector.display()})")
+        update_response = request_or_exit(
+            httpx.put,
+            get_update_pipeline_url(),
+            json=payload,
+            timeout=30,
+            headers=auth_headers(api_key),
         )
-        raise typer.Exit(code=1)
 
-    update_selector = _build_update_selector(existing_pipeline)
-    payload = build_upsert_payload(data, publish=False, selector=update_selector)
+        if update_response.status_code == 200:
+            pipeline_id, version_number = _extract_upsert_result(update_response, "Build")
+            typer.echo(
+                green(
+                    "✅ Draft pipeline "
+                    f"({update_selector.display()}) updated as version {version_number}",
+                ),
+            )
+            return PipelineSelector(pipeline_id=pipeline_id), version_number
 
-    typer.echo(f"Updating draft pipeline ({update_selector.display()})")
-    update_response = request_or_exit(
-        httpx.put,
-        get_update_pipeline_url(),
-        json=payload,
-        timeout=30,
-        headers=auth_headers(api_key),
-    )
-
-    if update_response.status_code == 200:
-        pipeline_id, version_number = _extract_upsert_result(update_response, "Build")
-        typer.echo(
-            green(
-                "✅ Draft pipeline "
-                f"({update_selector.display()}) updated as version {version_number}",
-            ),
-        )
-        return PipelineSelector(pipeline_id=pipeline_id), version_number
-
-    fail_with_response("Build", update_response)
-    raise typer.Exit(code=1)
+        raise fail_with_response("Build", update_response)
 
 
 def build_pipeline(
@@ -203,13 +189,14 @@ def build_pipeline(
     """
     api_key = require_api_key()
     if path is None:
-        typer.echo(red("Provide --path to build a pipeline from YAML"))
+        typer.echo(
+            red("A pipeline YAML file path is required (use -p or --path with your YAML file)"),
+        )
         raise typer.Exit(code=1)
     lookup_selector = resolve_pipeline_selector(alias, pipeline_id, path)
 
     confirm_git_warnings_or_exit(force, path)
     run_selector, version_number = _upsert_draft_pipeline(
-        alias=alias,
         path=path,
         lookup_selector=lookup_selector,
         api_key=api_key,

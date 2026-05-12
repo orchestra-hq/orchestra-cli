@@ -59,4 +59,4 @@ def update_pipeline(
         emit_success_with_edit_url(selector.display(), "updated", pipeline_id)
         raise typer.Exit(code=0)
 
-    fail_with_response("Update", response)
+    raise fail_with_response("Update", response)

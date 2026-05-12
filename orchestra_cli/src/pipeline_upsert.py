@@ -53,9 +53,7 @@ def require_pipeline_id_from_success_body(
     body: dict[str, object],
     action: str,
 ) -> str:
-    pipeline_id = body.get("id")
-    if pipeline_id is None:
-        pipeline_id = body.get("pipeline_id")
+    pipeline_id = body.get("id") or body.get("pipeline_id")
     if not pipeline_id:
         typer.echo(red(f"❌ {action} failed: success response did not include pipeline id"))
         typer.echo(yellow(indent_message(json.dumps(body, indent=2))))
@@ -68,8 +66,10 @@ def require_pipeline_id_from_success_response(
     response: httpx.Response,
     action: str,
 ) -> str:
-    body = require_pipeline_body_from_success_response(response, action)
-    return require_pipeline_id_from_success_body(body, action)
+    return require_pipeline_id_from_success_body(
+        require_pipeline_body_from_success_response(response, action),
+        action,
+    )
 
 
 def emit_success_with_edit_url(name: str, action: str, pipeline_id: str) -> None:

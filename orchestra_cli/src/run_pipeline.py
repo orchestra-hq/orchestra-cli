@@ -91,7 +91,6 @@ def _poll_until_terminal(
 
 def build_run_payload(
     selector: PipelineSelector,
-    *,
     branch: str | None = None,
     commit: str | None = None,
     version_number: int | None = None,
@@ -121,7 +120,7 @@ def start_pipeline_run(
     response = request_or_exit(
         httpx.post,
         get_api_url(start_path),
-        json=payload if payload else None,
+        json=payload if payload is not None else None,
         timeout=30,
         headers=auth_headers(api_key),
     )
@@ -161,7 +160,7 @@ def start_pipeline_run(
         )
         return
 
-    fail_with_response(failure_action, response)
+    raise fail_with_response(failure_action, response)
 
 
 def run_pipeline(

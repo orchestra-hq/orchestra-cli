@@ -46,4 +46,4 @@ def delete_pipeline(
         typer.echo(green(f"✅ Pipeline ({selector.display()}) deleted successfully"))
         raise typer.Exit(code=0)
 
-    fail_with_response("Delete", response)
+    raise fail_with_response("Delete", response)
