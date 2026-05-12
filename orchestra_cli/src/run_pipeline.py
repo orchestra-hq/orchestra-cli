@@ -106,7 +106,6 @@ def build_run_payload(
 
 
 def start_pipeline_run(
-    *,
     selector: PipelineSelector,
     api_key: str,
     payload: dict[str, Any] | None,

@@ -79,7 +79,11 @@ def _build_update_selector(existing_pipeline: dict[str, object]) -> PipelineSele
     raise typer.Exit(code=1)
 
 
-def _build_create_selector(path: Path, lookup_selector: PipelineSelector) -> PipelineSelector:
+def _build_create_selector(
+    path: Path,
+    lookup_selector: PipelineSelector,
+    force: bool,
+) -> PipelineSelector:
     if lookup_selector.alias:
         return PipelineSelector(alias=lookup_selector.alias)
 
@@ -88,6 +92,7 @@ def _build_create_selector(path: Path, lookup_selector: PipelineSelector) -> Pip
         path=path,
         allow_pipeline_id=False,
         use_git_path_selector=False,
+        force=force,
     )
 
 
@@ -103,12 +108,13 @@ def _upsert_draft_pipeline(
     path: Path,
     lookup_selector: PipelineSelector,
     api_key: str,
+    force: bool,
 ) -> tuple[PipelineSelector, int]:
     data = load_validated_pipeline_data(path)
     existing_pipeline = _lookup_existing_pipeline(lookup_selector, api_key)
 
     if existing_pipeline is None:
-        create_selector = _build_create_selector(path, lookup_selector)
+        create_selector = _build_create_selector(path, lookup_selector, force)
         payload = build_upsert_payload(data, publish=False, selector=create_selector)
 
         typer.echo(f"Creating draft pipeline ({create_selector.display()})")
@@ -193,13 +199,14 @@ def build_pipeline(
             red("A pipeline YAML file path is required (use -p or --path with your YAML file)"),
         )
         raise typer.Exit(code=1)
-    lookup_selector = resolve_pipeline_selector(alias, pipeline_id, path)
+    lookup_selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
 
     confirm_git_warnings_or_exit(force, path)
     run_selector, version_number = _upsert_draft_pipeline(
         path=path,
         lookup_selector=lookup_selector,
         api_key=api_key,
+        force=force,
     )
 
     start_pipeline_run(

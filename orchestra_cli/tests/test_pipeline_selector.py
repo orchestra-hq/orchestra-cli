@@ -64,6 +64,27 @@ def test_generate_alias_from_path_slugifies_filename():
     assert generate_alias_from_path(Path("My Pipeline.yaml")) == "my-pipeline"
 
 
+def test_force_skips_generated_alias_prompt(monkeypatch, tmp_path: Path):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+
+    def fail_input() -> str:
+        raise AssertionError("input should not be called when force=True")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    selector = resolve_pipeline_selector(
+        None,
+        None,
+        yaml_file,
+        allow_pipeline_id=False,
+        use_git_path_selector=False,
+        force=True,
+    )
+
+    assert selector == PipelineSelector(alias="pipe")
+
+
 def test_pipeline_id_can_be_disallowed(capsys):
     with pytest.raises(typer.Exit):
         resolve_pipeline_selector(
