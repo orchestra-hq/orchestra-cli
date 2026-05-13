@@ -37,7 +37,7 @@ def _mock_task_run_lookup(httpx_mock: HTTPXMock) -> None:
     )
 
 
-def test_task_logs_with_filename_follows_until_ready(httpx_mock: HTTPXMock, monkeypatch):
+def test_task_logs_with_filename_watches_until_ready(httpx_mock: HTTPXMock, monkeypatch):
     _mock_task_run_lookup(httpx_mock)
     monkeypatch.setattr(task_logs_module.time, "sleep", lambda _: None)
     download_url = (
@@ -92,7 +92,7 @@ def test_task_logs_completed_file_exits_on_non_pending_status_response(httpx_moc
     assert result.output == "hello\n"
 
 
-def test_task_logs_no_follow_reads_current_content_once(httpx_mock: HTTPXMock):
+def test_task_logs_no_watch_reads_current_content_once(httpx_mock: HTTPXMock):
     _mock_task_run_lookup(httpx_mock)
     httpx_mock.add_response(
         method="GET",
@@ -109,7 +109,7 @@ def test_task_logs_no_follow_reads_current_content_once(httpx_mock: HTTPXMock):
 
     result = runner.invoke(
         app,
-        ["task", "logs", "-tr", mock_task_run_id, "-f", "main.log", "--no-follow"],
+        ["task", "logs", "-tr", mock_task_run_id, "-f", "main.log", "--no-watch"],
     )
 
     assert result.exit_code == 0
