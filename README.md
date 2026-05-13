@@ -25,35 +25,37 @@ pipx install orchestra-cli
 
 ## Command structure
 
-Commands follow a `noun verb` shape. The current noun is `pipeline`:
+Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`:
 
-| Command | Description |
-|---|---|
-| `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema. |
-| `orchestra pipeline import` | Register a pipeline YAML (from a git repo) with Orchestra under an alias. |
-| `orchestra pipeline get` | Fetch one pipeline by path, alias, or pipeline ID. |
-| `orchestra pipeline list` | Fetch the pipelines visible to the current API key as JSON. |
-| `orchestra pipeline new` | Create an Orchestra-backed pipeline from a local YAML file. |
-| `orchestra pipeline update` | Update an existing Orchestra-backed pipeline from a local YAML file. |
-| `orchestra pipeline delete` | Delete an existing pipeline by alias. |
-| `orchestra pipeline run` | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
-| `orchestra pipeline build` | Validate local YAML, create or update a draft pipeline, and start that draft version. |
+| Command                              | Description                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema.                          |
+| `orchestra pipeline import`          | Register a pipeline YAML (from a git repo) with Orchestra under an alias.                   |
+| `orchestra pipeline get`             | Fetch one pipeline by path, alias, or pipeline ID.                                          |
+| `orchestra pipeline list`            | Fetch the pipelines visible to the current API key as JSON.                                 |
+| `orchestra pipeline new`             | Create an Orchestra-backed pipeline from a local YAML file.                                 |
+| `orchestra pipeline update`          | Update an existing Orchestra-backed pipeline from a local YAML file.                        |
+| `orchestra pipeline delete`          | Delete an existing pipeline by alias.                                                       |
+| `orchestra pipeline run`             | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
+| `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
+| `orchestra task logs`                | Fetch or follow logs for a single task run.                                                 |
 
-Use `orchestra --help`, `orchestra pipeline --help`, or `orchestra pipeline <verb> --help` for built-in help.
+Use `orchestra --help`, `orchestra <noun> --help`, or `orchestra <noun> <verb> --help` for built-in help.
 
 ### Legacy command names
 
 The previous flat command names continue to work as hidden top-level aliases so existing scripts keep running:
 
-| Legacy alias | New canonical form |
-|---|---|
-| `orchestra validate` | `orchestra pipeline validate` |
-| `orchestra import` | `orchestra pipeline import` |
-| `orchestra fetch-pipelines` | `orchestra pipeline list` |
-| `orchestra create-pipeline` | `orchestra pipeline new` |
-| `orchestra update-pipeline` | `orchestra pipeline update` |
-| `orchestra delete-pipeline` | `orchestra pipeline delete` |
-| `orchestra run` | `orchestra pipeline run` |
+| Legacy alias                | New canonical form            |
+| --------------------------- | ----------------------------- |
+| `orchestra validate`        | `orchestra pipeline validate` |
+| `orchestra import`          | `orchestra pipeline import`   |
+| `orchestra fetch-pipelines` | `orchestra pipeline list`     |
+| `orchestra create-pipeline` | `orchestra pipeline new`      |
+| `orchestra update-pipeline` | `orchestra pipeline update`   |
+| `orchestra delete-pipeline` | `orchestra pipeline delete`   |
+| `orchestra run`             | `orchestra pipeline run`      |
+
 New code and documentation should prefer the noun/verb form.
 
 ---
@@ -339,6 +341,38 @@ Behavior
 
 ---
 
+## task logs
+
+Fetch or follow logs for a single task run.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+# Select a log file interactively, then follow it
+orchestra task logs --task-run-id 3d68b5dc-54eb-43db-8294-4734d032ff92
+
+# Follow a specific log file
+orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log
+
+# Print the current contents once without waiting for new lines
+orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log --no-watch
+```
+
+Options
+
+- `-tr, --task-run-id` (required): Task run ID to fetch logs for.
+- `-f, --filename` (optional): Specific log filename to fetch.
+- `--no-watch` (optional): Print the current log content once instead of waiting for new lines.
+
+Behavior
+
+- Resolves the task run's pipeline run ID automatically.
+- If no filename is provided, lists available log files and prompts for a selection.
+- By default, polls the log download endpoint using byte ranges and prints only new content as it arrives until the file is complete.
+- Press `Ctrl+C` to stop following logs.
+
+---
+
 ## Examples
 
 ```bash
@@ -356,6 +390,9 @@ orchestra pipeline run -a finance-etl --no-wait
 
 # Build a draft pipeline from local YAML and let the CLI generate an alias if needed
 orchestra pipeline build -p ./pipelines/etl.yaml
+
+# Follow task run logs
+orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log
 ```
 
 ---

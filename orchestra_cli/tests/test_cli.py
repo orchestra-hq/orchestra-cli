@@ -10,6 +10,7 @@ def test_help():
     assert result.exit_code == 0
     assert "Orchestra CLI" in result.output
     assert "pipeline" in result.output
+    assert "task" in result.output
 
 
 def test_pipeline_help_lists_verbs():
@@ -17,6 +18,12 @@ def test_pipeline_help_lists_verbs():
     assert result.exit_code == 0
     for verb in ("validate", "import", "new", "update", "get", "list", "run", "build", "delete"):
         assert verb in result.output
+
+
+def test_task_help_lists_verbs():
+    result = runner.invoke(app, ["task", "--help"])
+    assert result.exit_code == 0
+    assert "logs" in result.output
 
 
 def test_top_level_help_hides_legacy_aliases():
