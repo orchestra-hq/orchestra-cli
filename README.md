@@ -355,14 +355,14 @@ orchestra task logs --task-run-id 3d68b5dc-54eb-43db-8294-4734d032ff92
 orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log
 
 # Print the current contents once without waiting for new lines
-orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log --no-follow
+orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log --no-watch
 ```
 
 Options
 
 - `-tr, --task-run-id` (required): Task run ID to fetch logs for.
 - `-f, --filename` (optional): Specific log filename to fetch.
-- `--no-follow` (optional): Print the current log content once instead of waiting for new lines.
+- `--no-watch` (optional): Print the current log content once instead of waiting for new lines.
 
 Behavior
 
