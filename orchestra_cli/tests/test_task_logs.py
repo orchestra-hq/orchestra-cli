@@ -92,6 +92,27 @@ def test_task_logs_completed_file_exits_on_ready_response(httpx_mock: HTTPXMock)
     assert result.output == "hello\n"
 
 
+def test_task_logs_flushes_decoder_on_normal_completion(httpx_mock: HTTPXMock):
+    _mock_task_run_lookup(httpx_mock)
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            "https://app.getorchestra.io/api/engine/public"
+            f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+            "/logs/download?filename=main.log"
+        ),
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        content=b"hello \xe2",
+        headers={"content-range": "bytes 0-6/7", "x-file-status": "READY"},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["task", "logs", "-tr", mock_task_run_id, "-f", "main.log"])
+
+    assert result.exit_code == 0
+    assert result.output == "hello \ufffd"
+
+
 def test_task_logs_treats_post_content_s3_error_as_eof(httpx_mock: HTTPXMock, monkeypatch):
     _mock_task_run_lookup(httpx_mock)
     monkeypatch.setattr(task_logs_module.time, "sleep", lambda _: None)

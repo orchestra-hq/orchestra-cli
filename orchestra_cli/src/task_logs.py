@@ -247,6 +247,9 @@ def _follow_log_file(
                 raise fail_with_response("Download task log", response)
 
             time.sleep(POLL_INTERVAL_SECONDS)
+        remaining_text = decoder.decode(b"", final=True)
+        if remaining_text:
+            typer.echo(remaining_text, nl=False)
     except KeyboardInterrupt:
         remaining_text = decoder.decode(b"", final=True)
         if remaining_text:
