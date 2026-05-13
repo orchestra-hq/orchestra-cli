@@ -71,7 +71,7 @@ def test_task_logs_with_filename_follows_until_ready(httpx_mock: HTTPXMock, monk
     assert "hello\nworld\n" in result.output
 
 
-def test_task_logs_completed_file_exits_on_ready_response(httpx_mock: HTTPXMock):
+def test_task_logs_completed_file_exits_on_non_pending_status_response(httpx_mock: HTTPXMock):
     _mock_task_run_lookup(httpx_mock)
     httpx_mock.add_response(
         method="GET",
@@ -82,11 +82,35 @@ def test_task_logs_completed_file_exits_on_ready_response(httpx_mock: HTTPXMock)
         ),
         match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
         content=b"hello\n",
-        headers={"content-range": "bytes 0-5/6", "x-file-status": "READY"},
+        headers={"content-range": "bytes 0-5/6", "x-file-status": "COMPLETE"},
         status_code=200,
     )
 
     result = runner.invoke(app, ["task", "logs", "-tr", mock_task_run_id, "-f", "main.log"])
+
+    assert result.exit_code == 0
+    assert result.output == "hello\n"
+
+
+def test_task_logs_no_follow_reads_current_content_once(httpx_mock: HTTPXMock):
+    _mock_task_run_lookup(httpx_mock)
+    httpx_mock.add_response(
+        method="GET",
+        url=(
+            "https://app.getorchestra.io/api/engine/public"
+            f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+            "/logs/download?filename=main.log"
+        ),
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        content=b"hello\n",
+        headers={"content-range": "bytes 0-5/12", "x-file-status": "PENDING"},
+        status_code=206,
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "logs", "-tr", mock_task_run_id, "-f", "main.log", "--no-follow"],
+    )
 
     assert result.exit_code == 0
     assert result.output == "hello\n"

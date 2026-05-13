@@ -38,7 +38,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`
 | `orchestra pipeline delete`          | Delete an existing pipeline by alias.                                                       |
 | `orchestra pipeline run`             | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
 | `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
-| `orchestra task logs`                | Follow logs for a single task run.                                                          |
+| `orchestra task logs`                | Fetch or follow logs for a single task run.                                                 |
 
 Use `orchestra --help`, `orchestra <noun> --help`, or `orchestra <noun> <verb> --help` for built-in help.
 
@@ -343,7 +343,7 @@ Behavior
 
 ## task logs
 
-Follow logs for a single task run.
+Fetch or follow logs for a single task run.
 
 ```bash
 export ORCHESTRA_API_KEY=...
@@ -353,18 +353,22 @@ orchestra task logs --task-run-id 3d68b5dc-54eb-43db-8294-4734d032ff92
 
 # Follow a specific log file
 orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log
+
+# Print the current contents once without waiting for new lines
+orchestra task logs -tr 3d68b5dc-54eb-43db-8294-4734d032ff92 -f main.log --no-follow
 ```
 
 Options
 
 - `-tr, --task-run-id` (required): Task run ID to fetch logs for.
-- `-f, --filename` (optional): Specific log filename to follow.
+- `-f, --filename` (optional): Specific log filename to fetch.
+- `--follow/--no-follow` (default: `--follow`): Keep polling for new log content until the file is complete.
 
 Behavior
 
 - Resolves the task run's pipeline run ID automatically.
 - If no filename is provided, lists available log files and prompts for a selection.
-- Polls the log download endpoint using byte ranges and prints only new content as it arrives.
+- Polls the log download endpoint using byte ranges and prints only new content as it arrives when follow mode is enabled.
 - Press `Ctrl+C` to stop following logs.
 
 ---
