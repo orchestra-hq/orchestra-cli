@@ -178,7 +178,15 @@ def _file_status(response: httpx.Response) -> str | None:
 
 
 def _is_terminal_file_status(file_status: str | None) -> bool:
-    return file_status is not None and file_status != "PENDING"
+    return file_status not in {"PENDING", "WRITING"}
+
+
+def _should_stop_following(file_status: str | None, offset: int, total_size: int | None) -> bool:
+    if not _is_terminal_file_status(file_status):
+        return False
+    if total_size is None:
+        return file_status is not None
+    return offset >= total_size
 
 
 def _response_content_and_offset(response: httpx.Response, offset: int) -> tuple[bytes, int]:
@@ -235,20 +243,14 @@ def _follow_log_file(
                 if not follow:
                     break
                 _, total_size = _parse_content_range(response)
-                if (
-                    _is_terminal_file_status(latest_file_status)
-                    and total_size is not None
-                    and offset >= total_size
-                ):
+                if _should_stop_following(latest_file_status, offset, total_size):
                     break
             elif response.status_code == 416:
                 latest_file_status = _file_status(response) or latest_file_status
                 _, total_size = _parse_content_range(response)
                 if not follow:
                     break
-                if _is_terminal_file_status(latest_file_status) and (
-                    total_size is None or offset >= total_size
-                ):
+                if _should_stop_following(latest_file_status, offset, total_size):
                     break
                 if offset == 0:
                     raise fail_with_response("Download task log", response)
@@ -281,10 +283,10 @@ def task_logs(
         "-f",
         help="Specific log filename to fetch",
     ),
-    follow: bool = typer.Option(
-        True,
-        "--follow/--no-follow",
-        help="Follow the log file until it is complete",
+    no_follow: bool = typer.Option(
+        False,
+        "--no-follow",
+        help="Print current log content once without waiting for new lines",
     ),
 ):
     """
@@ -303,5 +305,5 @@ def task_logs(
         task_run_id=task_run_id,
         filename=selected_filename,
         api_key=api_key,
-        follow=follow,
+        follow=not no_follow,
     )

@@ -362,13 +362,13 @@ Options
 
 - `-tr, --task-run-id` (required): Task run ID to fetch logs for.
 - `-f, --filename` (optional): Specific log filename to fetch.
-- `--follow/--no-follow` (default: `--follow`): Keep polling for new log content until the file is complete.
+- `--no-follow` (optional): Print the current log content once instead of waiting for new lines.
 
 Behavior
 
 - Resolves the task run's pipeline run ID automatically.
 - If no filename is provided, lists available log files and prompts for a selection.
-- Polls the log download endpoint using byte ranges and prints only new content as it arrives when follow mode is enabled.
+- By default, polls the log download endpoint using byte ranges and prints only new content as it arrives until the file is complete.
 - Press `Ctrl+C` to stop following logs.
 
 ---

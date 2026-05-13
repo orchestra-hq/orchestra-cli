@@ -212,6 +212,63 @@ def test_task_logs_416_while_writing_keeps_polling(httpx_mock: HTTPXMock, monkey
     assert "Download task log failed" not in result.output
 
 
+def test_task_logs_full_range_while_writing_keeps_polling(httpx_mock: HTTPXMock, monkeypatch):
+    _mock_task_run_lookup(httpx_mock)
+    monkeypatch.setattr(task_logs_module.time, "sleep", lambda _: None)
+    download_url = (
+        "https://app.getorchestra.io/api/engine/public"
+        f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+        "/logs/download?filename=main.log"
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        content=b"hello\n",
+        headers={"content-range": "bytes 0-5/6", "x-file-status": "WRITING"},
+        status_code=206,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=6-"},
+        content=b"world\n",
+        headers={"content-range": "bytes 6-11/12", "x-file-status": "READY"},
+        status_code=206,
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "logs", "--task-run-id", mock_task_run_id, "--filename", "main.log"],
+    )
+
+    assert result.exit_code == 0
+    assert "hello\nworld\n" in result.output
+
+
+def test_task_logs_missing_status_uses_known_total_size(httpx_mock: HTTPXMock, monkeypatch):
+    _mock_task_run_lookup(httpx_mock)
+    monkeypatch.setattr(task_logs_module.time, "sleep", lambda _: None)
+    download_url = (
+        "https://app.getorchestra.io/api/engine/public"
+        f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+        "/logs/download?filename=main.log"
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        match_headers={"Authorization": f"Bearer {mock_api_key}", "Range": "bytes=0-"},
+        content=b"hello\n",
+        headers={"content-range": "bytes 0-5/6"},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["task", "logs", "-tr", mock_task_run_id, "-f", "main.log"])
+
+    assert result.exit_code == 0
+    assert result.output == "hello\n"
+
+
 def test_task_logs_initial_s3_error_still_fails(httpx_mock: HTTPXMock):
     _mock_task_run_lookup(httpx_mock)
     httpx_mock.add_response(
