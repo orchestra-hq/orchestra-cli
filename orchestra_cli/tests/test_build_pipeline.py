@@ -534,7 +534,11 @@ def test_build_git_backed_push_failure_can_retry_on_new_branch(
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
     suggested_branch = "orchestra-migrate-pipeline-ABC123"
-    monkeypatch.setattr(build_pipeline_module, "_suggest_migration_branch_name", lambda: suggested_branch)
+    monkeypatch.setattr(
+        build_pipeline_module,
+        "_suggest_migration_branch_name",
+        lambda: suggested_branch,
+    )
 
     class Result:
         def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
@@ -619,7 +623,10 @@ def test_build_git_backed_push_failure_can_retry_on_new_branch(
     assert result.exit_code == 0
     assert "branch protection" in result.output
     assert suggested_branch in result.output
-    assert f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}" in result.output
+    assert (
+        f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}"
+        in result.output
+    )
 
 
 def test_build_git_backed_force_auto_accepts_branch_retry(
@@ -630,7 +637,11 @@ def test_build_git_backed_force_auto_accepts_branch_retry(
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
     suggested_branch = "orchestra-migrate-pipeline-FORCE1"
-    monkeypatch.setattr(build_pipeline_module, "_suggest_migration_branch_name", lambda: suggested_branch)
+    monkeypatch.setattr(
+        build_pipeline_module,
+        "_suggest_migration_branch_name",
+        lambda: suggested_branch,
+    )
 
     def fail_input() -> str:
         raise AssertionError("input should not be called when --force is set")
@@ -722,8 +733,19 @@ def test_build_git_backed_force_auto_accepts_branch_retry(
 
 
 def test_suggest_migration_branch_name_format(monkeypatch):
-    monkeypatch.setattr(build_pipeline_module.random, "choices", lambda _chars, k: list("ABC123"))
-    assert build_pipeline_module._suggest_migration_branch_name() == "orchestra-migrate-pipeline-ABC123"
+    def fake_choices(_chars: str, k: int) -> list[str]:
+        assert k == 6
+        return list("ABC123")
+
+    monkeypatch.setattr(
+        build_pipeline_module.random,
+        "choices",
+        fake_choices,
+    )
+    assert (
+        build_pipeline_module._suggest_migration_branch_name()
+        == "orchestra-migrate-pipeline-ABC123"
+    )
 
 
 def test_build_uses_zero_latest_version_number(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
