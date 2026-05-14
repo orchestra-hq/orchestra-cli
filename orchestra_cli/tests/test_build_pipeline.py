@@ -630,7 +630,7 @@ def test_build_git_backed_rejects_branch_commit_overrides(
     )
 
     assert result.exit_code == 1
-    assert "--branch/--commit are not supported for git-backed pipelines" in result.output
+    assert "--branch/-b and --commit/-c are not supported for git-backed pipelines" in result.output
 
 
 def test_build_git_backed_push_failure_can_retry_on_new_branch(

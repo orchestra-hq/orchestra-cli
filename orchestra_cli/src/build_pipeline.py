@@ -246,7 +246,8 @@ def build_pipeline(
     if branch or commit:
         typer.echo(
             red(
-                "❌ Build failed: --branch/--commit are not supported for git-backed pipelines; "
+                "❌ Build failed: --branch/-b and --commit/-c are not supported "
+                "for git-backed pipelines; "
                 "build uses the current git branch and commit",
             ),
         )
