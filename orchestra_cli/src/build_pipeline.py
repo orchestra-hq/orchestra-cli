@@ -6,6 +6,7 @@ import typer
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_create_pipeline_url, get_pipeline_url, get_update_pipeline_url
 from ..utils.git import confirm_git_warnings_or_exit, prepare_git_backed_run_target
+from ..utils.pipeline_update import build_update_selector, storage_provider
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -64,21 +65,6 @@ def _lookup_existing_pipeline(
     return require_pipeline_body_from_success_response(response, "Build")
 
 
-def _build_update_selector(existing_pipeline: dict[str, object]) -> PipelineSelector:
-    pipeline_id = existing_pipeline.get("id") or existing_pipeline.get("pipeline_id")
-    if pipeline_id:
-        return PipelineSelector(pipeline_id=str(pipeline_id))
-
-    alias = existing_pipeline.get("alias")
-    if alias:
-        return PipelineSelector(alias=str(alias))
-
-    typer.echo(
-        red("❌ Build failed: existing pipeline metadata did not include alias or pipeline id"),
-    )
-    raise typer.Exit(code=1)
-
-
 def _build_create_selector(
     path: Path,
     lookup_selector: PipelineSelector,
@@ -94,14 +80,6 @@ def _build_create_selector(
         use_git_path_selector=False,
         force=force,
     )
-
-
-def _storage_provider(existing_pipeline: dict[str, object]) -> str | None:
-    for key in ("storage_provider", "storageProvider"):
-        value = existing_pipeline.get(key)
-        if isinstance(value, str):
-            return value
-    return None
 
 
 def _create_draft_pipeline(
@@ -141,7 +119,7 @@ def _update_draft_pipeline(
     pipeline_data: dict[str, object],
     api_key: str,
 ) -> tuple[PipelineSelector, int]:
-    update_selector = _build_update_selector(existing_pipeline)
+    update_selector = build_update_selector(existing_pipeline, "Build")
     payload = build_upsert_payload(pipeline_data, publish=False, selector=update_selector)
 
     typer.echo(f"Updating draft pipeline ({update_selector.display()})")
@@ -220,8 +198,8 @@ def build_pipeline(
         )
         return
 
-    storage_provider = _storage_provider(existing_pipeline)
-    if storage_provider is None or storage_provider == "ORCHESTRA":
+    pipeline_storage_provider = storage_provider(existing_pipeline)
+    if pipeline_storage_provider is None or pipeline_storage_provider == "ORCHESTRA":
         run_selector, version_number = _update_draft_pipeline(
             existing_pipeline=existing_pipeline,
             pipeline_data=pipeline_data,
@@ -242,7 +220,7 @@ def build_pipeline(
         )
         return
 
-    run_selector = _build_update_selector(existing_pipeline)
+    run_selector = build_update_selector(existing_pipeline, "Build")
     if branch or commit:
         typer.echo(
             red(

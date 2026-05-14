@@ -227,6 +227,7 @@ Options
 - `-i, --pipeline-id` (optional): Pipeline ID.
 - `-p, --path` (required): Path to pipeline YAML file.
 - `--publish/--no-publish` (optional, default `--no-publish`): Whether the pipeline is published.
+- `--force/--no-force` (optional, default `--no-force`): Skip interactive confirmation prompts when the CLI generates aliases or performs git-backed commit/branch fallback actions.
 
 Behavior
 

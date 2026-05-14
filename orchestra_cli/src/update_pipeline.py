@@ -18,6 +18,7 @@ from ..utils.pipeline_selector import (
     pipeline_path_option,
     resolve_pipeline_selector,
 )
+from ..utils.pipeline_update import build_update_selector, storage_provider
 from ..utils.styling import green, red
 from ..utils.yaml_loader import load_validated_pipeline_data
 from .pipeline_upsert import (
@@ -46,29 +47,6 @@ def _lookup_existing_pipeline(
     return require_pipeline_body_from_success_response(response, "Update")
 
 
-def _build_update_selector(existing_pipeline: dict[str, object]) -> PipelineSelector:
-    pipeline_id = existing_pipeline.get("id") or existing_pipeline.get("pipeline_id")
-    if pipeline_id:
-        return PipelineSelector(pipeline_id=str(pipeline_id))
-
-    alias = existing_pipeline.get("alias")
-    if alias:
-        return PipelineSelector(alias=str(alias))
-
-    typer.echo(
-        red("❌ Update failed: existing pipeline metadata did not include alias or pipeline id"),
-    )
-    raise typer.Exit(code=1)
-
-
-def _storage_provider(existing_pipeline: dict[str, object]) -> str | None:
-    for key in ("storage_provider", "storageProvider"):
-        value = existing_pipeline.get(key)
-        if isinstance(value, str):
-            return value
-    return None
-
-
 def update_pipeline(
     path: Path | None = pipeline_path_option(),
     alias: str | None = pipeline_alias_option(),
@@ -78,6 +56,11 @@ def update_pipeline(
         "--publish/--no-publish",
         help="Whether the pipeline is published and can be triggered",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help="Ignore prompts and continue with inferred git update choices",
+    ),
 ):
     """
     Update an Orchestra-backed pipeline from a local YAML file.
@@ -86,17 +69,17 @@ def update_pipeline(
     if path is None:
         typer.echo(red("Provide --path to update a pipeline from YAML"))
         raise typer.Exit(code=1)
-    selector = resolve_pipeline_selector(alias, pipeline_id, path)
+    selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
     data = load_validated_pipeline_data(path)
     existing_pipeline = _lookup_existing_pipeline(selector, api_key)
-    storage_provider = (_storage_provider(existing_pipeline) or "ORCHESTRA").upper()
+    pipeline_storage_provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
 
-    if storage_provider != "ORCHESTRA":
-        update_selector = _build_update_selector(existing_pipeline)
+    if pipeline_storage_provider != "ORCHESTRA":
+        update_selector = build_update_selector(existing_pipeline, "Update")
         git_branch, git_commit = prepare_git_backed_run_target(
             path=path,
             existing_pipeline=existing_pipeline,
-            force=False,
+            force=force,
         )
         typer.echo(
             green(
@@ -106,7 +89,7 @@ def update_pipeline(
         )
         raise typer.Exit(code=0)
 
-    update_selector = _build_update_selector(existing_pipeline)
+    update_selector = build_update_selector(existing_pipeline, "Update")
     payload = build_upsert_payload(data, publish, update_selector)
 
     response = request_or_exit(

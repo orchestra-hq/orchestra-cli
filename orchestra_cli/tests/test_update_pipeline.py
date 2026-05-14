@@ -177,6 +177,65 @@ def test_update_path_inside_git_uses_repository_selector(
     assert "updated successfully" in result.output
 
 
+def test_update_path_only_outside_git_force_skips_alias_prompt(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "My Pipeline.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    import subprocess
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        make_git_subprocess_mock(
+            {("rev-parse", "--show-toplevel"): (1, "", "fatal: not a git repo")},
+        ),
+    )
+
+    def fail_input() -> str:
+        raise AssertionError("input should not be called when --force is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
+        json={"id": "pipeline-id", "alias": "my-pipeline", "storage_provider": "ORCHESTRA"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PUT",
+        url="https://app.getorchestra.io/api/engine/public/pipelines",
+        json={"id": "pipeline-id"},
+        status_code=200,
+        match_json={
+            "pipeline_id": "pipeline-id",
+            "data": {"name": "demo", "version": 1},
+            "published": False,
+            "storage_provider": "ORCHESTRA",
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "update", "--path", str(yaml_file), "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert "Press Enter to accept" not in result.output
+    assert "Generated alias: my-pipeline" in result.output
+    assert "updated successfully" in result.output
+
+
 def test_update_missing_api_key(monkeypatch, tmp_path: Path):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\n")
@@ -395,6 +454,94 @@ def test_update_git_backed_push_failure_can_retry_on_new_branch(
         "Updated git-backed pipeline "
         f"(pipeline_id: pipeline-id) on branch '{suggested_branch}' at commit abc1234"
     ) in result.output
+
+
+def test_update_git_backed_force_auto_accepts_branch_retry(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+    suggested_branch = "orchestra-migrate-pipeline-FORCE1"
+    monkeypatch.setattr(
+        git_module,
+        "suggest_migration_branch_name",
+        lambda: suggested_branch,
+    )
+
+    def fail_input() -> str:
+        raise AssertionError("input should not be called when --force is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    class Result:
+        def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    current_branch = "main"
+    head_commit = "2222222"
+
+    def run_git(args, cwd=None, capture_output=False, text=False, check=False):  # noqa: ARG001
+        nonlocal current_branch
+        nonlocal head_commit
+        key = tuple(args[1:])
+        if key == ("rev-parse", "--show-toplevel"):
+            return Result(0, str(tmp_path), "")
+        if key == ("remote", "get-url", "origin"):
+            return Result(0, "git@github.com:org/repo.git", "")
+        if key == ("status", "--porcelain", "--", "pipe.yaml"):
+            return Result(0, " M pipe.yaml", "")
+        if key == ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"):
+            return Result(0, "origin/main", "")
+        if key == ("rev-list", "--left-right", "--count", "@{u}...HEAD"):
+            return Result(0, "0 0", "")
+        if key == ("rev-parse", "--abbrev-ref", "HEAD"):
+            return Result(0, current_branch, "")
+        if key == ("add", "--", "pipe.yaml"):
+            return Result(0, "", "")
+        if key == ("commit", "-m", "Migrating pipeline: 'demo'"):
+            head_commit = "def5678"
+            return Result(0, "[main def5678] commit", "")
+        if key == ("push",):
+            return Result(1, "", "remote: push blocked by branch protection")
+        if key == ("checkout", "-b", suggested_branch):
+            current_branch = suggested_branch
+            return Result(0, "", "")
+        if key == ("push", "-u", "origin", suggested_branch):
+            return Result(0, "", "")
+        if key == ("rev-parse", "HEAD"):
+            return Result(0, head_commit, "")
+
+        return Result(1, "", f"unhandled git command: {key}")
+
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", run_git)
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        json={"id": "pipeline-id", "alias": "demo", "storage_provider": "GITHUB"},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "update", "--path", str(yaml_file), "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert "Press Enter" not in result.output
+    assert suggested_branch in result.output
 
 
 def test_update_success_without_pipeline_id_fails(tmp_path: Path, httpx_mock: HTTPXMock):
