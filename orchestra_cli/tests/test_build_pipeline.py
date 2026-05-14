@@ -5,7 +5,7 @@ from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
-from orchestra_cli.utils import git_backed_build as git_backed_build_module
+from orchestra_cli.utils import git as git_module
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
@@ -510,10 +510,6 @@ def test_build_git_backed_commits_selected_yaml_and_runs_with_detected_git_targe
             "build",
             "--path",
             str(yaml_file),
-            "--branch",
-            "override-branch",
-            "--commit",
-            "override-commit",
             "--no-wait",
         ],
         input="\n",
@@ -526,6 +522,117 @@ def test_build_git_backed_commits_selected_yaml_and_runs_with_detected_git_targe
     )
 
 
+def test_build_git_backed_happy_path_uses_current_git_state_without_commit(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("status", "--porcelain", "--", "pipe.yaml"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/main", ""),
+        ("rev-list", "--left-right", "--count", "@{u}...HEAD"): (0, "0 0", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
+        ("rev-parse", "HEAD"): (0, "abc123", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"id": "pipeline-id", "alias": "demo", "storage_provider": "GITHUB"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={"pipeline_id": "pipeline-id", "branch": "main", "commit": "abc123"},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "build", "--path", str(yaml_file), "--no-wait"],
+    )
+
+    assert result.exit_code == 0
+    assert "Using git-backed build target branch 'main' at commit abc123" in result.output
+    assert result.output.strip().endswith(
+        f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}",
+    )
+
+
+def test_build_git_backed_rejects_branch_commit_overrides(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("status", "--porcelain", "--", "pipe.yaml"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/main", ""),
+        ("rev-list", "--left-right", "--count", "@{u}...HEAD"): (0, "0 0", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
+        ("rev-parse", "HEAD"): (0, "abc123", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"id": "pipeline-id", "alias": "demo", "storage_provider": "GITHUB"},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "pipeline",
+            "build",
+            "--path",
+            str(yaml_file),
+            "--branch",
+            "override-branch",
+            "--commit",
+            "override-commit",
+            "--no-wait",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "--branch/--commit are not supported for git-backed pipelines" in result.output
+
+
 def test_build_git_backed_push_failure_can_retry_on_new_branch(
     httpx_mock: HTTPXMock,
     monkeypatch,
@@ -535,7 +642,7 @@ def test_build_git_backed_push_failure_can_retry_on_new_branch(
     yaml_file.write_text("name: demo\nversion: 1\n")
     suggested_branch = "orchestra-migrate-pipeline-ABC123"
     monkeypatch.setattr(
-        git_backed_build_module,
+        git_module,
         "suggest_migration_branch_name",
         lambda: suggested_branch,
     )
@@ -638,7 +745,7 @@ def test_build_git_backed_force_auto_accepts_branch_retry(
     yaml_file.write_text("name: demo\nversion: 1\n")
     suggested_branch = "orchestra-migrate-pipeline-FORCE1"
     monkeypatch.setattr(
-        git_backed_build_module,
+        git_module,
         "suggest_migration_branch_name",
         lambda: suggested_branch,
     )
@@ -730,22 +837,6 @@ def test_build_git_backed_force_auto_accepts_branch_retry(
     assert result.exit_code == 0
     assert "Press Enter" not in result.output
     assert suggested_branch in result.output
-
-
-def test_suggest_migration_branch_name_format(monkeypatch):
-    def fake_choices(_chars: str, k: int) -> list[str]:
-        assert k == 6
-        return list("ABC123")
-
-    monkeypatch.setattr(
-        git_backed_build_module.random,
-        "choices",
-        fake_choices,
-    )
-    assert (
-        git_backed_build_module.suggest_migration_branch_name()
-        == "orchestra-migrate-pipeline-ABC123"
-    )
 
 
 def test_build_uses_zero_latest_version_number(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):

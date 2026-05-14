@@ -5,8 +5,7 @@ import typer
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_create_pipeline_url, get_pipeline_url, get_update_pipeline_url
-from ..utils.git import confirm_git_warnings_or_exit
-from ..utils.git_backed_build import prepare_git_backed_run_target
+from ..utils.git import confirm_git_warnings_or_exit, prepare_git_backed_run_target
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -244,6 +243,14 @@ def build_pipeline(
         return
 
     run_selector = _build_update_selector(existing_pipeline)
+    if branch or commit:
+        typer.echo(
+            red(
+                "❌ Build failed: --branch/--commit are not supported for git-backed pipelines; "
+                "build uses the current git branch and commit",
+            ),
+        )
+        raise typer.Exit(code=1)
     git_branch, git_commit = prepare_git_backed_run_target(
         path=path,
         existing_pipeline=existing_pipeline,
