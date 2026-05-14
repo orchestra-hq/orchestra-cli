@@ -241,7 +241,10 @@ def test_update_orchestra_backed_api_error(tmp_path: Path, httpx_mock: HTTPXMock
     assert "Only orchestra-backed pipelines can be updated via this endpoint." in result.output
 
 
-def test_update_fails_when_pipeline_lookup_returns_error_status(tmp_path: Path, httpx_mock: HTTPXMock):
+def test_update_fails_when_pipeline_lookup_returns_error_status(
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
+):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
 
