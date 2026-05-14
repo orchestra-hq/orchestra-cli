@@ -6,7 +6,6 @@ import typer
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_create_pipeline_url, get_pipeline_url, get_update_pipeline_url
 from ..utils.git import confirm_git_warnings_or_exit, prepare_git_backed_run_target
-from ..utils.pipeline_update import build_update_selector, storage_provider
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -14,6 +13,7 @@ from ..utils.pipeline_selector import (
     pipeline_path_option,
     resolve_pipeline_selector,
 )
+from ..utils.pipeline_update import build_update_selector, storage_provider
 from ..utils.styling import green, red
 from ..utils.yaml_loader import load_validated_pipeline_data
 from .pipeline_upsert import (
