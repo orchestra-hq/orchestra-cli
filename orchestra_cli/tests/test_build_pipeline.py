@@ -4,8 +4,8 @@ import pytest
 from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
-import orchestra_cli.src.build_pipeline as build_pipeline_module
 from orchestra_cli.src.cli import app
+from orchestra_cli.utils import git_backed_build as git_backed_build_module
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
@@ -535,8 +535,8 @@ def test_build_git_backed_push_failure_can_retry_on_new_branch(
     yaml_file.write_text("name: demo\nversion: 1\n")
     suggested_branch = "orchestra-migrate-pipeline-ABC123"
     monkeypatch.setattr(
-        build_pipeline_module,
-        "_suggest_migration_branch_name",
+        git_backed_build_module,
+        "suggest_migration_branch_name",
         lambda: suggested_branch,
     )
 
@@ -638,8 +638,8 @@ def test_build_git_backed_force_auto_accepts_branch_retry(
     yaml_file.write_text("name: demo\nversion: 1\n")
     suggested_branch = "orchestra-migrate-pipeline-FORCE1"
     monkeypatch.setattr(
-        build_pipeline_module,
-        "_suggest_migration_branch_name",
+        git_backed_build_module,
+        "suggest_migration_branch_name",
         lambda: suggested_branch,
     )
 
@@ -738,12 +738,12 @@ def test_suggest_migration_branch_name_format(monkeypatch):
         return list("ABC123")
 
     monkeypatch.setattr(
-        build_pipeline_module.random,
+        git_backed_build_module.random,
         "choices",
         fake_choices,
     )
     assert (
-        build_pipeline_module._suggest_migration_branch_name()
+        git_backed_build_module.suggest_migration_branch_name()
         == "orchestra-migrate-pipeline-ABC123"
     )
 
