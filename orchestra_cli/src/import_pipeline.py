@@ -1,5 +1,4 @@
 import json
-import re
 from pathlib import Path
 
 import httpx
@@ -12,55 +11,18 @@ from ..utils.api import (
     require_api_key,
 )
 from ..utils.constants import get_api_url
-from ..utils.git import detect_repo_root, detect_repository_slug, git_warnings, run_git_command
+from ..utils.git import (
+    detect_current_branch,
+    detect_default_branch,
+    detect_repo_root,
+    detect_repository_slug,
+    detect_storage_provider,
+    get_remote_url,
+    git_warnings,
+)
 from ..utils.pipeline_selector import pipeline_alias_option, pipeline_path_option
 from ..utils.styling import bold, green, red, yellow
 from ..utils.yaml_loader import load_validated_pipeline_data
-
-
-def _get_remote_url(repo_root: Path) -> str | None:
-    """Return the raw git remote URL for origin without transformation."""
-    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
-    if not ok:
-        return None
-    return remote
-
-
-def _detect_default_branch(repo_root: Path) -> str | None:
-    # Try symbolic-ref of remote HEAD first
-    ok, out = run_git_command(["symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
-    if ok and out:
-        # refs/remotes/origin/main -> main
-        return out.split("/")[-1]
-    # Fallback to parsing `git remote show origin`
-    ok, out = run_git_command(["remote", "show", "origin"], repo_root)
-    if ok and out:
-        m = re.search(r"HEAD branch:\s*(\S+)", out)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _detect_current_branch(repo_root: Path) -> str | None:
-    ok, out = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
-    if ok and out:
-        return out
-    return None
-
-
-def _detect_storage_provider(repository_url: str | None) -> str:
-    if not repository_url:
-        typer.echo(red("Could not detect storage provider - no repository URL"))
-        raise typer.Exit(code=1)
-    url = repository_url.lower()
-    if "github.com" in url:
-        return "GITHUB"
-    if "gitlab.com" in url:
-        return "GITLAB"
-    if any(host in url for host in ["dev.azure.com", "azure.com", "visualstudio.com"]):
-        return "AZURE_DEVOPS"
-    typer.echo(red("Could not detect storage provider - no matching host"))
-    raise typer.Exit(code=1)
 
 
 def import_pipeline(
@@ -98,14 +60,14 @@ def import_pipeline(
         typer.echo(red("Could not detect repository URL from git"))
         raise typer.Exit(code=1)
     if not default_branch:
-        default_branch = _detect_default_branch(repo_root)
+        default_branch = detect_default_branch(repo_root)
         if not default_branch:
             typer.echo(red("Could not detect default branch from git"))
             raise typer.Exit(code=1)
 
     # Determine working branch (explicit option or current branch)
     if working_branch is None:
-        working_branch = _detect_current_branch(repo_root)
+        working_branch = detect_current_branch(repo_root, allow_detached=False)
         if not working_branch:
             typer.echo(red("Could not detect current branch from git"))
             raise typer.Exit(code=1)
@@ -120,8 +82,13 @@ def import_pipeline(
     for w in git_warnings(repo_root):
         typer.echo(yellow(f"⚠ {w}"))
 
+    storage_provider = detect_storage_provider(get_remote_url(repo_root))
+    if not storage_provider:
+        typer.echo(red("Could not detect storage provider - no matching host"))
+        raise typer.Exit(code=1)
+
     payload = {
-        "storage_provider": _detect_storage_provider(_get_remote_url(repo_root)),
+        "storage_provider": storage_provider,
         "repository": repository_slug,
         "default_branch": default_branch,
         "working_branch": working_branch,

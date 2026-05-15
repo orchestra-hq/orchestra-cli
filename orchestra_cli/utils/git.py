@@ -33,8 +33,8 @@ def detect_repo_root(start_path: Path) -> Path | None:
 
 
 def detect_repository_slug(repo_root: Path) -> str | None:
-    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
-    if not ok or not remote:
+    remote = get_remote_url(repo_root)
+    if not remote:
         return None
 
     cleaned_remote = re.sub(r"/(?:_git|scm|v3)(?=/)", "", remote.strip())
@@ -44,6 +44,95 @@ def detect_repository_slug(repo_root: Path) -> str | None:
         return f"{match.group(1)}/{match.group(2)}"
 
     return None
+
+
+def get_remote_url(repo_root: Path) -> str | None:
+    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
+    if not ok or not remote:
+        return None
+    return remote.strip()
+
+
+def detect_default_branch(repo_root: Path) -> str | None:
+    ok, out = run_git_command(["symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
+    if ok and out:
+        return out.split("/")[-1]
+
+    ok, out = run_git_command(["remote", "show", "origin"], repo_root)
+    if ok and out:
+        match = re.search(r"HEAD branch:\s*(\S+)", out)
+        if match:
+            return match.group(1)
+
+    return None
+
+
+def detect_current_branch(repo_root: Path, allow_detached: bool = True) -> str | None:
+    ok, out = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+    if not ok or not out:
+        return None
+    if out == "HEAD" and not allow_detached:
+        return None
+    return out
+
+
+def detect_storage_provider(repository_url: str | None) -> str | None:
+    if not repository_url:
+        return None
+
+    url = repository_url.lower()
+    if "github.com" in url:
+        return "GITHUB"
+    if "gitlab.com" in url:
+        return "GITLAB"
+    if any(host in url for host in ("dev.azure.com", "azure.com", "visualstudio.com")):
+        return "AZURE_DEVOPS"
+    return None
+
+
+def build_compare_link(
+    storage_provider: str,
+    repository_slug: str,
+    default_branch: str,
+    branch_name: str,
+) -> str | None:
+    provider = storage_provider.upper()
+    if provider == "GITHUB":
+        return f"https://github.com/{repository_slug}/compare/{default_branch}...{branch_name}?expand=1"
+    if provider == "GITLAB":
+        return f"https://gitlab.com/{repository_slug}/-/compare/{default_branch}...{branch_name}"
+    return None
+
+
+def is_branch_protection_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(
+        token in lowered
+        for token in (
+            "branch protection",
+            "protected branch",
+            "hook declined",
+            "cannot force-push",
+            "pre-receive hook declined",
+        )
+    )
+
+
+def ensure_repo_relative_path(path: Path, repo_root: Path, action: str) -> str:
+    try:
+        return str(path.resolve().relative_to(repo_root.resolve()))
+    except Exception:
+        typer.echo(red(f"❌ {action} failed: YAML file must be inside the git repository"))
+        raise typer.Exit(code=1)
+
+
+def require_repo_root(path: Path, action: str) -> Path:
+    repo_root = detect_repo_root(path.parent)
+    if repo_root is not None:
+        return repo_root
+
+    typer.echo(red(f"❌ {action} failed: YAML file must be inside a git repository"))
+    raise typer.Exit(code=1)
 
 
 def git_warnings(repo_root: Path) -> list[str]:

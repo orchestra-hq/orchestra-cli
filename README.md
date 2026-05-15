@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`).
+- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`).
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -35,6 +35,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`
 | `orchestra pipeline list`            | Fetch the pipelines visible to the current API key as JSON.                                 |
 | `orchestra pipeline new`             | Create an Orchestra-backed pipeline from a local YAML file.                                 |
 | `orchestra pipeline update`          | Update an existing Orchestra-backed pipeline from a local YAML file.                        |
+| `orchestra pipeline migrate`         | Migrate an Orchestra-backed pipeline to git-backed storage.                                 |
 | `orchestra pipeline delete`          | Delete an existing pipeline by alias.                                                       |
 | `orchestra pipeline run`             | Start a pipeline run by alias, optionally pinning branch/commit and waiting for completion. |
 | `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
@@ -238,6 +239,38 @@ Behavior
 - If the pipeline is git-backed, applies the same commit/push protection flow as `pipeline build`, then reports the branch + commit used.
 - For Orchestra-backed success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
 - Exit codes: `0` on success, `1` on failure.
+
+---
+
+## pipeline migrate
+
+Migrate an existing Orchestra-backed pipeline to git-backed storage.
+
+```bash
+export ORCHESTRA_API_KEY=...
+
+orchestra pipeline migrate \
+  --alias my-pipeline \
+  --path ./pipelines/pipeline.yaml
+```
+
+Options
+
+- `-p, --path` (required): Target YAML path inside your git repository.
+- `-a, --alias` (optional): Pipeline alias selector.
+- `-i, --pipeline-id` (optional): Pipeline ID selector.
+- `--default-branch` (optional): Defaults to your git remote default branch.
+- `--working-branch` (optional): Defaults to your current git branch (unless it matches default branch).
+
+Behavior
+
+- Requires a git repository and a resolvable `origin` remote.
+- Fetches the selected pipeline, verifies it is Orchestra-backed, then downloads pipeline YAML from Orchestra.
+- If published and latest versions differ, prompts which version to migrate.
+- If a local file already exists at `--path` and differs, prompts to overwrite, keep local, or choose a new path.
+- Commits and pushes the selected YAML path before calling `PATCH /pipelines/storage-settings`.
+- If push is blocked by branch protection, suggests a new migration branch and offers to retry there.
+- Prints a compare/PR link when migration is pushed to a non-default branch.
 
 ---
 
