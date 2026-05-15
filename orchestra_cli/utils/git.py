@@ -190,23 +190,6 @@ def suggest_migration_branch_name() -> str:
     return f"orchestra-migrate-pipeline-{suffix}"
 
 
-def _require_repo_root(path: Path, action: str) -> Path:
-    repo_root = detect_repo_root(path.parent)
-    if repo_root is not None:
-        return repo_root
-
-    typer.echo(red(f"❌ {action} failed: YAML file must be inside a git repository"))
-    raise typer.Exit(code=1)
-
-
-def _require_repo_relative_path(path: Path, repo_root: Path, action: str) -> str:
-    try:
-        return str(path.resolve().relative_to(repo_root.resolve()))
-    except Exception:
-        typer.echo(red(f"❌ {action} failed: YAML file must be inside the git repository"))
-        raise typer.Exit(code=1)
-
-
 def _require_current_branch(repo_root: Path, action: str) -> str:
     ok, branch = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
     if ok and branch:
@@ -329,16 +312,21 @@ def stage_and_commit_file_if_needed(
 
 def _push_current_branch(repo_root: Path, action: str) -> tuple[bool, str]:
     branch = _require_current_branch(repo_root, action)
+    return push_branch(repo_root, branch)
+
+
+def push_branch(repo_root: Path, branch_name: str) -> tuple[bool, str]:
     has_upstream, _ = run_git_command(
         ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         repo_root,
     )
     if has_upstream:
-        return run_git_command(["push"], repo_root)
-    return run_git_command(["push", "-u", "origin", branch], repo_root)
-
-
-def _push_branch(repo_root: Path, branch_name: str) -> tuple[bool, str]:
+        ok_current, current_branch = run_git_command(
+            ["rev-parse", "--abbrev-ref", "HEAD"],
+            repo_root,
+        )
+        if ok_current and current_branch == branch_name:
+            return run_git_command(["push"], repo_root)
     return run_git_command(["push", "-u", "origin", branch_name], repo_root)
 
 
@@ -408,7 +396,7 @@ def _recover_on_new_branch(
                 typer.echo(yellow(commit_output))
             raise typer.Exit(code=1)
 
-    ok, push_output = _push_branch(repo_root, target_branch)
+    ok, push_output = push_branch(repo_root, target_branch)
     if not ok:
         typer.echo(red(f"❌ {action} failed: couldn't push generated branch '{target_branch}'"))
         if push_output:
@@ -424,8 +412,8 @@ def prepare_git_backed_run_target(
     force: bool,
     action: str = "Build",
 ) -> tuple[str, str]:
-    repo_root = _require_repo_root(path, action)
-    relative_path = _require_repo_relative_path(path, repo_root, action)
+    repo_root = require_repo_root(path, action)
+    relative_path = ensure_repo_relative_path(path, repo_root, action)
     include_file_changes = _file_has_uncommitted_changes(repo_root, relative_path)
     has_unpushed_head = _head_is_unpushed(repo_root)
 

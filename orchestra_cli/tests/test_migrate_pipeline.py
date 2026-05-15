@@ -313,3 +313,138 @@ def test_migrate_branch_protection_offer_retries_with_suggested_branch(
     assert result.exit_code == 0
     assert "branch protection" in result.output.lower()
     assert suggested_branch in result.output
+
+
+def test_migrate_force_skips_version_prompt(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
+    target_file = tmp_path / "pipelines" / "demo.yaml"
+
+    def fail_input() -> str:
+        raise AssertionError("input should not be called when --force is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        json={
+            "id": "pipeline-id",
+            "alias": "demo",
+            "storage_provider": "ORCHESTRA",
+            "publishedVersionNumber": 1,
+            "latestVersionNumber": 2,
+        },
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=2",
+        text="name: remote\n",
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PATCH",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/storage-settings?alias=demo",
+        json={"ok": True},
+        status_code=200,
+        match_json={
+            "path": "pipelines/demo.yaml",
+            "repository": "org/repo",
+            "storage_provider": "GITHUB",
+            "default_branch": "main",
+            "working_branch": "feature/force",
+        },
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "feature/force", ""),
+        ("status", "--porcelain", "--", "pipelines/demo.yaml"): (0, "?? pipelines/demo.yaml", ""),
+        ("add", "--", "pipelines/demo.yaml"): (0, "", ""),
+        ("commit", "-m", "Migrate pipeline 'demo' to git-backed storage"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+        ("push", "-u", "origin", "feature/force"): (0, "", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "migrate", "--alias", "demo", "--path", str(target_file), "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert "--force selected latest version" in result.output
+
+
+def test_migrate_force_skips_branch_recovery_prompt(
+    monkeypatch,
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
+):
+    target_file = tmp_path / "pipelines" / "demo.yaml"
+    suggested_branch = "orchestra-migrate-pipeline-FORCE1"
+    monkeypatch.setattr(
+        "orchestra_cli.src.migrate_pipeline.suggest_migration_branch_name",
+        lambda: suggested_branch,
+    )
+
+    def fail_input() -> str:
+        raise AssertionError("input should not be called when --force is set")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        json={
+            "id": "pipeline-id",
+            "alias": "demo",
+            "storage_provider": "ORCHESTRA",
+            "publishedVersionNumber": 1,
+            "latestVersionNumber": 1,
+        },
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        text="name: remote\n",
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PATCH",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/storage-settings?alias=demo",
+        json={"ok": True},
+        status_code=200,
+        match_json={
+            "path": "pipelines/demo.yaml",
+            "repository": "org/repo",
+            "storage_provider": "GITHUB",
+            "default_branch": "main",
+            "working_branch": suggested_branch,
+        },
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
+        ("status", "--porcelain", "--", "pipelines/demo.yaml"): (0, "?? pipelines/demo.yaml", ""),
+        ("add", "--", "pipelines/demo.yaml"): (0, "", ""),
+        ("commit", "-m", "Migrate pipeline 'demo' to git-backed storage"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/main", ""),
+        ("push",): (1, "", "remote: push blocked by branch protection"),
+        ("checkout", "-b", suggested_branch): (0, "", ""),
+        ("push", "-u", "origin", suggested_branch): (0, "", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "migrate", "--alias", "demo", "--path", str(target_file), "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert "--force set; retrying push on suggested branch" in result.output

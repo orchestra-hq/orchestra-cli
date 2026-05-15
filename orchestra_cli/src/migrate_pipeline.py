@@ -11,12 +11,13 @@ from ..utils.git import (
     build_compare_link,
     detect_current_branch,
     detect_default_branch,
-    detect_repo_root,
     detect_repository_slug,
     detect_storage_provider,
     ensure_repo_relative_path,
     get_remote_url,
     is_branch_protection_error,
+    push_branch,
+    require_repo_root,
     run_git_command,
     stage_and_commit_file_if_needed,
     suggest_migration_branch_name,
@@ -80,7 +81,7 @@ def _extract_version(existing_pipeline: dict[str, object], keys: tuple[str, ...]
     return None
 
 
-def _choose_migration_version(existing_pipeline: dict[str, object]) -> int | None:
+def _choose_migration_version(existing_pipeline: dict[str, object], force: bool) -> int | None:
     published_version = _extract_version(
         existing_pipeline,
         ("publishedVersionNumber", "published_version_number", "published_version", "published"),
@@ -98,6 +99,15 @@ def _choose_migration_version(existing_pipeline: dict[str, object]) -> int | Non
         return published_version
     if latest_version <= published_version:
         return published_version
+
+    if force:
+        typer.echo(
+            yellow(
+                "Detected published and newer latest pipeline versions; "
+                "--force selected latest version for migration.",
+            ),
+        )
+        return latest_version
 
     typer.echo(
         yellow(
@@ -171,7 +181,16 @@ def _format_yaml_diff(path: Path, local_yaml: str, remote_yaml: str) -> str:
     return "\n".join(diff_lines)
 
 
-def _prompt_conflict_resolution() -> str:
+def _prompt_conflict_resolution(force: bool) -> str:
+    if force:
+        typer.echo(
+            yellow(
+                "Local file differs from Orchestra YAML and --force is set; "
+                "keeping the local file.",
+            ),
+        )
+        return "local"
+
     typer.echo("  1) Overwrite local file with the Orchestra YAML")
     typer.echo("  2) Keep and use the local file")
     typer.echo("  3) Provide a different filepath")
@@ -211,7 +230,7 @@ def _prompt_new_path() -> Path:
     return candidate.resolve()
 
 
-def _resolve_target_path_and_yaml(path: Path, remote_yaml: str) -> tuple[Path, str]:
+def _resolve_target_path_and_yaml(path: Path, remote_yaml: str, force: bool) -> tuple[Path, str]:
     selected_path = path
     selected_yaml = remote_yaml
 
@@ -226,7 +245,7 @@ def _resolve_target_path_and_yaml(path: Path, remote_yaml: str) -> tuple[Path, s
         if diff_output:
             typer.echo(diff_output)
 
-        resolution = _prompt_conflict_resolution()
+        resolution = _prompt_conflict_resolution(force)
         if resolution == "overwrite":
             return selected_path, remote_yaml
         if resolution == "local":
@@ -243,7 +262,11 @@ def _write_yaml(path: Path, yaml_content: str) -> None:
     path.write_text(yaml_content)
 
 
-def _prompt_branch_recovery(suggested_branch: str) -> bool:
+def _prompt_branch_recovery(suggested_branch: str, force: bool) -> bool:
+    if force:
+        typer.echo(yellow(f"--force set; retrying push on suggested branch: {suggested_branch}"))
+        return True
+
     typer.echo(yellow(f"Suggested branch for retry: {suggested_branch}"))
     typer.echo(bold(yellow("Create and push this branch now? [Y/n]")))
     try:
@@ -254,17 +277,8 @@ def _prompt_branch_recovery(suggested_branch: str) -> bool:
     return response in ("", "y", "yes")
 
 
-def _push_branch(repo_root: Path, branch_name: str) -> tuple[bool, str]:
-    has_upstream, _ = run_git_command(
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-        repo_root,
-    )
-    push_args = ["push"] if has_upstream else ["push", "-u", "origin", branch_name]
-    return run_git_command(push_args, repo_root)
-
-
-def _push_migration_branch(repo_root: Path, branch_name: str) -> str:
-    ok, push_output = _push_branch(repo_root, branch_name)
+def _push_migration_branch(repo_root: Path, branch_name: str, force: bool) -> str:
+    ok, push_output = push_branch(repo_root, branch_name)
     if ok:
         return branch_name
 
@@ -279,7 +293,7 @@ def _push_migration_branch(repo_root: Path, branch_name: str) -> str:
         typer.echo(yellow(push_output))
 
     suggested_branch = suggest_migration_branch_name()
-    if not _prompt_branch_recovery(suggested_branch):
+    if not _prompt_branch_recovery(suggested_branch, force):
         typer.echo(red("Aborted migration because the YAML was not pushed to git"))
         raise typer.Exit(code=1)
 
@@ -290,7 +304,7 @@ def _push_migration_branch(repo_root: Path, branch_name: str) -> str:
             typer.echo(yellow(checkout_output))
         raise typer.Exit(code=1)
 
-    ok, retry_push_output = run_git_command(["push", "-u", "origin", suggested_branch], repo_root)
+    ok, retry_push_output = push_branch(repo_root, suggested_branch)
     if not ok:
         typer.echo(red(f"❌ Migrate failed: could not push branch '{suggested_branch}'"))
         if retry_push_output:
@@ -314,6 +328,11 @@ def migrate_pipeline(
         "--default-branch",
         help="Default branch to store in Orchestra (defaults to git remote default branch)",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help="Skip interactive prompts and continue with inferred migration choices",
+    ),
 ) -> None:
     """
     Migrate an Orchestra-backed pipeline to git-backed storage.
@@ -321,10 +340,7 @@ def migrate_pipeline(
     api_key = require_api_key()
     selector = _resolve_migrate_selector(alias, pipeline_id)
 
-    repo_root = detect_repo_root(path.parent)
-    if repo_root is None:
-        typer.echo(red("Not a git repository (could not detect repository root)"))
-        raise typer.Exit(code=1)
+    repo_root = require_repo_root(path, "Migrate")
 
     repository_slug = detect_repository_slug(repo_root)
     if not repository_slug:
@@ -350,9 +366,9 @@ def migrate_pipeline(
         )
         raise typer.Exit(code=1)
 
-    target_version = _choose_migration_version(existing_pipeline)
+    target_version = _choose_migration_version(existing_pipeline, force)
     downloaded_yaml = _download_pipeline_yaml(selector, target_version, api_key)
-    target_path, selected_yaml = _resolve_target_path_and_yaml(path, downloaded_yaml)
+    target_path, selected_yaml = _resolve_target_path_and_yaml(path, downloaded_yaml, force)
     _write_yaml(target_path, selected_yaml)
 
     relative_path = ensure_repo_relative_path(target_path, repo_root, "Migrate")
@@ -363,7 +379,7 @@ def migrate_pipeline(
         f"Migrate pipeline '{pipeline_name}' to git-backed storage",
         "Migrate",
     )
-    pushed_branch = _push_migration_branch(repo_root, current_branch)
+    pushed_branch = _push_migration_branch(repo_root, current_branch, force)
 
     storage_provider_value = detect_storage_provider(get_remote_url(repo_root))
     if not storage_provider_value:
