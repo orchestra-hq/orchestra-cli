@@ -368,6 +368,47 @@ def test_update_git_backed_uses_current_git_target_without_upsert(
     )
 
 
+def test_update_git_backed_reports_update_action_when_not_in_git_repo(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    import subprocess
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        make_git_subprocess_mock(
+            {("rev-parse", "--show-toplevel"): (1, "", "fatal: not a git repo")},
+        ),
+    )
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=pipe",
+        json={"id": "pipeline-id", "alias": "pipe", "storage_provider": "GITHUB"},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "update", "--path", str(yaml_file), "--force"],
+    )
+
+    assert result.exit_code == 1
+    assert "Update failed: YAML file must be inside a git repository" in result.output
+    assert "Build failed" not in result.output
+
+
 def test_update_git_backed_push_failure_can_retry_on_new_branch(
     httpx_mock: HTTPXMock,
     monkeypatch,

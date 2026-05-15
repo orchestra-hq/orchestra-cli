@@ -80,6 +80,7 @@ def update_pipeline(
             path=path,
             existing_pipeline=existing_pipeline,
             force=force,
+            action="Update",
         )
         typer.echo(
             green(
