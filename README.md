@@ -210,7 +210,7 @@ Behavior
 
 ## pipeline update
 
-Update an existing Orchestra-backed pipeline from a local YAML file.
+Update an existing pipeline from a local YAML file.
 
 ```bash
 export ORCHESTRA_API_KEY=...
@@ -223,16 +223,20 @@ orchestra pipeline update \
 
 Options
 
-- `-a, --alias` (required): Pipeline alias to update.
+- `-a, --alias` (optional): Pipeline alias.
+- `-i, --pipeline-id` (optional): Pipeline ID.
 - `-p, --path` (required): Path to pipeline YAML file.
 - `--publish/--no-publish` (optional, default `--no-publish`): Whether the pipeline is published.
+- `--force/--no-force` (optional, default `--no-force`): Skip interactive confirmation prompts when the CLI generates aliases or performs git-backed commit/branch fallback actions.
 
 Behavior
 
 - Validates YAML against the Orchestra schema endpoint before updating.
-- Sends pipeline data to `PUT /pipelines/{alias}` with `storage_provider=ORCHESTRA`.
-- Only Orchestra-backed pipelines can be updated via this endpoint (Git-backed pipelines are rejected).
-- On success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
+- Resolves the pipeline selector with shared rules (alias, then pipeline ID, then `repository + yaml_path` from `--path` inside git).
+- Fetches pipeline metadata from `GET /pipeline` before mutating.
+- If the pipeline is Orchestra-backed, updates it through `PUT /pipelines` using `alias` or `pipeline_id`.
+- If the pipeline is git-backed, applies the same commit/push protection flow as `pipeline build`, then reports the branch + commit used.
+- For Orchestra-backed success, prints the pipeline edit URL (`/pipelines/{pipeline_id}/edit`) when an ID is returned.
 - Exit codes: `0` on success, `1` on failure.
 
 ---
@@ -336,7 +340,7 @@ Behavior
 - When only `--path` is provided inside a git repository, the CLI looks up the existing pipeline using `repository` + `yaml_path`.
 - When the pipeline does not exist, the CLI creates a draft Orchestra-backed pipeline from the local YAML, generating an alias from `--path` via the shared selector helper when needed.
 - When the pipeline exists and is Orchestra-backed, the CLI updates that draft and starts the returned `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
-- Existing git-backed pipelines are detected during lookup and currently exit with a clear error rather than attempting an unsupported update flow.
+- Existing git-backed pipelines reuse the same commit + branch-protection logic as `pipeline update`, then run using the resolved branch/commit target.
 - Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.
 
 ---

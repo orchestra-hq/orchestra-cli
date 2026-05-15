@@ -101,40 +101,40 @@ def suggest_migration_branch_name() -> str:
     return f"orchestra-migrate-pipeline-{suffix}"
 
 
-def _require_repo_root(path: Path) -> Path:
+def _require_repo_root(path: Path, action: str) -> Path:
     repo_root = detect_repo_root(path.parent)
     if repo_root is not None:
         return repo_root
 
-    typer.echo(red("❌ Build failed: YAML file must be inside a git repository"))
+    typer.echo(red(f"❌ {action} failed: YAML file must be inside a git repository"))
     raise typer.Exit(code=1)
 
 
-def _require_repo_relative_path(path: Path, repo_root: Path) -> str:
+def _require_repo_relative_path(path: Path, repo_root: Path, action: str) -> str:
     try:
         return str(path.resolve().relative_to(repo_root.resolve()))
     except Exception:
-        typer.echo(red("❌ Build failed: YAML file must be inside the git repository"))
+        typer.echo(red(f"❌ {action} failed: YAML file must be inside the git repository"))
         raise typer.Exit(code=1)
 
 
-def _require_current_branch(repo_root: Path) -> str:
+def _require_current_branch(repo_root: Path, action: str) -> str:
     ok, branch = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
     if ok and branch:
         return branch
 
-    typer.echo(red("❌ Build failed: could not determine current git branch"))
+    typer.echo(red(f"❌ {action} failed: could not determine current git branch"))
     if branch:
         typer.echo(yellow(branch))
     raise typer.Exit(code=1)
 
 
-def _require_head_commit(repo_root: Path) -> str:
+def _require_head_commit(repo_root: Path, action: str) -> str:
     ok, head_commit = run_git_command(["rev-parse", "HEAD"], repo_root)
     if ok and head_commit:
         return head_commit
 
-    typer.echo(red("❌ Build failed: could not determine current git commit SHA"))
+    typer.echo(red(f"❌ {action} failed: could not determine current git commit SHA"))
     if head_commit:
         typer.echo(yellow(head_commit))
     raise typer.Exit(code=1)
@@ -196,12 +196,12 @@ def _pipeline_name_for_commit_message(existing_pipeline: dict[str, object], path
     return path.stem
 
 
-def _stage_selected_file(repo_root: Path, relative_path: str) -> None:
+def _stage_selected_file(repo_root: Path, relative_path: str, action: str) -> None:
     ok, output = run_git_command(["add", "--", relative_path], repo_root)
     if ok:
         return
 
-    typer.echo(red("❌ Build failed: could not stage selected YAML file"))
+    typer.echo(red(f"❌ {action} failed: could not stage selected YAML file"))
     if output:
         typer.echo(yellow(output))
     raise typer.Exit(code=1)
@@ -211,8 +211,8 @@ def _commit_selected_file(repo_root: Path, commit_message: str) -> tuple[bool, s
     return run_git_command(["commit", "-m", commit_message], repo_root)
 
 
-def _push_current_branch(repo_root: Path) -> tuple[bool, str]:
-    branch = _require_current_branch(repo_root)
+def _push_current_branch(repo_root: Path, action: str) -> tuple[bool, str]:
+    branch = _require_current_branch(repo_root, action)
     has_upstream, _ = run_git_command(
         ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         repo_root,
@@ -234,8 +234,9 @@ def _recover_on_new_branch(
     commit_was_created: bool,
     failure_output: str,
     force: bool,
+    action: str,
 ) -> tuple[str, str]:
-    typer.echo(red("❌ Build failed while committing/pushing on the current branch."))
+    typer.echo(red(f"❌ {action} failed while committing/pushing on the current branch."))
     if failure_output:
         typer.echo(yellow(failure_output))
 
@@ -263,7 +264,7 @@ def _recover_on_new_branch(
         if should_cleanup:
             ok, reset_output = run_git_command(["reset", "--soft", "HEAD~1"], repo_root)
             if not ok:
-                typer.echo(red("❌ Build failed: could not clean up local commit"))
+                typer.echo(red(f"❌ {action} failed: could not clean up local commit"))
                 if reset_output:
                     typer.echo(yellow(reset_output))
                 raise typer.Exit(code=1)
@@ -274,45 +275,46 @@ def _recover_on_new_branch(
 
     ok, checkout_output = run_git_command(["checkout", "-b", target_branch], repo_root)
     if not ok:
-        typer.echo(red(f"❌ Build failed: could not create branch '{target_branch}'"))
+        typer.echo(red(f"❌ {action} failed: could not create branch '{target_branch}'"))
         if checkout_output:
             typer.echo(yellow(checkout_output))
         raise typer.Exit(code=1)
 
     if should_recommit_on_new_branch:
         if not commit_message:
-            typer.echo(red("❌ Build failed: missing commit message for retry commit"))
+            typer.echo(red(f"❌ {action} failed: missing commit message for retry commit"))
             raise typer.Exit(code=1)
-        _stage_selected_file(repo_root, relative_path)
+        _stage_selected_file(repo_root, relative_path, action)
         ok, commit_output = _commit_selected_file(repo_root, commit_message)
         if not ok:
-            typer.echo(red("❌ Build failed: could not commit changes on the new branch"))
+            typer.echo(red(f"❌ {action} failed: could not commit changes on the new branch"))
             if commit_output:
                 typer.echo(yellow(commit_output))
             raise typer.Exit(code=1)
 
     ok, push_output = _push_branch(repo_root, target_branch)
     if not ok:
-        typer.echo(red(f"❌ Build failed: couldn't push generated branch '{target_branch}'"))
+        typer.echo(red(f"❌ {action} failed: couldn't push generated branch '{target_branch}'"))
         if push_output:
             typer.echo(yellow(push_output))
         raise typer.Exit(code=1)
 
-    return target_branch, _require_head_commit(repo_root)
+    return target_branch, _require_head_commit(repo_root, action)
 
 
 def prepare_git_backed_run_target(
     path: Path,
     existing_pipeline: dict[str, object],
     force: bool,
+    action: str = "Build",
 ) -> tuple[str, str]:
-    repo_root = _require_repo_root(path)
-    relative_path = _require_repo_relative_path(path, repo_root)
+    repo_root = _require_repo_root(path, action)
+    relative_path = _require_repo_relative_path(path, repo_root, action)
     include_file_changes = _file_has_uncommitted_changes(repo_root, relative_path)
     has_unpushed_head = _head_is_unpushed(repo_root)
 
     if not include_file_changes and not has_unpushed_head:
-        return _require_current_branch(repo_root), _require_head_commit(repo_root)
+        return _require_current_branch(repo_root, action), _require_head_commit(repo_root, action)
 
     commit_message: str | None = None
     commit_was_created = False
@@ -323,7 +325,7 @@ def prepare_git_backed_run_target(
             f"Migrating pipeline: '{pipeline_name}'",
             force,
         )
-        _stage_selected_file(repo_root, relative_path)
+        _stage_selected_file(repo_root, relative_path, action)
         ok, commit_output = _commit_selected_file(repo_root, commit_message)
         if not ok:
             return _recover_on_new_branch(
@@ -334,10 +336,11 @@ def prepare_git_backed_run_target(
                 False,
                 commit_output,
                 force,
+                action,
             )
         commit_was_created = True
 
-    ok, push_output = _push_current_branch(repo_root)
+    ok, push_output = _push_current_branch(repo_root, action)
     if not ok:
         return _recover_on_new_branch(
             repo_root,
@@ -347,6 +350,7 @@ def prepare_git_backed_run_target(
             commit_was_created,
             push_output,
             force,
+            action,
         )
 
-    return _require_current_branch(repo_root), _require_head_commit(repo_root)
+    return _require_current_branch(repo_root, action), _require_head_commit(repo_root, action)
