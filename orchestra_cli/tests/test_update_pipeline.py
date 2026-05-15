@@ -443,7 +443,9 @@ def test_update_git_backed_push_failure_can_retry_on_new_branch(
         if key == ("status", "--porcelain", "--", "pipe.yaml"):
             return Result(0, " M pipe.yaml", "")
         if key == ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"):
-            return Result(0, "origin/main", "")
+            if current_branch == "main":
+                return Result(0, "origin/main", "")
+            return Result(1, "", "fatal: no upstream")
         if key == ("rev-list", "--left-right", "--count", "@{u}...HEAD"):
             return Result(0, "0 0", "")
         if key == ("rev-parse", "--abbrev-ref", "HEAD"):
@@ -536,7 +538,9 @@ def test_update_git_backed_force_auto_accepts_branch_retry(
         if key == ("status", "--porcelain", "--", "pipe.yaml"):
             return Result(0, " M pipe.yaml", "")
         if key == ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"):
-            return Result(0, "origin/main", "")
+            if current_branch == "main":
+                return Result(0, "origin/main", "")
+            return Result(1, "", "fatal: no upstream")
         if key == ("rev-list", "--left-right", "--count", "@{u}...HEAD"):
             return Result(0, "0 0", "")
         if key == ("rev-parse", "--abbrev-ref", "HEAD"):

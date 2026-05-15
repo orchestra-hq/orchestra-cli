@@ -2,11 +2,18 @@ import random
 import re
 import string
 import subprocess
+from enum import StrEnum
 from pathlib import Path
 
 import typer
 
 from .styling import bold, red, yellow
+
+
+class GitAction(StrEnum):
+    BUILD = "Build"
+    MIGRATE = "Migrate"
+    UPDATE = "Update"
 
 
 def run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
@@ -33,8 +40,8 @@ def detect_repo_root(start_path: Path) -> Path | None:
 
 
 def detect_repository_slug(repo_root: Path) -> str | None:
-    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
-    if not ok or not remote:
+    remote = get_remote_url(repo_root)
+    if not remote:
         return None
 
     cleaned_remote = re.sub(r"/(?:_git|scm|v3)(?=/)", "", remote.strip())
@@ -44,6 +51,102 @@ def detect_repository_slug(repo_root: Path) -> str | None:
         return f"{match.group(1)}/{match.group(2)}"
 
     return None
+
+
+def get_remote_url(repo_root: Path) -> str | None:
+    ok, remote = run_git_command(["remote", "get-url", "origin"], repo_root)
+    if not ok or not remote:
+        return None
+    return remote.strip()
+
+
+def detect_default_branch(repo_root: Path) -> str | None:
+    ok, out = run_git_command(["symbolic-ref", "refs/remotes/origin/HEAD"], repo_root)
+    if ok and out:
+        return out.split("/")[-1]
+
+    ok, out = run_git_command(["remote", "show", "origin"], repo_root)
+    if ok and out:
+        match = re.search(r"HEAD branch:\s*(\S+)", out)
+        if match:
+            return match.group(1)
+
+    return None
+
+
+def detect_current_branch(repo_root: Path, allow_detached: bool = True) -> str | None:
+    ok, out = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+    if not ok or not out:
+        return None
+    if out == "HEAD" and not allow_detached:
+        return None
+    return out
+
+
+def detect_storage_provider(repository_url: str | None) -> str | None:
+    if not repository_url:
+        return None
+
+    url = repository_url.lower()
+    if "github.com" in url:
+        return "GITHUB"
+    if "gitlab.com" in url:
+        return "GITLAB"
+    if any(host in url for host in ("dev.azure.com", "azure.com", "visualstudio.com")):
+        return "AZURE_DEVOPS"
+    return None
+
+
+def build_compare_link(
+    storage_provider: str,
+    repository_slug: str,
+    default_branch: str,
+    branch_name: str,
+) -> str | None:
+    provider = storage_provider.upper()
+    if provider == "GITHUB":
+        return f"https://github.com/{repository_slug}/compare/{default_branch}...{branch_name}?expand=1"
+    if provider == "GITLAB":
+        return f"https://gitlab.com/{repository_slug}/-/compare/{default_branch}...{branch_name}"
+    return None
+
+
+def is_branch_protection_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(
+        token in lowered
+        for token in (
+            "branch protection",
+            "protected branch",
+            "hook declined",
+            "cannot force-push",
+            "pre-receive hook declined",
+        )
+    )
+
+
+def ensure_repo_relative_path(path: Path, repo_root: Path, action: GitAction) -> str:
+    try:
+        return str(path.resolve().relative_to(repo_root.resolve()))
+    except Exception:
+        typer.echo(red(f"❌ {action} failed: YAML file must be inside the git repository"))
+        raise typer.Exit(code=1)
+
+
+def _existing_git_search_path(path: Path) -> Path:
+    candidate = path if path.exists() and path.is_dir() else path.parent
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return candidate
+
+
+def require_repo_root(path: Path, action: GitAction) -> Path:
+    repo_root = detect_repo_root(_existing_git_search_path(path))
+    if repo_root is not None:
+        return repo_root
+
+    typer.echo(red(f"❌ {action} failed: YAML file must be inside a git repository"))
+    raise typer.Exit(code=1)
 
 
 def git_warnings(repo_root: Path) -> list[str]:
@@ -101,24 +204,7 @@ def suggest_migration_branch_name() -> str:
     return f"orchestra-migrate-pipeline-{suffix}"
 
 
-def _require_repo_root(path: Path, action: str) -> Path:
-    repo_root = detect_repo_root(path.parent)
-    if repo_root is not None:
-        return repo_root
-
-    typer.echo(red(f"❌ {action} failed: YAML file must be inside a git repository"))
-    raise typer.Exit(code=1)
-
-
-def _require_repo_relative_path(path: Path, repo_root: Path, action: str) -> str:
-    try:
-        return str(path.resolve().relative_to(repo_root.resolve()))
-    except Exception:
-        typer.echo(red(f"❌ {action} failed: YAML file must be inside the git repository"))
-        raise typer.Exit(code=1)
-
-
-def _require_current_branch(repo_root: Path, action: str) -> str:
+def _require_current_branch(repo_root: Path, action: GitAction) -> str:
     ok, branch = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
     if ok and branch:
         return branch
@@ -129,7 +215,7 @@ def _require_current_branch(repo_root: Path, action: str) -> str:
     raise typer.Exit(code=1)
 
 
-def _require_head_commit(repo_root: Path, action: str) -> str:
+def _require_head_commit(repo_root: Path, action: GitAction) -> str:
     ok, head_commit = run_git_command(["rev-parse", "HEAD"], repo_root)
     if ok and head_commit:
         return head_commit
@@ -196,7 +282,7 @@ def _pipeline_name_for_commit_message(existing_pipeline: dict[str, object], path
     return path.stem
 
 
-def _stage_selected_file(repo_root: Path, relative_path: str, action: str) -> None:
+def _stage_selected_file(repo_root: Path, relative_path: str, action: GitAction) -> None:
     ok, output = run_git_command(["add", "--", relative_path], repo_root)
     if ok:
         return
@@ -211,18 +297,50 @@ def _commit_selected_file(repo_root: Path, commit_message: str) -> tuple[bool, s
     return run_git_command(["commit", "-m", commit_message], repo_root)
 
 
-def _push_current_branch(repo_root: Path, action: str) -> tuple[bool, str]:
+def stage_and_commit_file_if_needed(
+    repo_root: Path,
+    relative_path: str,
+    commit_message: str,
+    action: GitAction,
+) -> bool:
+    ok, status_output = run_git_command(["status", "--porcelain", "--", relative_path], repo_root)
+    if not ok:
+        typer.echo(red(f"❌ {action} failed: could not inspect git status"))
+        if status_output:
+            typer.echo(yellow(status_output))
+        raise typer.Exit(code=1)
+
+    if not status_output:
+        return False
+
+    _stage_selected_file(repo_root, relative_path, action)
+    ok, commit_output = _commit_selected_file(repo_root, commit_message)
+    if ok or "nothing to commit" in commit_output.lower():
+        return ok
+
+    typer.echo(red(f"❌ {action} failed: could not commit YAML file"))
+    if commit_output:
+        typer.echo(yellow(commit_output))
+    raise typer.Exit(code=1)
+
+
+def _push_current_branch(repo_root: Path, action: GitAction) -> tuple[bool, str]:
     branch = _require_current_branch(repo_root, action)
+    return push_branch(repo_root, branch)
+
+
+def push_branch(repo_root: Path, branch_name: str) -> tuple[bool, str]:
     has_upstream, _ = run_git_command(
         ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         repo_root,
     )
     if has_upstream:
-        return run_git_command(["push"], repo_root)
-    return run_git_command(["push", "-u", "origin", branch], repo_root)
-
-
-def _push_branch(repo_root: Path, branch_name: str) -> tuple[bool, str]:
+        ok_current, current_branch = run_git_command(
+            ["rev-parse", "--abbrev-ref", "HEAD"],
+            repo_root,
+        )
+        if ok_current and current_branch == branch_name:
+            return run_git_command(["push"], repo_root)
     return run_git_command(["push", "-u", "origin", branch_name], repo_root)
 
 
@@ -234,7 +352,7 @@ def _recover_on_new_branch(
     commit_was_created: bool,
     failure_output: str,
     force: bool,
-    action: str,
+    action: GitAction,
 ) -> tuple[str, str]:
     typer.echo(red(f"❌ {action} failed while committing/pushing on the current branch."))
     if failure_output:
@@ -292,7 +410,7 @@ def _recover_on_new_branch(
                 typer.echo(yellow(commit_output))
             raise typer.Exit(code=1)
 
-    ok, push_output = _push_branch(repo_root, target_branch)
+    ok, push_output = push_branch(repo_root, target_branch)
     if not ok:
         typer.echo(red(f"❌ {action} failed: couldn't push generated branch '{target_branch}'"))
         if push_output:
@@ -306,10 +424,10 @@ def prepare_git_backed_run_target(
     path: Path,
     existing_pipeline: dict[str, object],
     force: bool,
-    action: str = "Build",
+    action: GitAction = GitAction.BUILD,
 ) -> tuple[str, str]:
-    repo_root = _require_repo_root(path, action)
-    relative_path = _require_repo_relative_path(path, repo_root, action)
+    repo_root = require_repo_root(path, action)
+    relative_path = ensure_repo_relative_path(path, repo_root, action)
     include_file_changes = _file_has_uncommitted_changes(repo_root, relative_path)
     has_unpushed_head = _head_is_unpushed(repo_root)
 

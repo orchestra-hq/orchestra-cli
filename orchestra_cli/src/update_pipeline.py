@@ -10,7 +10,7 @@ from ..utils.api import (
     require_api_key,
 )
 from ..utils.constants import get_pipeline_url, get_update_pipeline_url
-from ..utils.git import prepare_git_backed_run_target
+from ..utils.git import GitAction, prepare_git_backed_run_target
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -80,7 +80,7 @@ def update_pipeline(
             path=path,
             existing_pipeline=existing_pipeline,
             force=force,
-            action="Update",
+            action=GitAction.UPDATE,
         )
         typer.echo(
             green(

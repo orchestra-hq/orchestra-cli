@@ -6,6 +6,7 @@ from .delete_pipeline import delete_pipeline
 from .fetch_pipelines import fetch_pipelines
 from .get_pipeline import get_pipeline
 from .import_pipeline import import_pipeline
+from .migrate_pipeline import migrate_pipeline
 from .run_pipeline import run_pipeline
 from .task_logs import task_logs
 from .update_pipeline import update_pipeline
@@ -27,6 +28,7 @@ pipeline_app.command(name="list")(fetch_pipelines)
 pipeline_app.command(name="run")(run_pipeline)
 pipeline_app.command(name="build")(build_pipeline)
 pipeline_app.command(name="delete")(delete_pipeline)
+pipeline_app.command(name="migrate")(migrate_pipeline)
 task_app.command(name="logs")(task_logs)
 
 # Legacy top-level aliases (hidden) - keep the old `orchestra <command>` syntax working

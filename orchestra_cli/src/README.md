@@ -14,6 +14,8 @@ CLI command implementations. See `AGENTS.md` for conventions, patterns, and how 
 | `get_pipeline.py` | `orchestra pipeline get` — fetches one pipeline by selector |
 | `fetch_pipelines.py` | `orchestra pipeline list` — fetches pipelines visible to the current API key |
 | `delete_pipeline.py` | `orchestra pipeline delete` — deletes a pipeline by alias |
+| `build_pipeline.py` | `orchestra pipeline build` — validates local YAML, creates/updates a draft pipeline, and starts that draft version |
+| `migrate_pipeline.py` | `orchestra pipeline migrate` — migrates an Orchestra-backed pipeline to git-backed storage |
 | `run_pipeline.py` | `orchestra pipeline run` — starts a pipeline run; optionally polls until completion |
 
 Each command module exports a single public function registered in `cli.py`.
