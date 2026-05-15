@@ -2,11 +2,18 @@ import random
 import re
 import string
 import subprocess
+from enum import StrEnum
 from pathlib import Path
 
 import typer
 
 from .styling import bold, red, yellow
+
+
+class GitAction(StrEnum):
+    BUILD = "Build"
+    MIGRATE = "Migrate"
+    UPDATE = "Update"
 
 
 def run_git_command(args: list[str], cwd: Path) -> tuple[bool, str]:
@@ -118,7 +125,7 @@ def is_branch_protection_error(message: str) -> bool:
     )
 
 
-def ensure_repo_relative_path(path: Path, repo_root: Path, action: str) -> str:
+def ensure_repo_relative_path(path: Path, repo_root: Path, action: GitAction) -> str:
     try:
         return str(path.resolve().relative_to(repo_root.resolve()))
     except Exception:
@@ -126,7 +133,7 @@ def ensure_repo_relative_path(path: Path, repo_root: Path, action: str) -> str:
         raise typer.Exit(code=1)
 
 
-def require_repo_root(path: Path, action: str) -> Path:
+def require_repo_root(path: Path, action: GitAction) -> Path:
     repo_root = detect_repo_root(path.parent)
     if repo_root is not None:
         return repo_root
@@ -190,7 +197,7 @@ def suggest_migration_branch_name() -> str:
     return f"orchestra-migrate-pipeline-{suffix}"
 
 
-def _require_current_branch(repo_root: Path, action: str) -> str:
+def _require_current_branch(repo_root: Path, action: GitAction) -> str:
     ok, branch = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"], repo_root)
     if ok and branch:
         return branch
@@ -201,7 +208,7 @@ def _require_current_branch(repo_root: Path, action: str) -> str:
     raise typer.Exit(code=1)
 
 
-def _require_head_commit(repo_root: Path, action: str) -> str:
+def _require_head_commit(repo_root: Path, action: GitAction) -> str:
     ok, head_commit = run_git_command(["rev-parse", "HEAD"], repo_root)
     if ok and head_commit:
         return head_commit
@@ -268,7 +275,7 @@ def _pipeline_name_for_commit_message(existing_pipeline: dict[str, object], path
     return path.stem
 
 
-def _stage_selected_file(repo_root: Path, relative_path: str, action: str) -> None:
+def _stage_selected_file(repo_root: Path, relative_path: str, action: GitAction) -> None:
     ok, output = run_git_command(["add", "--", relative_path], repo_root)
     if ok:
         return
@@ -287,7 +294,7 @@ def stage_and_commit_file_if_needed(
     repo_root: Path,
     relative_path: str,
     commit_message: str,
-    action: str,
+    action: GitAction,
 ) -> None:
     ok, status_output = run_git_command(["status", "--porcelain", "--", relative_path], repo_root)
     if not ok:
@@ -310,7 +317,7 @@ def stage_and_commit_file_if_needed(
     raise typer.Exit(code=1)
 
 
-def _push_current_branch(repo_root: Path, action: str) -> tuple[bool, str]:
+def _push_current_branch(repo_root: Path, action: GitAction) -> tuple[bool, str]:
     branch = _require_current_branch(repo_root, action)
     return push_branch(repo_root, branch)
 
@@ -338,7 +345,7 @@ def _recover_on_new_branch(
     commit_was_created: bool,
     failure_output: str,
     force: bool,
-    action: str,
+    action: GitAction,
 ) -> tuple[str, str]:
     typer.echo(red(f"❌ {action} failed while committing/pushing on the current branch."))
     if failure_output:
@@ -410,7 +417,7 @@ def prepare_git_backed_run_target(
     path: Path,
     existing_pipeline: dict[str, object],
     force: bool,
-    action: str = "Build",
+    action: GitAction = GitAction.BUILD,
 ) -> tuple[str, str]:
     repo_root = require_repo_root(path, action)
     relative_path = ensure_repo_relative_path(path, repo_root, action)

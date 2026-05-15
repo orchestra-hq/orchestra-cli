@@ -8,6 +8,7 @@ import typer
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_api_url
 from ..utils.git import (
+    GitAction,
     build_compare_link,
     detect_current_branch,
     detect_default_branch,
@@ -340,11 +341,16 @@ def migrate_pipeline(
     api_key = require_api_key()
     selector = _resolve_migrate_selector(alias, pipeline_id)
 
-    repo_root = require_repo_root(path, "Migrate")
+    repo_root = require_repo_root(path, GitAction.MIGRATE)
 
     repository_slug = detect_repository_slug(repo_root)
     if not repository_slug:
         typer.echo(red("Could not detect repository URL from git"))
+        raise typer.Exit(code=1)
+
+    storage_provider_value = detect_storage_provider(get_remote_url(repo_root))
+    if not storage_provider_value:
+        typer.echo(red("Could not detect storage provider - no matching host"))
         raise typer.Exit(code=1)
 
     if not default_branch:
@@ -371,20 +377,15 @@ def migrate_pipeline(
     target_path, selected_yaml = _resolve_target_path_and_yaml(path, downloaded_yaml, force)
     _write_yaml(target_path, selected_yaml)
 
-    relative_path = ensure_repo_relative_path(target_path, repo_root, "Migrate")
+    relative_path = ensure_repo_relative_path(target_path, repo_root, GitAction.MIGRATE)
     pipeline_name = selector.alias or selector.pipeline_id or Path(relative_path).stem
     stage_and_commit_file_if_needed(
         repo_root,
         relative_path,
         f"Migrate pipeline '{pipeline_name}' to git-backed storage",
-        "Migrate",
+        GitAction.MIGRATE,
     )
     pushed_branch = _push_migration_branch(repo_root, current_branch, force)
-
-    storage_provider_value = detect_storage_provider(get_remote_url(repo_root))
-    if not storage_provider_value:
-        typer.echo(red("Could not detect storage provider - no matching host"))
-        raise typer.Exit(code=1)
 
     effective_working_branch = working_branch or pushed_branch
     payload: dict[str, str] = {

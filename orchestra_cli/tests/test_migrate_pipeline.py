@@ -448,3 +448,27 @@ def test_migrate_force_skips_branch_recovery_prompt(
 
     assert result.exit_code == 0
     assert "--force set; retrying push on suggested branch" in result.output
+
+
+def test_migrate_fails_before_git_write_when_storage_provider_is_unsupported(
+    monkeypatch,
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
+):
+    del httpx_mock
+    target_file = tmp_path / "pipelines" / "demo.yaml"
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@gitea.example.com:org/repo.git", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "migrate", "--alias", "demo", "--path", str(target_file)],
+    )
+
+    assert result.exit_code == 1
+    assert "Could not detect storage provider - no matching host" in result.output
+    assert not target_file.exists()

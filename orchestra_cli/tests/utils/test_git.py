@@ -80,7 +80,7 @@ def test_stage_and_commit_file_if_needed_no_changes(monkeypatch, tmp_path: Path)
         repo_root=tmp_path,
         relative_path="pipe.yaml",
         commit_message="test commit",
-        action="Migrate",
+        action=git_module.GitAction.MIGRATE,
     )
 
 
@@ -99,5 +99,5 @@ def test_stage_and_commit_file_if_needed_commit_failure_raises(monkeypatch, tmp_
             repo_root=tmp_path,
             relative_path="pipe.yaml",
             commit_message="test commit",
-            action="Migrate",
+            action=git_module.GitAction.MIGRATE,
         )
