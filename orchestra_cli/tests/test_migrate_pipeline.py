@@ -512,6 +512,54 @@ def test_migrate_force_skips_branch_recovery_prompt(
     assert "--force set; retrying push on suggested branch" in result.output
 
 
+def test_migrate_fails_before_writing_when_reprompted_path_is_outside_repo(
+    monkeypatch,
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
+):
+    target_file = tmp_path / "pipelines" / "demo.yaml"
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text("name: local\n")
+    outside_file = tmp_path.parent / "outside-repo" / "demo.yaml"
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        json={
+            "id": "pipeline-id",
+            "alias": "demo",
+            "storage_provider": "ORCHESTRA",
+            "publishedVersionNumber": 1,
+            "latestVersionNumber": 1,
+        },
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        text="name: remote\n",
+        status_code=200,
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "migrate", "--alias", "demo", "--path", str(target_file)],
+        input=f"3\n{outside_file}\n",
+    )
+
+    assert result.exit_code == 1
+    assert "YAML file must be inside the git repository" in result.output
+    assert not outside_file.exists()
+
+
 def test_migrate_fails_before_git_write_when_storage_provider_is_unsupported(
     monkeypatch,
     tmp_path: Path,

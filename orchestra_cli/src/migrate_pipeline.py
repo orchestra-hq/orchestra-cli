@@ -47,7 +47,7 @@ def _resolve_migrate_selector(alias: str | None, pipeline_id: str | None) -> Pip
     if pipeline_id:
         return PipelineSelector(pipeline_id=pipeline_id)
 
-    typer.echo(red("Provide one of --alias or --pipeline-id"))
+    typer.echo(red("Provide a pipeline alias or pipeline ID"))
     raise typer.Exit(code=1)
 
 
@@ -394,9 +394,8 @@ def migrate_pipeline(
     target_version = _choose_migration_version(existing_pipeline, force)
     downloaded_yaml = _download_pipeline_yaml(selector, target_version, api_key)
     target_path, selected_yaml = _resolve_target_path_and_yaml(path, downloaded_yaml, force)
-    _write_yaml(target_path, selected_yaml)
-
     relative_path = ensure_repo_relative_path(target_path, repo_root, GitAction.MIGRATE)
+    _write_yaml(target_path, selected_yaml)
     pipeline_name = selector.alias or selector.pipeline_id or Path(relative_path).stem
     commit_was_created = stage_and_commit_file_if_needed(
         repo_root,
