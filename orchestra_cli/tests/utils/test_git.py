@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from orchestra_cli.utils import git as git_module
 from tests.conftest import make_git_subprocess_mock
 
@@ -64,3 +66,38 @@ def test_suggest_migration_branch_name_format(monkeypatch):
 
     monkeypatch.setattr(git_module.random, "choices", fake_choices)
     assert git_module.suggest_migration_branch_name() == "orchestra-migrate-pipeline-ABC123"
+
+
+def test_stage_and_commit_file_if_needed_no_changes(monkeypatch, tmp_path: Path):
+    mapping = {
+        ("status", "--porcelain", "--", "pipe.yaml"): (0, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    git_module.stage_and_commit_file_if_needed(
+        repo_root=tmp_path,
+        relative_path="pipe.yaml",
+        commit_message="test commit",
+        action="Migrate",
+    )
+
+
+def test_stage_and_commit_file_if_needed_commit_failure_raises(monkeypatch, tmp_path: Path):
+    mapping = {
+        ("status", "--porcelain", "--", "pipe.yaml"): (0, " M pipe.yaml", ""),
+        ("add", "--", "pipe.yaml"): (0, "", ""),
+        ("commit", "-m", "test commit"): (1, "", "fatal: commit failed"),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    with pytest.raises(git_module.typer.Exit):
+        git_module.stage_and_commit_file_if_needed(
+            repo_root=tmp_path,
+            relative_path="pipe.yaml",
+            commit_message="test commit",
+            action="Migrate",
+        )

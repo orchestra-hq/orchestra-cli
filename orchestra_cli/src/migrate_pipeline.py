@@ -18,6 +18,7 @@ from ..utils.git import (
     get_remote_url,
     is_branch_protection_error,
     run_git_command,
+    stage_and_commit_file_if_needed,
     suggest_migration_branch_name,
 )
 from ..utils.pipeline_selector import PipelineSelector, pipeline_alias_option, pipeline_id_option
@@ -242,43 +243,6 @@ def _write_yaml(path: Path, yaml_content: str) -> None:
     path.write_text(yaml_content)
 
 
-def _stage_and_commit_if_needed(
-    repo_root: Path,
-    relative_path: str,
-    selector: PipelineSelector,
-) -> None:
-    ok, status_output = run_git_command(["status", "--porcelain", "--", relative_path], repo_root)
-    if not ok:
-        typer.echo(red("❌ Migrate failed: could not inspect git status"))
-        if status_output:
-            typer.echo(yellow(status_output))
-        raise typer.Exit(code=1)
-
-    if not status_output:
-        return
-
-    ok, add_output = run_git_command(["add", "--", relative_path], repo_root)
-    if not ok:
-        typer.echo(red("❌ Migrate failed: could not stage YAML file"))
-        if add_output:
-            typer.echo(yellow(add_output))
-        raise typer.Exit(code=1)
-
-    pipeline_name = selector.alias or selector.pipeline_id or Path(relative_path).stem
-    commit_message = f"Migrate pipeline '{pipeline_name}' to git-backed storage"
-    ok, commit_output = run_git_command(["commit", "-m", commit_message], repo_root)
-    if ok:
-        return
-
-    if "nothing to commit" in commit_output.lower():
-        return
-
-    typer.echo(red("❌ Migrate failed: could not commit YAML file"))
-    if commit_output:
-        typer.echo(yellow(commit_output))
-    raise typer.Exit(code=1)
-
-
 def _prompt_branch_recovery(suggested_branch: str) -> bool:
     typer.echo(yellow(f"Suggested branch for retry: {suggested_branch}"))
     typer.echo(bold(yellow("Create and push this branch now? [Y/n]")))
@@ -392,7 +356,13 @@ def migrate_pipeline(
     _write_yaml(target_path, selected_yaml)
 
     relative_path = ensure_repo_relative_path(target_path, repo_root, "Migrate")
-    _stage_and_commit_if_needed(repo_root, relative_path, selector)
+    pipeline_name = selector.alias or selector.pipeline_id or Path(relative_path).stem
+    stage_and_commit_file_if_needed(
+        repo_root,
+        relative_path,
+        f"Migrate pipeline '{pipeline_name}' to git-backed storage",
+        "Migrate",
+    )
     pushed_branch = _push_migration_branch(repo_root, current_branch)
 
     storage_provider_value = detect_storage_provider(get_remote_url(repo_root))

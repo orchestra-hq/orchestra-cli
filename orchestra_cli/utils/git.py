@@ -300,6 +300,33 @@ def _commit_selected_file(repo_root: Path, commit_message: str) -> tuple[bool, s
     return run_git_command(["commit", "-m", commit_message], repo_root)
 
 
+def stage_and_commit_file_if_needed(
+    repo_root: Path,
+    relative_path: str,
+    commit_message: str,
+    action: str,
+) -> None:
+    ok, status_output = run_git_command(["status", "--porcelain", "--", relative_path], repo_root)
+    if not ok:
+        typer.echo(red(f"❌ {action} failed: could not inspect git status"))
+        if status_output:
+            typer.echo(yellow(status_output))
+        raise typer.Exit(code=1)
+
+    if not status_output:
+        return
+
+    _stage_selected_file(repo_root, relative_path, action)
+    ok, commit_output = _commit_selected_file(repo_root, commit_message)
+    if ok or "nothing to commit" in commit_output.lower():
+        return
+
+    typer.echo(red(f"❌ {action} failed: could not commit YAML file"))
+    if commit_output:
+        typer.echo(yellow(commit_output))
+    raise typer.Exit(code=1)
+
+
 def _push_current_branch(repo_root: Path, action: str) -> tuple[bool, str]:
     branch = _require_current_branch(repo_root, action)
     has_upstream, _ = run_git_command(
