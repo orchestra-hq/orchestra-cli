@@ -300,6 +300,7 @@ def test_migrate_branch_protection_offer_retries_with_suggested_branch(
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/main", ""),
         ("push",): (1, "", "remote: push blocked by branch protection"),
         ("checkout", "-b", suggested_branch): (0, "", ""),
+        ("branch", "-f", "main", "HEAD~1"): (0, "", ""),
         ("push", "-u", "origin", suggested_branch): (0, "", ""),
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
@@ -313,6 +314,66 @@ def test_migrate_branch_protection_offer_retries_with_suggested_branch(
     assert result.exit_code == 0
     assert "branch protection" in result.output.lower()
     assert suggested_branch in result.output
+
+
+def test_migrate_accepts_nonexistent_parent_directory_inside_repo(
+    monkeypatch,
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
+):
+    target_file = tmp_path / "new-subdir" / "demo.yaml"
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=demo",
+        json={
+            "id": "pipeline-id",
+            "alias": "demo",
+            "storage_provider": "ORCHESTRA",
+            "publishedVersionNumber": 1,
+            "latestVersionNumber": 1,
+        },
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        text="name: remote\n",
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="PATCH",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/storage-settings?alias=demo",
+        json={"ok": True},
+        status_code=200,
+        match_json={
+            "path": "new-subdir/demo.yaml",
+            "repository": "org/repo",
+            "storage_provider": "GITHUB",
+            "default_branch": "main",
+        },
+    )
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
+        ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
+        ("status", "--porcelain", "--", "new-subdir/demo.yaml"): (0, "?? new-subdir/demo.yaml", ""),
+        ("add", "--", "new-subdir/demo.yaml"): (0, "", ""),
+        ("commit", "-m", "Migrate pipeline 'demo' to git-backed storage"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+        ("push", "-u", "origin", "main"): (0, "", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "migrate", "--alias", "demo", "--path", str(target_file)],
+    )
+
+    assert result.exit_code == 0
+    assert target_file.read_text() == "name: remote\n"
 
 
 def test_migrate_force_skips_version_prompt(monkeypatch, tmp_path: Path, httpx_mock: HTTPXMock):
@@ -437,6 +498,7 @@ def test_migrate_force_skips_branch_recovery_prompt(
         ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/main", ""),
         ("push",): (1, "", "remote: push blocked by branch protection"),
         ("checkout", "-b", suggested_branch): (0, "", ""),
+        ("branch", "-f", "main", "HEAD~1"): (0, "", ""),
         ("push", "-u", "origin", suggested_branch): (0, "", ""),
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))

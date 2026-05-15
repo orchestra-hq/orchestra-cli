@@ -101,3 +101,16 @@ def test_stage_and_commit_file_if_needed_commit_failure_raises(monkeypatch, tmp_
             commit_message="test commit",
             action=git_module.GitAction.MIGRATE,
         )
+
+
+def test_require_repo_root_walks_up_from_nonexistent_parent(monkeypatch, tmp_path: Path):
+    target_file = tmp_path / "new-subdir" / "pipe.yaml"
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    assert git_module.require_repo_root(target_file, git_module.GitAction.MIGRATE) == tmp_path

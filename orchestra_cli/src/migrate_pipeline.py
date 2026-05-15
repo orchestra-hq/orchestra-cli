@@ -278,7 +278,23 @@ def _prompt_branch_recovery(suggested_branch: str, force: bool) -> bool:
     return response in ("", "y", "yes")
 
 
-def _push_migration_branch(repo_root: Path, branch_name: str, force: bool) -> str:
+def _reset_original_branch_ref(repo_root: Path, branch_name: str) -> None:
+    ok, reset_output = run_git_command(["branch", "-f", branch_name, "HEAD~1"], repo_root)
+    if ok:
+        return
+
+    typer.echo(red(f"❌ Migrate failed: could not restore branch '{branch_name}' after retrying"))
+    if reset_output:
+        typer.echo(yellow(reset_output))
+    raise typer.Exit(code=1)
+
+
+def _push_migration_branch(
+    repo_root: Path,
+    branch_name: str,
+    force: bool,
+    commit_was_created: bool,
+) -> str:
     ok, push_output = push_branch(repo_root, branch_name)
     if ok:
         return branch_name
@@ -304,6 +320,9 @@ def _push_migration_branch(repo_root: Path, branch_name: str, force: bool) -> st
         if checkout_output:
             typer.echo(yellow(checkout_output))
         raise typer.Exit(code=1)
+
+    if commit_was_created:
+        _reset_original_branch_ref(repo_root, branch_name)
 
     ok, retry_push_output = push_branch(repo_root, suggested_branch)
     if not ok:
@@ -379,13 +398,13 @@ def migrate_pipeline(
 
     relative_path = ensure_repo_relative_path(target_path, repo_root, GitAction.MIGRATE)
     pipeline_name = selector.alias or selector.pipeline_id or Path(relative_path).stem
-    stage_and_commit_file_if_needed(
+    commit_was_created = stage_and_commit_file_if_needed(
         repo_root,
         relative_path,
         f"Migrate pipeline '{pipeline_name}' to git-backed storage",
         GitAction.MIGRATE,
     )
-    pushed_branch = _push_migration_branch(repo_root, current_branch, force)
+    pushed_branch = _push_migration_branch(repo_root, current_branch, force, commit_was_created)
 
     effective_working_branch = working_branch or pushed_branch
     payload: dict[str, str] = {

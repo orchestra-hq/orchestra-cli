@@ -133,8 +133,15 @@ def ensure_repo_relative_path(path: Path, repo_root: Path, action: GitAction) ->
         raise typer.Exit(code=1)
 
 
+def _existing_git_search_path(path: Path) -> Path:
+    candidate = path if path.exists() and path.is_dir() else path.parent
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return candidate
+
+
 def require_repo_root(path: Path, action: GitAction) -> Path:
-    repo_root = detect_repo_root(path.parent)
+    repo_root = detect_repo_root(_existing_git_search_path(path))
     if repo_root is not None:
         return repo_root
 
@@ -295,7 +302,7 @@ def stage_and_commit_file_if_needed(
     relative_path: str,
     commit_message: str,
     action: GitAction,
-) -> None:
+) -> bool:
     ok, status_output = run_git_command(["status", "--porcelain", "--", relative_path], repo_root)
     if not ok:
         typer.echo(red(f"❌ {action} failed: could not inspect git status"))
@@ -304,12 +311,12 @@ def stage_and_commit_file_if_needed(
         raise typer.Exit(code=1)
 
     if not status_output:
-        return
+        return False
 
     _stage_selected_file(repo_root, relative_path, action)
     ok, commit_output = _commit_selected_file(repo_root, commit_message)
     if ok or "nothing to commit" in commit_output.lower():
-        return
+        return ok
 
     typer.echo(red(f"❌ {action} failed: could not commit YAML file"))
     if commit_output:
