@@ -381,7 +381,9 @@ def migrate_pipeline(
     existing_pipeline = _lookup_pipeline(selector, api_key)
     provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
     if provider != "ORCHESTRA":
-        typer.echo(red("Pipeline is already git-backed; only Orchestra-backed pipelines can be migrated"))
+        typer.echo(
+            red("Pipeline is already git-backed; only Orchestra-backed pipelines can be migrated"),
+        )
         raise typer.Exit(code=1)
 
     target_version = _choose_migration_version(existing_pipeline)

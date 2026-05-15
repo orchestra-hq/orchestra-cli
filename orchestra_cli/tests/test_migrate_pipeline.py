@@ -6,7 +6,6 @@ from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
-from orchestra_cli.utils import git as git_module
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
@@ -127,7 +126,11 @@ def test_migrate_prompts_for_latest_version_and_prints_compare_link(
         ("status", "--porcelain", "--", "pipelines/demo.yaml"): (0, "?? pipelines/demo.yaml", ""),
         ("add", "--", "pipelines/demo.yaml"): (0, "", ""),
         ("commit", "-m", "Migrate pipeline 'demo' to git-backed storage"): (0, "", ""),
-        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/feature/migrate", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (
+            0,
+            "origin/feature/migrate",
+            "",
+        ),
         ("push",): (0, "", ""),
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
@@ -191,7 +194,11 @@ def test_migrate_uses_local_file_when_conflict_choice_is_local(
         ("symbolic-ref", "refs/remotes/origin/HEAD"): (0, "refs/remotes/origin/main", ""),
         ("rev-parse", "--abbrev-ref", "HEAD"): (0, "feature/local", ""),
         ("status", "--porcelain", "--", "pipelines/demo.yaml"): (0, "", ""),
-        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/feature/local", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (
+            0,
+            "origin/feature/local",
+            "",
+        ),
         ("push",): (0, "", ""),
     }
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
@@ -245,7 +252,10 @@ def test_migrate_branch_protection_offer_retries_with_suggested_branch(
 ):
     target_file = tmp_path / "pipelines" / "demo.yaml"
     suggested_branch = "orchestra-migrate-pipeline-ABC123"
-    monkeypatch.setattr(git_module, "suggest_migration_branch_name", lambda: suggested_branch)
+    monkeypatch.setattr(
+        "orchestra_cli.src.migrate_pipeline.suggest_migration_branch_name",
+        lambda: suggested_branch,
+    )
 
     httpx_mock.add_response(
         method="GET",
