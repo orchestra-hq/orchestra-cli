@@ -7,6 +7,7 @@ command having to import private functions from another.
 
 import json
 from pathlib import Path
+from typing import Any
 
 import httpx
 import typer
@@ -16,12 +17,71 @@ from .constants import get_api_url
 from .styling import indent_message, red, yellow
 
 
+class DuplicateKeyYAMLError(Exception):
+    def __init__(self, details: list[dict[str, Any]]):
+        self.details = details
+        super().__init__("Duplicate keys found in YAML")
+
+
+class DuplicateKeySafeLoader(yaml.SafeLoader):
+    def __init__(self, stream):
+        super().__init__(stream)
+        self.path_stack: list[str] = []
+        self.duplicate_key_details: list[dict[str, Any]] = []
+
+    def get_single_data(self):  # type: ignore[override]
+        data = super().get_single_data()
+        if self.duplicate_key_details:
+            raise DuplicateKeyYAMLError(details=self.duplicate_key_details)
+        return data
+
+    def construct_mapping(self, node, deep=False):  # type: ignore[override]
+        # PyYAML passes this argument for recursive construction; this loader
+        # always constructs keys/values deeply to track duplicate paths reliably.
+        _ = deep
+        self.flatten_mapping(node)
+        mapping: dict[Any, Any] = {}
+
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=True)
+            key_str = str(key)
+
+            if key in mapping:
+                self.duplicate_key_details.append(
+                    {
+                        "loc": [*self.path_stack, key_str],
+                        "msg": f"Duplicate key found in YAML: {key!r}",
+                        "type": "value_error",
+                    },
+                )
+
+            self.path_stack.append(key_str)
+            try:
+                value = self.construct_object(value_node, deep=True)
+                if key not in mapping:
+                    mapping[key] = value
+            finally:
+                self.path_stack.pop()
+
+        return mapping
+
+
 def load_yaml(file: Path) -> tuple[dict | None, str | None]:
     """Read a YAML file and return ``(data, None)`` or ``(None, error_message)``."""
     try:
         with file.open("r") as f:
-            data = yaml.safe_load(f)
+            data = yaml.load(f, Loader=DuplicateKeySafeLoader)
         return data, None
+    except DuplicateKeyYAMLError as e:
+        return (
+            None,
+            json.dumps(
+                {
+                    "detail": e.details,
+                },
+                indent=2,
+            ),
+        )
     except Exception as e:
         return None, str(e)
 
