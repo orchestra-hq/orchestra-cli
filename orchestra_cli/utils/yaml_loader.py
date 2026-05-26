@@ -7,6 +7,7 @@ command having to import private functions from another.
 
 import json
 from pathlib import Path
+from typing import Any
 
 import httpx
 import typer
@@ -16,12 +17,60 @@ from .constants import get_api_url
 from .styling import indent_message, red, yellow
 
 
+class DuplicateKeyYAMLError(Exception):
+    def __init__(self, loc: list[str], key: Any):
+        self.loc = loc
+        self.key = key
+        super().__init__(f"Duplicate key found: {key!r}")
+
+
+class DuplicateKeySafeLoader(yaml.SafeLoader):
+    def __init__(self, stream):
+        super().__init__(stream)
+        self.path_stack: list[str] = []
+
+    def construct_mapping(self, node, deep=False):  # type: ignore[override]
+        self.flatten_mapping(node)
+        mapping: dict[Any, Any] = {}
+
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=True)
+            key_str = str(key)
+
+            if key in mapping:
+                raise DuplicateKeyYAMLError(loc=[*self.path_stack, key_str], key=key)
+
+            self.path_stack.append(key_str)
+            try:
+                mapping[key] = self.construct_object(value_node, deep=True)
+            finally:
+                self.path_stack.pop()
+
+        return mapping
+
+
 def load_yaml(file: Path) -> tuple[dict | None, str | None]:
     """Read a YAML file and return ``(data, None)`` or ``(None, error_message)``."""
     try:
         with file.open("r") as f:
-            data = yaml.safe_load(f)
+            data = yaml.load(f, Loader=DuplicateKeySafeLoader)
         return data, None
+    except DuplicateKeyYAMLError as e:
+        return (
+            None,
+            json.dumps(
+                {
+                    "detail": [
+                        {
+                            "loc": e.loc,
+                            "msg": f"Duplicate key found in YAML: {e.key!r}",
+                            "type": "value_error",
+                        },
+                    ],
+                },
+                indent=2,
+            ),
+        )
     except Exception as e:
         return None, str(e)
 
