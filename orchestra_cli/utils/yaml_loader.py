@@ -30,6 +30,9 @@ class DuplicateKeySafeLoader(yaml.SafeLoader):
         self.path_stack: list[str] = []
 
     def construct_mapping(self, node, deep=False):  # type: ignore[override]
+        # PyYAML passes this argument for recursive construction; this loader
+        # always constructs keys/values deeply to track duplicate paths reliably.
+        _ = deep
         self.flatten_mapping(node)
         mapping: dict[Any, Any] = {}
 
