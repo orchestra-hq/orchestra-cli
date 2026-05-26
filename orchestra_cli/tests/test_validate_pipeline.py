@@ -71,9 +71,9 @@ def test_validate_fails_on_duplicate_yaml_keys(tmp_path):
                 "  pre-daily:",
                 "    connection: first",
                 "    connection: second",
-                "  pre-daily:",
-                "    connection: first",
-                "    connection: second",
+                "metadata:",
+                "  team: data",
+                "  team: analytics",
             ],
         ),
     )
@@ -87,4 +87,7 @@ def test_validate_fails_on_duplicate_yaml_keys(tmp_path):
     assert '"pipeline"' in result.output
     assert '"pre-daily"' in result.output
     assert '"connection"' in result.output
+    assert '"metadata"' in result.output
+    assert '"team"' in result.output
     assert "Duplicate key found in YAML: 'connection'" in result.output
+    assert "Duplicate key found in YAML: 'team'" in result.output

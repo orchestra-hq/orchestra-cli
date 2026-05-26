@@ -18,16 +18,22 @@ from .styling import indent_message, red, yellow
 
 
 class DuplicateKeyYAMLError(Exception):
-    def __init__(self, loc: list[str], key: Any):
-        self.loc = loc
-        self.key = key
-        super().__init__(f"Duplicate key found: {key!r}")
+    def __init__(self, details: list[dict[str, Any]]):
+        self.details = details
+        super().__init__("Duplicate keys found in YAML")
 
 
 class DuplicateKeySafeLoader(yaml.SafeLoader):
     def __init__(self, stream):
         super().__init__(stream)
         self.path_stack: list[str] = []
+        self.duplicate_key_details: list[dict[str, Any]] = []
+
+    def get_single_data(self):  # type: ignore[override]
+        data = super().get_single_data()
+        if self.duplicate_key_details:
+            raise DuplicateKeyYAMLError(details=self.duplicate_key_details)
+        return data
 
     def construct_mapping(self, node, deep=False):  # type: ignore[override]
         # PyYAML passes this argument for recursive construction; this loader
@@ -41,11 +47,19 @@ class DuplicateKeySafeLoader(yaml.SafeLoader):
             key_str = str(key)
 
             if key in mapping:
-                raise DuplicateKeyYAMLError(loc=[*self.path_stack, key_str], key=key)
+                self.duplicate_key_details.append(
+                    {
+                        "loc": [*self.path_stack, key_str],
+                        "msg": f"Duplicate key found in YAML: {key!r}",
+                        "type": "value_error",
+                    },
+                )
 
             self.path_stack.append(key_str)
             try:
-                mapping[key] = self.construct_object(value_node, deep=True)
+                value = self.construct_object(value_node, deep=True)
+                if key not in mapping:
+                    mapping[key] = value
             finally:
                 self.path_stack.pop()
 
@@ -63,13 +77,7 @@ def load_yaml(file: Path) -> tuple[dict | None, str | None]:
             None,
             json.dumps(
                 {
-                    "detail": [
-                        {
-                            "loc": e.loc,
-                            "msg": f"Duplicate key found in YAML: {e.key!r}",
-                            "type": "value_error",
-                        },
-                    ],
+                    "detail": e.details,
                 },
                 indent=2,
             ),
