@@ -25,6 +25,20 @@ def get_yaml_snippet(data: Any, loc: list[Any]) -> dict[str, Any] | None:
         return None
 
 
+def _render_validation_details(details: list[dict[str, Any]], data: Any) -> None:
+    for detail in details:
+        loc = detail.get("loc", [])
+        msg = detail.get("msg", "Unknown error")
+        typer.echo(bold(yellow(f"Error at: {'.'.join(str(x) for x in loc)}")))
+        typer.echo(red(indent_message(msg)))
+        snippet = get_yaml_snippet(data or {}, loc)
+        if snippet is not None:
+            typer.echo(bold("\nYAML snippet:"))
+            typer.echo(yaml.dump(snippet, sort_keys=False, default_flow_style=False))
+        else:
+            typer.echo(yellow("(Could not locate this path in your YAML)"))
+
+
 def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
     """
     Validate a YAML file against the API.
@@ -43,17 +57,7 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
             details = local_errors.get("detail")
             if isinstance(details, list):
                 typer.echo(red("❌ Validation failed with status 422\n"))
-                for detail in details:
-                    loc = detail.get("loc", [])
-                    msg = detail.get("msg", "Unknown error")
-                    typer.echo(bold(yellow(f"Error at: {'.'.join(str(x) for x in loc)}")))
-                    typer.echo(red(indent_message(msg)))
-                    snippet = get_yaml_snippet(data or {}, loc)
-                    if snippet is not None:
-                        typer.echo(bold("\nYAML snippet:"))
-                        typer.echo(yaml.dump(snippet, sort_keys=False, default_flow_style=False))
-                    else:
-                        typer.echo(yellow("(Could not locate this path in your YAML)"))
+                _render_validation_details(details, data)
                 raise typer.Exit(code=1)
 
         typer.echo(red(f"Invalid YAML: {err}"))
@@ -70,17 +74,7 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
         errors = response.json()
         details = errors.get("detail")
         if details and isinstance(details, list):
-            for err in details:
-                loc = err.get("loc", [])
-                msg = err.get("msg", "Unknown error")
-                typer.echo(bold(yellow(f"Error at: {'.'.join(str(x) for x in loc)}")))
-                typer.echo(red(indent_message(msg)))
-                snippet = get_yaml_snippet(data, loc)
-                if snippet is not None:
-                    typer.echo(bold("\nYAML snippet:"))
-                    typer.echo(yaml.dump(snippet, sort_keys=False, default_flow_style=False))
-                else:
-                    typer.echo(yellow("(Could not locate this path in your YAML)"))
+            _render_validation_details(details, data)
         else:
             typer.echo(errors)
     except Exception:
