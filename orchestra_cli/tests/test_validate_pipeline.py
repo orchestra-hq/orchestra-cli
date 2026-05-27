@@ -81,13 +81,11 @@ def test_validate_fails_on_duplicate_yaml_keys(tmp_path):
     result = runner.invoke(app, ["pipeline", "validate", str(bad)])
 
     assert result.exit_code == 1
-    assert "Invalid YAML:" in result.output
-    assert '"detail"' in result.output
-    assert '"loc"' in result.output
-    assert '"pipeline"' in result.output
-    assert '"pre-daily"' in result.output
-    assert '"connection"' in result.output
-    assert '"metadata"' in result.output
-    assert '"team"' in result.output
+    assert "❌ Validation failed with status 422" in result.output
+    assert "Error at: pipeline.pre-daily.connection" in result.output
+    assert "Error at: metadata.team" in result.output
     assert "Duplicate key found in YAML: 'connection'" in result.output
     assert "Duplicate key found in YAML: 'team'" in result.output
+    assert "YAML snippet:" in result.output
+    assert "connection: first" in result.output
+    assert "team: data" in result.output

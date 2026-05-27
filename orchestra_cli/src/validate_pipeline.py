@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,27 @@ def validate(file: Path = typer.Argument(..., help="YAML file to validate")):
 
     data, err = load_yaml(file)
     if err is not None:
+        try:
+            local_errors = json.loads(err)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        else:
+            details = local_errors.get("detail")
+            if isinstance(details, list):
+                typer.echo(red("❌ Validation failed with status 422\n"))
+                for detail in details:
+                    loc = detail.get("loc", [])
+                    msg = detail.get("msg", "Unknown error")
+                    typer.echo(bold(yellow(f"Error at: {'.'.join(str(x) for x in loc)}")))
+                    typer.echo(red(indent_message(msg)))
+                    snippet = get_yaml_snippet(data or {}, loc)
+                    if snippet is not None:
+                        typer.echo(bold("\nYAML snippet:"))
+                        typer.echo(yaml.dump(snippet, sort_keys=False, default_flow_style=False))
+                    else:
+                        typer.echo(yellow("(Could not locate this path in your YAML)"))
+                raise typer.Exit(code=1)
+
         typer.echo(red(f"Invalid YAML: {err}"))
         raise typer.Exit(code=1)
 

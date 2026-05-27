@@ -18,8 +18,9 @@ from .styling import indent_message, red, yellow
 
 
 class DuplicateKeyYAMLError(Exception):
-    def __init__(self, details: list[dict[str, Any]]):
+    def __init__(self, details: list[dict[str, Any]], parsed_data: dict[str, Any] | None = None):
         self.details = details
+        self.parsed_data = parsed_data
         super().__init__("Duplicate keys found in YAML")
 
 
@@ -32,7 +33,7 @@ class DuplicateKeySafeLoader(yaml.SafeLoader):
     def get_single_data(self):  # type: ignore[override]
         data = super().get_single_data()
         if self.duplicate_key_details:
-            raise DuplicateKeyYAMLError(details=self.duplicate_key_details)
+            raise DuplicateKeyYAMLError(details=self.duplicate_key_details, parsed_data=data)
         return data
 
     def construct_mapping(self, node, deep=False):  # type: ignore[override]
@@ -74,7 +75,7 @@ def load_yaml(file: Path) -> tuple[dict | None, str | None]:
         return data, None
     except DuplicateKeyYAMLError as e:
         return (
-            None,
+            e.parsed_data,
             json.dumps(
                 {
                     "detail": e.details,
