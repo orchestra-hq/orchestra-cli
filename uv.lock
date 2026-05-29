@@ -199,9 +199,10 @@ wheels = [
 
 [[package]]
 name = "orchestra-cli"
-version = "0.3.0"
+version = "0.3.2"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -219,6 +220,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pyyaml", specifier = ">=6.0.2" },
