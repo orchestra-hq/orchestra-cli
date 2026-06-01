@@ -1,9 +1,14 @@
 import time
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 import typer
+from rich.console import Console
+from rich.live import Live
+from rich.text import Text
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_api_url, get_base_url
@@ -188,83 +193,213 @@ def _poll_all_task_runs(
     return task_runs
 
 
+def _parse_created_at_utc(status_body: dict[str, object]) -> datetime | None:
+    created_at_candidates = [status_body.get("createdAt")]
+    candidate_containers = [
+        status_body.get("pipelineRun"),
+        status_body.get("result"),
+        status_body.get("data"),
+    ]
+    for container in candidate_containers:
+        if isinstance(container, dict):
+            created_at_candidates.append(container.get("createdAt"))
+
+    for candidate in created_at_candidates:
+        if not isinstance(candidate, str) or not candidate.strip():
+            continue
+        normalized_candidate = candidate.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(normalized_candidate)
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+    return None
+
+
+def _format_pipeline_duration(created_at_utc: datetime, now_utc: datetime | None = None) -> str:
+    comparison_time = now_utc or datetime.now().astimezone(UTC)
+    elapsed_seconds = max(0, int((comparison_time - created_at_utc).total_seconds()))
+    hours, remainder = divmod(elapsed_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if hours > 0:
+        unit = "hour" if hours == 1 else "hours"
+        return f"{hours}:{minutes:02d}:{seconds:02d} {unit}"
+    if minutes > 0:
+        unit = "minute" if minutes == 1 else "minutes"
+        return f"{minutes}:{seconds:02d} {unit}"
+    unit = "second" if seconds == 1 else "seconds"
+    return f"{seconds} {unit}"
+
+
+def _build_poll_status_text(
+    status_value: str,
+    seconds_since_check: int,
+    created_at_utc: datetime | None = None,
+    now_utc: datetime | None = None,
+) -> Text:
+    status_styles = {
+        "CREATED": "cyan",
+        "QUEUED": "yellow",
+        "RUNNING": "blue",
+        "SUCCEEDED": "green",
+        "WARNING": "yellow",
+        "SKIPPED": "yellow",
+        "FAILED": "red",
+        "CANCELLED": "red",
+    }
+    unit = "second" if seconds_since_check == 1 else "seconds"
+    text = Text("Pipeline status: ")
+    text.append(status_value, style=f"bold {status_styles.get(status_value, 'white')}")
+    if created_at_utc is not None:
+        text.append(f" ({_format_pipeline_duration(created_at_utc, now_utc)})", style="dim")
+    text.append(f" (updated {seconds_since_check} {unit} ago)", style="dim")
+    return text
+
+
+def _create_poll_status_display() -> Live | None:
+    console = Console()
+    if not console.is_terminal:
+        return None
+    live = Live(console=console, refresh_per_second=4, transient=False)
+    live.start()
+    return live
+
+
+def _stop_poll_status_display(poll_status_display: Live | None) -> None:
+    if poll_status_display is not None:
+        poll_status_display.stop()
+
+
+def _sleep_with_status_updates(
+    *,
+    poll_interval_seconds: int,
+    poll_status_display: Live | None,
+    status_value: str | None,
+    created_at_utc: datetime | None,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> None:
+    if poll_status_display is None or status_value is None:
+        sleep_fn(poll_interval_seconds)
+        return
+
+    for seconds_since_check in range(1, poll_interval_seconds + 1):
+        sleep_fn(1)
+        poll_status_display.update(
+            _build_poll_status_text(status_value, seconds_since_check, created_at_utc),
+        )
+
+
 def _poll_until_terminal(
     *,
     selector_name: str,
     pipeline_run_id: str,
     api_key: str,
     lineage_url: str,
+    created_at_utc: datetime | None = None,
 ) -> None:
     """Poll the run status endpoint until the run reaches a terminal state."""
     poll_interval_seconds = 5
     headers = auth_headers(api_key)
     status_url = get_api_url(f"pipeline_runs/{pipeline_run_id}/status")
     in_progress_statuses = {"RUNNING", "QUEUED", "CREATED"}
+    poll_status_display = _create_poll_status_display()
+    last_status_value: str | None = None
 
-    while True:
-        time.sleep(poll_interval_seconds)
-        _poll_all_task_runs(
-            pipeline_run_id=pipeline_run_id,
-            api_key=api_key,
-        )
-        try:
-            status_resp = httpx.get(status_url, headers=headers, timeout=30)
-        except Exception as exc:
-            typer.echo(yellow(f"Polling request failed: {exc}"))
-            continue
-
-        if not (200 <= status_resp.status_code < 300):
-            typer.echo(red(f"❌ Status check failed with HTTP {status_resp.status_code}"))
-            try:
-                typer.echo(yellow(indent_message(status_resp.text)))
-            except Exception:
-                pass
-            raise typer.Exit(code=1)
-
-        try:
-            status_body = status_resp.json()
-        except Exception:
-            status_body = {}
-
-        status_value = status_body.get("runStatus")
-
-        if status_value:
-            typer.echo(f"Pipeline ({selector_name}) status: {status_value}")
-
-        if status_value == "SUCCEEDED":
-            typer.echo(green("✅ Pipeline succeeded"))
-            typer.echo(str(pipeline_run_id))
-            raise typer.Exit(code=0)
-
-        if status_value == "WARNING":
-            typer.echo(yellow("⚠ Pipeline completed with warnings"))
-            typer.echo(str(pipeline_run_id))
-            raise typer.Exit(code=0)
-
-        if status_value == "SKIPPED":
-            typer.echo(yellow("⚠ Pipeline skipped"))
-            typer.echo(str(pipeline_run_id))
-            raise typer.Exit(code=0)
-
-        if status_value in {"FAILED", "CANCELLED"}:
-            typer.echo(
-                red(
-                    f"❌ Pipeline ended with status {status_value}. See lineage for details.",
-                ),
+    try:
+        while True:
+            _sleep_with_status_updates(
+                poll_interval_seconds=poll_interval_seconds,
+                poll_status_display=poll_status_display,
+                status_value=last_status_value,
+                created_at_utc=created_at_utc,
             )
-            typer.echo(yellow(lineage_url))
-            raise typer.Exit(code=1)
+            _poll_all_task_runs(
+                pipeline_run_id=pipeline_run_id,
+                api_key=api_key,
+            )
+            try:
+                status_resp = httpx.get(status_url, headers=headers, timeout=30)
+            except Exception as exc:
+                _stop_poll_status_display(poll_status_display)
+                poll_status_display = None
+                typer.echo(yellow(f"Polling request failed: {exc}"))
+                continue
 
-        if status_value in in_progress_statuses:
-            continue
+            if not (200 <= status_resp.status_code < 300):
+                _stop_poll_status_display(poll_status_display)
+                poll_status_display = None
+                typer.echo(red(f"❌ Status check failed with HTTP {status_resp.status_code}"))
+                try:
+                    typer.echo(yellow(indent_message(status_resp.text)))
+                except Exception:
+                    pass
+                raise typer.Exit(code=1)
 
-        typer.echo(
-            red(f"❌ Invalid status value: {status_value}\nResponse body: {status_body}"),
-        )
+            try:
+                status_body = status_resp.json()
+            except Exception:
+                status_body = {}
+
+            status_value = status_body.get("runStatus")
+            created_at_utc = created_at_utc or _parse_created_at_utc(status_body)
+
+            if isinstance(status_value, str):
+                last_status_value = status_value
+                if poll_status_display is not None:
+                    poll_status_display.update(
+                        _build_poll_status_text(status_value, 0, created_at_utc),
+                    )
+                else:
+                    typer.echo(f"Pipeline ({selector_name}) status: {status_value}")
+
+            if status_value == "SUCCEEDED":
+                _stop_poll_status_display(poll_status_display)
+                poll_status_display = None
+                typer.echo(green("✅ Pipeline succeeded"))
+                typer.echo(str(pipeline_run_id))
+                raise typer.Exit(code=0)
+
+            if status_value == "WARNING":
+                _stop_poll_status_display(poll_status_display)
+                poll_status_display = None
+                typer.echo(yellow("⚠ Pipeline completed with warnings"))
+                typer.echo(str(pipeline_run_id))
+                raise typer.Exit(code=0)
+
+            if status_value == "SKIPPED":
+                _stop_poll_status_display(poll_status_display)
+                poll_status_display = None
+                typer.echo(yellow("⚠ Pipeline skipped"))
+                typer.echo(str(pipeline_run_id))
+                raise typer.Exit(code=0)
+
+            if status_value in {"FAILED", "CANCELLED"}:
+                _stop_poll_status_display(poll_status_display)
+                poll_status_display = None
+                typer.echo(
+                    red(
+                        f"❌ Pipeline ended with status {status_value}. See lineage for details.",
+                    ),
+                )
+                typer.echo(yellow(lineage_url))
+                raise typer.Exit(code=1)
+
+            if status_value in in_progress_statuses:
+                continue
+
+            _stop_poll_status_display(poll_status_display)
+            poll_status_display = None
+            typer.echo(
+                red(f"❌ Invalid status value: {status_value}\nResponse body: {status_body}"),
+            )
+    finally:
+        _stop_poll_status_display(poll_status_display)
 
 
 def build_run_payload(
-    selector: PipelineSelector,
     branch: str | None = None,
     commit: str | None = None,
     version_number: int | None = None,
@@ -274,7 +409,7 @@ def build_run_payload(
     task_ids: list[str] | None = None,
     continue_downstream_run: bool | None = None,
 ) -> dict[str, Any]:
-    payload: dict[str, Any] = selector.to_payload()
+    payload: dict[str, Any] = {}
     if branch:
         payload["branch"] = branch
     if commit:
@@ -294,15 +429,34 @@ def build_run_payload(
     return payload
 
 
+def _resolve_start_path(
+    selector: PipelineSelector,
+    existing_pipeline: dict[str, object] | None = None,
+) -> str:
+    pipeline_identifier = selector.alias or selector.pipeline_id
+    if pipeline_identifier:
+        return f"pipelines/{pipeline_identifier}/start"
+
+    if existing_pipeline is not None:
+        existing_pipeline_id = existing_pipeline.get("id")
+        if isinstance(existing_pipeline_id, str) and existing_pipeline_id.strip():
+            return f"pipelines/{existing_pipeline_id}/start"
+        typer.echo(red("❌ Run failed: failed to load pipeline id"))
+        raise typer.Exit(code=1)
+
+    return "pipelines/start"
+
+
 def start_pipeline_run(
     selector: PipelineSelector,
     api_key: str,
     payload: dict[str, Any] | None,
     wait: bool,
     failure_action: str,
+    existing_pipeline: dict[str, object] | None = None,
 ) -> None:
     selector_name = selector.display()
-    start_path = f"pipelines/{selector.alias}/start" if selector.alias else "pipelines/start"
+    start_path = _resolve_start_path(selector, existing_pipeline)
 
     typer.echo(f"Starting pipeline ({selector_name})")
     response = request_or_exit(
@@ -318,6 +472,7 @@ def start_pipeline_run(
             body = response.json()
         except Exception:
             body = {}
+        created_at_utc = _parse_created_at_utc(body)
 
         pipeline_run_id = body.get("pipelineRunId")
 
@@ -345,6 +500,7 @@ def start_pipeline_run(
             pipeline_run_id=str(pipeline_run_id),
             api_key=api_key,
             lineage_url=lineage_url,
+            created_at_utc=created_at_utc,
         )
         return
 
@@ -461,7 +617,6 @@ def run_pipeline(
         selector=run_selector,
         api_key=api_key,
         payload=build_run_payload(
-            run_selector,
             branch=run_branch,
             commit=run_commit,
             version_number=version_number,
@@ -473,4 +628,5 @@ def run_pipeline(
         ),
         wait=wait,
         failure_action="Run",
+        existing_pipeline=existing_pipeline,
     )

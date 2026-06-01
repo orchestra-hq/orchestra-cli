@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -5,8 +6,12 @@ from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
-from orchestra_cli.src.run_pipeline import build_run_payload
-from orchestra_cli.utils.pipeline_selector import PipelineSelector
+from orchestra_cli.src.run_pipeline import (
+    _build_poll_status_text,
+    _format_pipeline_duration,
+    _parse_created_at_utc,
+    build_run_payload,
+)
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
@@ -15,10 +20,8 @@ mock_api_key = "fake-key"
 
 
 def test_build_run_payload_includes_version_number_when_set() -> None:
-    selector = PipelineSelector(alias="demo")
-    payload = build_run_payload(selector, branch="main", commit="abc", version_number=9)
+    payload = build_run_payload(branch="main", commit="abc", version_number=9)
     assert payload == {
-        "alias": "demo",
         "branch": "main",
         "commit": "abc",
         "versionNumber": 9,
@@ -26,16 +29,13 @@ def test_build_run_payload_includes_version_number_when_set() -> None:
 
 
 def test_build_run_payload_omits_version_number_when_not_set() -> None:
-    selector = PipelineSelector(pipeline_id="pid-1")
-    payload = build_run_payload(selector)
+    payload = build_run_payload()
     assert "versionNumber" not in payload
-    assert payload == {"pipeline_id": "pid-1"}
+    assert payload == {}
 
 
 def test_build_run_payload_includes_task_environment_and_overrides() -> None:
-    selector = PipelineSelector(alias="demo")
     payload = build_run_payload(
-        selector,
         version_number=3,
         environment="staging",
         run_inputs={"foo": "bar"},
@@ -44,7 +44,6 @@ def test_build_run_payload_includes_task_environment_and_overrides() -> None:
         continue_downstream_run=False,
     )
     assert payload == {
-        "alias": "demo",
         "versionNumber": 3,
         "environment": "staging",
         "runInputs": {"foo": "bar"},
@@ -52,6 +51,31 @@ def test_build_run_payload_includes_task_environment_and_overrides() -> None:
         "taskIds": ["task_1", "task_2"],
         "continueDownstreamRun": False,
     }
+
+
+def test_parse_created_at_utc_reads_iso_timestamp() -> None:
+    parsed = _parse_created_at_utc({"createdAt": "2026-05-29T11:30:00Z"})
+    assert parsed == datetime(2026, 5, 29, 11, 30, 0, tzinfo=UTC)
+
+
+def test_parse_created_at_utc_reads_nested_pipeline_run_timestamp() -> None:
+    parsed = _parse_created_at_utc(
+        {"pipelineRun": {"createdAt": "2026-05-29T11:30:00+00:00"}},
+    )
+    assert parsed == datetime(2026, 5, 29, 11, 30, 0, tzinfo=UTC)
+
+
+def test_format_pipeline_duration_uses_human_readable_minutes() -> None:
+    created_at = datetime(2026, 5, 29, 11, 30, 0, tzinfo=UTC)
+    now_utc = datetime(2026, 5, 29, 11, 31, 30, tzinfo=UTC)
+    assert _format_pipeline_duration(created_at, now_utc) == "1:30 minute"
+
+
+def test_build_poll_status_text_includes_duration_and_update_age() -> None:
+    created_at = datetime(2026, 5, 29, 11, 30, 0, tzinfo=UTC)
+    now_utc = datetime(2026, 5, 29, 11, 31, 30, tzinfo=UTC)
+    text = _build_poll_status_text("RUNNING", 3, created_at, now_utc)
+    assert text.plain == "Pipeline status: RUNNING (1:30 minute) (updated 3 seconds ago)"
 
 
 @pytest.fixture(autouse=True)
@@ -129,7 +153,6 @@ def test_run_with_task_and_overrides(httpx_mock: HTTPXMock, monkeypatch, tmp_pat
         url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "alias": "demo",
             "versionNumber": 7,
             "taskIds": ["task_1"],
             "continueDownstreamRun": True,
@@ -213,11 +236,9 @@ def test_run_task_group_resolves_from_yaml(httpx_mock: HTTPXMock, monkeypatch, t
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "repository": "org/repo",
-            "yaml_path": "pipe.yaml",
             "taskIds": ["task_1", "task_2"],
             "continueDownstreamRun": False,
         },
@@ -235,6 +256,32 @@ def test_run_task_group_resolves_from_yaml(httpx_mock: HTTPXMock, monkeypatch, t
     )
 
 
+def test_run_path_lookup_requires_pipeline_id(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"storage_provider": "ORCHESTRA"},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--path", str(yaml_file), "--no-wait"])
+
+    assert result.exit_code == 1
+    assert "failed to load pipeline id" in result.output
+
+
 def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     repo_root = tmp_path
     mapping = {
@@ -250,7 +297,7 @@ def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Pa
         method="POST",
         url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"alias": "demo", "branch": "main", "commit": "deadbeef"},
+        match_json={"branch": "main", "commit": "deadbeef"},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=201,
     )
@@ -289,9 +336,9 @@ def test_run_success_by_pipeline_id(httpx_mock: HTTPXMock, monkeypatch, tmp_path
 
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id"},
+        match_json={},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -436,7 +483,7 @@ def test_run_path_checks_selected_repo_warnings(httpx_mock: HTTPXMock, monkeypat
         method="POST",
         url="https://app.getorchestra.io/api/engine/public/pipelines/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"repository": "org/repo", "yaml_path": "pipe.yaml"},
+        match_json={},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -526,7 +573,6 @@ def test_run_wait_success(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
 
     result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
     assert result.exit_code == 0
-    # Last printed line should be the run id
     assert result.output.strip().splitlines()[0] == "Starting pipeline (alias: demo)"
     assert (
         result.output.strip().splitlines()[1]
@@ -654,9 +700,9 @@ def test_run_git_backed_path_uses_prepared_branch_and_commit(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "branch": "main", "commit": "abc123"},
+        match_json={"branch": "main", "commit": "abc123"},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )

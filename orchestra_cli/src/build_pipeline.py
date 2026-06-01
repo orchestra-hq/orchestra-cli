@@ -188,7 +188,6 @@ def build_pipeline(
             selector=run_selector,
             api_key=api_key,
             payload=build_run_payload(
-                run_selector,
                 branch=branch,
                 commit=commit,
                 version_number=version_number,
@@ -210,7 +209,6 @@ def build_pipeline(
             selector=run_selector,
             api_key=api_key,
             payload=build_run_payload(
-                run_selector,
                 branch=branch,
                 commit=commit,
                 version_number=version_number,
@@ -245,7 +243,6 @@ def build_pipeline(
         selector=run_selector,
         api_key=api_key,
         payload=build_run_payload(
-            run_selector,
             branch=git_branch,
             commit=git_commit,
         ),
