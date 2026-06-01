@@ -317,14 +317,17 @@ orchestra pipeline run -a my-pipeline -b feature/my-change -c 0123abc
 Options
 
 - `-a, --alias` (required): Pipeline alias to run.
+- `-p, --path` (optional): Path to a local pipeline YAML file. When this points to a pipeline inside a git repository, the CLI resolves the pipeline from `repository` + `yaml_path` before starting the run.
 - `-b, --branch` (optional): Git branch name to associate with this run.
 - `-c, --commit` (optional): Commit SHA to associate with this run.
+- `-t, --task` (optional): Task ID to run. When `--path` is also provided, this may instead be a task name, task-group ID, or task-group name resolved from that YAML.
 - `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
 - `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
 
 Behavior
 
 - Prints the run ID when known and a link to the run lineage page.
+- When `--path` is used for a repository-backed pipeline, the CLI must find an existing Orchestra pipeline for that `repository` + `yaml_path` selector before it can start the run.
 - When waiting, polls status every ~5s until a terminal state:
   - `SUCCEEDED` (exit `0`), `WARNING` (exit `0`), `SKIPPED` (exit `0`)
   - `FAILED` or `CANCELLED` (exit `1`)

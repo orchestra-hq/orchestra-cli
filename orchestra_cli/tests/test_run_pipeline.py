@@ -304,7 +304,52 @@ def test_run_task_group_resolves_from_yaml(httpx_mock: HTTPXMock, monkeypatch, t
     )
 
 
-def test_run_path_lookup_requires_pipeline_id(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+def test_run_path_lookup_accepts_pipeline_id_field(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"pipeline_id": "pipeline-id", "storage_provider": "ORCHESTRA"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--path", str(yaml_file), "--no-wait"])
+
+    assert result.exit_code == 0
+    assert (
+        f"Started pipeline (repository: org/repo, yaml_path: pipe.yaml), "
+        f"run id: {mock_pipeline_run_id}" in result.output
+    )
+
+
+def test_run_path_lookup_requires_pipeline_identifier(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\n")
     mapping = {
@@ -527,24 +572,15 @@ def test_run_path_checks_selected_repo_warnings(httpx_mock: HTTPXMock, monkeypat
         json={"detail": "not found"},
         status_code=404,
     )
-    httpx_mock.add_response(
-        method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
-        match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={},
-        json={"pipelineRunId": mock_pipeline_run_id},
-        status_code=200,
-    )
-
     result = runner.invoke(
         app,
         ["pipeline", "run", "--path", str(yaml_file), "--no-wait"],
         input="\n",
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "⚠ Uncommitted changes" in result.output
-    assert "Started pipeline (repository: org/repo, yaml_path: pipe.yaml)" in result.output
+    assert "no existing pipeline was found for the provided path selector" in result.output
 
 
 def test_run_api_error(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
@@ -885,3 +921,35 @@ def test_run_wait_fetches_task_runs_after_pipeline_status(
         "https://app.getorchestra.io/api/engine/public/pipeline_runs/run-order/status",
         "https://app.getorchestra.io/api/engine/public/pipeline_runs/run-order/task_runs?page_size=50&page=1",
     ]
+
+
+def test_run_wait_invalid_status_exits(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+    import time
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        json={"pipelineRunId": "run-invalid"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-invalid/status",
+        json={},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
+
+    assert result.exit_code == 1
+    assert "Invalid status value: None" in result.output

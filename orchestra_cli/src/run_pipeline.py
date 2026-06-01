@@ -171,7 +171,6 @@ def _parse_task_runs_response(response: httpx.Response) -> list[dict[str, object
 
 
 def _poll_all_task_runs(
-    *,
     pipeline_run_id: str,
     api_key: str,
 ) -> list[dict[str, object]]:
@@ -539,6 +538,7 @@ def _poll_until_terminal(
             typer.echo(
                 red(f"❌ Invalid status value: {status_value}\nResponse body: {status_body}"),
             )
+            raise typer.Exit(code=1)
     finally:
         _stop_poll_status_display(poll_status_display)
 
@@ -582,7 +582,9 @@ def _resolve_start_path(
         return f"pipelines/{pipeline_identifier}/start"
 
     if existing_pipeline is not None:
-        existing_pipeline_id = existing_pipeline.get("id")
+        existing_pipeline_id = existing_pipeline.get("id") or existing_pipeline.get(
+            "pipeline_id",
+        )
         if isinstance(existing_pipeline_id, str) and existing_pipeline_id.strip():
             return f"pipelines/{existing_pipeline_id}/start"
         typer.echo(red("❌ Run failed: failed to load pipeline id"))
@@ -667,7 +669,10 @@ def run_pipeline(
         None,
         "--task",
         "-t",
-        help="Task ID, task name, task-group ID, or task-group name",
+        help=(
+            "Task ID. With --path, you may also pass a task name, "
+            "task-group ID, or task-group name"
+        ),
     ),
     continue_downstream_run: bool = typer.Option(
         False,
@@ -729,8 +734,16 @@ def run_pipeline(
     existing_pipeline: dict[str, object] | None = None
     if path is not None:
         existing_pipeline = _lookup_existing_pipeline(selector, api_key)
+        if existing_pipeline is None and selector.repository and selector.yaml_path:
+            typer.echo(
+                red(
+                    "❌ Run failed: no existing pipeline was found for the provided "
+                    f"path selector ({selector.display()})",
+                ),
+            )
+            raise typer.Exit(code=1)
 
-    if existing_pipeline is not None:
+    if existing_pipeline is not None and path is not None:
         provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
         if provider != "ORCHESTRA":
             run_selector = build_update_selector(existing_pipeline, "Run")
@@ -741,9 +754,6 @@ def run_pipeline(
                         "for git-backed pipelines; run uses the selected YAML file's git state",
                     ),
                 )
-                raise typer.Exit(code=1)
-            if path is None:
-                typer.echo(red("❌ Run failed: --path is required for git-backed pipeline runs"))
                 raise typer.Exit(code=1)
             run_branch, run_commit = prepare_git_backed_run_target(
                 path=path,
