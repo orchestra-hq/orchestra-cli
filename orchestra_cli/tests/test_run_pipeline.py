@@ -1,14 +1,19 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
 from pytest_httpx import HTTPXMock
+from rich.console import Console
 from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
 from orchestra_cli.src.run_pipeline import (
+    _build_live_status_text,
     _build_poll_status_text,
+    _build_task_runs_table,
     _format_pipeline_duration,
+    _format_task_run_timing,
     _parse_created_at_utc,
     build_run_payload,
 )
@@ -71,11 +76,54 @@ def test_format_pipeline_duration_uses_human_readable_minutes() -> None:
     assert _format_pipeline_duration(created_at, now_utc) == "1:30 minute"
 
 
-def test_build_poll_status_text_includes_duration_and_update_age() -> None:
+def test_build_poll_status_text_includes_duration() -> None:
     created_at = datetime(2026, 5, 29, 11, 30, 0, tzinfo=UTC)
     now_utc = datetime(2026, 5, 29, 11, 31, 30, tzinfo=UTC)
-    text = _build_poll_status_text("RUNNING", 3, created_at, now_utc)
-    assert text.plain == "Pipeline status: RUNNING (1:30 minute) (updated 3 seconds ago)"
+    text = _build_poll_status_text("RUNNING", created_at, now_utc)
+    assert text.plain == "Pipeline status: RUNNING (1:30 minute)"
+
+
+def test_build_live_status_text_includes_update_age() -> None:
+    text = _build_live_status_text(3)
+    assert text.plain == "Live status (updated 3 seconds ago)"
+
+
+def test_format_task_run_timing_prefers_started_and_completed_window() -> None:
+    timing = _format_task_run_timing(
+        {
+            "createdAt": "2026-05-29T11:29:00Z",
+            "startedAt": "2026-05-29T11:30:00Z",
+            "completedAt": "2026-05-29T11:31:30Z",
+        },
+    )
+    assert timing == "ran for 1:30 minute"
+
+
+def test_build_task_runs_table_renders_status_and_timing() -> None:
+    renderable = _build_task_runs_table(
+        [
+            {
+                "id": "tr-123",
+                "taskName": "Extract customers",
+                "status": "RUNNING",
+                "createdAt": "2026-05-29T11:29:00Z",
+                "startedAt": "2026-05-29T11:30:00Z",
+                "message": "Loading source data",
+            },
+        ],
+        can_fetch_task_runs=True,
+        now_utc=datetime(2026, 5, 29, 11, 31, 30, tzinfo=UTC),
+    )
+    console = Console(record=True, width=120)
+    console.print(renderable)
+    output = console.export_text()
+
+    assert "Extract customers" in output
+    assert "tr-123" in output
+    assert "RUNNING" in output
+    assert "running for 1:30" in output
+    assert "minute" in output
+    assert "Loading source data" in output
 
 
 @pytest.fixture(autouse=True)
@@ -548,12 +596,6 @@ def test_run_wait_success(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     # Polling: RUNNING -> SUCCEEDED
     httpx_mock.add_response(
         method="GET",
-        url=f"https://app.getorchestra.io/api/engine/public/pipeline_runs/{mock_pipeline_run_id}/task_runs?page_size=50&page=1",
-        json={"page": 1, "pageSize": 50, "total": 1, "results": [{"id": "tr-1"}]},
-        status_code=200,
-    )
-    httpx_mock.add_response(
-        method="GET",
         url=f"https://app.getorchestra.io/api/engine/public/pipeline_runs/{mock_pipeline_run_id}/status",
         json={"runStatus": "RUNNING", "pipelineName": "demo"},
         status_code=200,
@@ -561,13 +603,45 @@ def test_run_wait_success(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     httpx_mock.add_response(
         method="GET",
         url=f"https://app.getorchestra.io/api/engine/public/pipeline_runs/{mock_pipeline_run_id}/task_runs?page_size=50&page=1",
-        json={"page": 1, "pageSize": 50, "total": 1, "results": [{"id": "tr-1"}]},
+        json={
+            "page": 1,
+            "pageSize": 50,
+            "total": 1,
+            "results": [
+                {
+                    "id": "tr-1",
+                    "taskName": "extract",
+                    "status": "RUNNING",
+                    "createdAt": "2026-05-29T11:29:00Z",
+                },
+            ],
+        },
         status_code=200,
     )
     httpx_mock.add_response(
         method="GET",
         url=f"https://app.getorchestra.io/api/engine/public/pipeline_runs/{mock_pipeline_run_id}/status",
         json={"runStatus": "SUCCEEDED", "pipelineName": "demo"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=f"https://app.getorchestra.io/api/engine/public/pipeline_runs/{mock_pipeline_run_id}/task_runs?page_size=50&page=1",
+        json={
+            "page": 1,
+            "pageSize": 50,
+            "total": 1,
+            "results": [
+                {
+                    "id": "tr-1",
+                    "taskName": "extract",
+                    "status": "SUCCEEDED",
+                    "createdAt": "2026-05-29T11:29:00Z",
+                    "startedAt": "2026-05-29T11:30:00Z",
+                    "completedAt": "2026-05-29T11:31:30Z",
+                },
+            ],
+        },
         status_code=200,
     )
 
@@ -579,8 +653,7 @@ def test_run_wait_success(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         == f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}"
     )  # noqa: E501
     assert "Invalid status value: RUNNING" not in result.output
-    assert result.output.strip().splitlines()[-2] == "✅ Pipeline succeeded"
-    assert result.output.strip().splitlines()[-1] == mock_pipeline_run_id
+    assert result.output.strip().splitlines()[-1] == "✅ Pipeline succeeded"
 
 
 def test_run_wait_failed(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
@@ -604,12 +677,6 @@ def test_run_wait_failed(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-xyz/task_runs?page_size=50&page=1",
-        json={"page": 1, "pageSize": 50, "total": 1, "results": [{"id": "tr-1"}]},
-        status_code=200,
-    )
-    httpx_mock.add_response(
-        method="GET",
         url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-xyz/status",
         json={"runStatus": "RUNNING", "pipelineName": "demo"},
         status_code=200,
@@ -624,6 +691,12 @@ def test_run_wait_failed(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
         method="GET",
         url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-xyz/status",
         json={"runStatus": "FAILED", "pipelineName": "demo"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-xyz/task_runs?page_size=50&page=1",
+        json={"page": 1, "pageSize": 50, "total": 1, "results": [{"id": "tr-1"}]},
         status_code=200,
     )
 
@@ -655,20 +728,20 @@ def test_run_wait_warning(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-warn/task_runs?page_size=50&page=1",
-        json={"page": 1, "pageSize": 50, "total": 1, "results": [{"id": "tr-1"}]},
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-warn/status",
+        json={"runStatus": "WARNING", "pipelineName": "demo"},
         status_code=200,
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-warn/status",
-        json={"runStatus": "WARNING", "pipelineName": "demo"},
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-warn/task_runs?page_size=50&page=1",
+        json={"page": 1, "pageSize": 50, "total": 1, "results": [{"id": "tr-1"}]},
         status_code=200,
     )
 
     result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
     assert result.exit_code == 0
-    assert result.output.strip().splitlines()[-1] == "run-warn"
+    assert result.output.strip().splitlines()[-1] == "⚠ Pipeline completed with warnings"
 
 
 def test_run_git_backed_path_uses_prepared_branch_and_commit(
@@ -755,3 +828,60 @@ def test_run_git_backed_path_rejects_branch_commit_overrides(
     )
     assert result.exit_code == 1
     assert "--branch/-b and --commit/-c are not supported for git-backed pipelines" in result.output
+
+
+def test_run_wait_fetches_task_runs_after_pipeline_status(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+    import time
+
+    request_order: list[str] = []
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        json={"pipelineRunId": "run-order"},
+        status_code=200,
+    )
+
+    def record_status_request(request: httpx.Request) -> httpx.Response:
+        request_order.append(str(request.url))
+        return httpx.Response(200, json={"runStatus": "WARNING", "pipelineName": "demo"})
+
+    def record_task_runs_request(request: httpx.Request) -> httpx.Response:
+        request_order.append(str(request.url))
+        return httpx.Response(
+            200,
+            json={"page": 1, "pageSize": 50, "total": 0, "results": []},
+        )
+
+    httpx_mock.add_callback(
+        record_status_request,
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-order/status",
+    )
+    httpx_mock.add_callback(
+        record_task_runs_request,
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-order/task_runs?page_size=50&page=1",
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
+
+    assert result.exit_code == 0
+    assert request_order == [
+        "https://app.getorchestra.io/api/engine/public/pipeline_runs/run-order/status",
+        "https://app.getorchestra.io/api/engine/public/pipeline_runs/run-order/task_runs?page_size=50&page=1",
+    ]
