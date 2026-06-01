@@ -197,6 +197,21 @@ def test_run_with_task_and_overrides(httpx_mock: HTTPXMock, monkeypatch, tmp_pat
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
     httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        text="\n".join(
+            [
+                "name: demo",
+                "pipeline:",
+                "  task_group_1:",
+                "    tasks:",
+                "      task_1:",
+                "        name: Task One",
+            ],
+        ),
+        status_code=200,
+    )
+    httpx_mock.add_response(
         method="POST",
         url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
@@ -240,6 +255,59 @@ def test_run_with_task_and_overrides(httpx_mock: HTTPXMock, monkeypatch, tmp_pat
             "--no-wait",
         ],
     )
+    assert result.exit_code == 0
+    assert f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}" in result.output
+
+
+def test_run_task_name_resolves_from_remote_pipeline_data(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        text="\n".join(
+            [
+                "name: demo",
+                "pipeline:",
+                "  task_group_1:",
+                "    tasks:",
+                "      task_1:",
+                "        name: Task One",
+                "      task_2:",
+                "        name: Task Two",
+            ],
+        ),
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={
+            "taskIds": ["task_1"],
+            "continueDownstreamRun": False,
+        },
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--alias", "demo", "--task", "Task One", "--no-wait"],
+    )
+
     assert result.exit_code == 0
     assert f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}" in result.output
 

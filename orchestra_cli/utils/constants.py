@@ -20,6 +20,10 @@ def get_pipeline_url() -> str:
     return get_api_url("pipeline")
 
 
+def get_pipeline_data_url() -> str:
+    return get_api_url("pipeline/data")
+
+
 def get_update_pipeline_url() -> str:
     return get_api_url("pipelines")
 

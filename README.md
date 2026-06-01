@@ -320,7 +320,7 @@ Options
 - `-p, --path` (optional): Path to a local pipeline YAML file. When this points to a pipeline inside a git repository, the CLI resolves the pipeline from `repository` + `yaml_path` before starting the run.
 - `-b, --branch` (optional): Git branch name to associate with this run.
 - `-c, --commit` (optional): Commit SHA to associate with this run.
-- `-t, --task` (optional): Task ID to run. When `--path` is also provided, this may instead be a task name, task-group ID, or task-group name resolved from that YAML.
+- `-t, --task` (optional): Task ID, task name, task-group ID, or task-group name to run. With `--path`, selectors resolve from the local YAML; otherwise the CLI loads pipeline data from Orchestra and resolves them there.
 - `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
 - `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
 

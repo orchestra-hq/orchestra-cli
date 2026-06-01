@@ -6,13 +6,14 @@ from typing import Any
 
 import httpx
 import typer
+import yaml
 from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
-from ..utils.constants import get_api_url, get_base_url
+from ..utils.constants import get_api_url, get_base_url, get_pipeline_data_url
 from ..utils.git import GitAction, confirm_git_warnings_or_exit, prepare_git_backed_run_target
 from ..utils.pipeline_selector import (
     PipelineSelector,
@@ -136,11 +137,62 @@ def _task_lookup_entries(
     return task_entries, group_entries
 
 
-def _resolve_task_ids(task: str, path: Path | None) -> list[str]:
-    if path is None:
-        return [task]
+def _parse_pipeline_data_text(yaml_text: str) -> dict[str, object]:
+    try:
+        parsed = yaml.safe_load(yaml_text)
+    except Exception as exc:
+        typer.echo(red(f"❌ Run failed: could not parse pipeline data: {exc}"))
+        raise typer.Exit(code=1)
+    if not isinstance(parsed, dict):
+        typer.echo(red("❌ Run failed: pipeline data response was not a YAML object"))
+        raise typer.Exit(code=1)
+    return parsed
 
-    pipeline_data = load_validated_pipeline_data(path)
+
+def _load_pipeline_data_for_task_resolution(
+    path: Path | None,
+    selector: PipelineSelector,
+    api_key: str,
+) -> tuple[dict[str, object], str]:
+    if path is not None:
+        return load_validated_pipeline_data(path), f"YAML at {path}"
+
+    response = request_or_exit(
+        httpx.get,
+        get_pipeline_data_url(),
+        params=selector.to_payload(),
+        timeout=30,
+        headers=auth_headers(api_key),
+    )
+    if response.status_code != 200:
+        raise fail_with_response("Run", response)
+
+    try:
+        body = response.json()
+    except Exception:
+        return _parse_pipeline_data_text(response.text), f"pipeline selector ({selector.display()})"
+
+    if isinstance(body, dict):
+        for key in ("yaml", "data", "content"):
+            value = body.get(key)
+            if isinstance(value, dict):
+                return value, f"pipeline selector ({selector.display()})"
+            if isinstance(value, str):
+                return _parse_pipeline_data_text(value), f"pipeline selector ({selector.display()})"
+        return body, f"pipeline selector ({selector.display()})"
+
+    if isinstance(body, str):
+        return _parse_pipeline_data_text(body), f"pipeline selector ({selector.display()})"
+
+    typer.echo(red("❌ Run failed: pipeline data response was not valid YAML or JSON"))
+    raise typer.Exit(code=1)
+
+
+def _resolve_task_ids(
+    task: str,
+    pipeline_data: dict[str, object],
+    source_description: str,
+) -> list[str]:
     task_entries, group_entries = _task_lookup_entries(pipeline_data)
     if task in task_entries:
         return [task_entries[task]]
@@ -149,7 +201,7 @@ def _resolve_task_ids(task: str, path: Path | None) -> list[str]:
 
     typer.echo(
         red(
-            f"❌ Could not resolve --task '{task}' from YAML at {path}. "
+            f"❌ Could not resolve --task '{task}' from {source_description}. "
             "Use a task ID, task name, task-group ID, or task-group name.",
         ),
     )
@@ -670,8 +722,8 @@ def run_pipeline(
         "--task",
         "-t",
         help=(
-            "Task ID. With --path, you may also pass a task name, "
-            "task-group ID, or task-group name"
+            "Task ID, task name, task-group ID, or task-group name. "
+            "Without --path, task selectors are resolved from Orchestra pipeline data."
         ),
     ),
     continue_downstream_run: bool = typer.Option(
@@ -719,13 +771,20 @@ def run_pipeline(
         typer.echo(red("❌ --continue can only be used when --task/-t is provided"))
         raise typer.Exit(code=1)
 
-    task_ids = _resolve_task_ids(task, path) if task else None
+    selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
+    task_ids = None
+    if task:
+        pipeline_data, task_source_description = _load_pipeline_data_for_task_resolution(
+            path,
+            selector,
+            api_key,
+        )
+        task_ids = _resolve_task_ids(task, pipeline_data, task_source_description)
     environment = _resolve_environment_value(environment_id, environment_name)
     run_inputs = _parse_key_value_pairs(run_input, "--input") if run_input else None
     environment_overrides = (
         _build_environment_overrides(environment_override) if environment_override else None
     )
-    selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
 
     confirm_git_warnings_or_exit(force, path)
     run_selector = selector
