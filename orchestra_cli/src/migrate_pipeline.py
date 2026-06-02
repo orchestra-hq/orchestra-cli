@@ -6,7 +6,7 @@ import httpx
 import typer
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
-from ..utils.constants import get_api_url, get_pipeline_data_url
+from ..utils.constants import get_api_url
 from ..utils.git import (
     GitAction,
     build_compare_link,
@@ -141,7 +141,7 @@ def _download_pipeline_yaml(selector: PipelineSelector, version: int | None, api
 
     response = request_or_exit(
         httpx.get,
-        get_pipeline_data_url(),
+        get_api_url("pipeline/data"),
         params=params,
         timeout=30,
         headers=auth_headers(api_key),

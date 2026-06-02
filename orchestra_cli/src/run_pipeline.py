@@ -13,7 +13,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
-from ..utils.constants import get_api_url, get_base_url, get_pipeline_data_url
+from ..utils.constants import get_api_url, get_base_url
 from ..utils.git import GitAction, confirm_git_warnings_or_exit, prepare_git_backed_run_target
 from ..utils.pipeline_selector import (
     PipelineSelector,
@@ -54,10 +54,14 @@ def _lookup_existing_pipeline(selector: PipelineSelector, api_key: str) -> dict[
         raise fail_with_response("Run", response)
     try:
         body = response.json()
-    except Exception:
-        body = {}
+    except Exception as exc:
+        typer.echo(red(f"❌ Run failed: pipeline lookup response was not valid JSON ({exc})"))
+        raise typer.Exit(code=1)
     if not isinstance(body, dict):
         typer.echo(red("❌ Run failed: pipeline lookup response was not a JSON object"))
+        raise typer.Exit(code=1)
+    if not body:
+        typer.echo(red("❌ Run failed: pipeline lookup response was empty"))
         raise typer.Exit(code=1)
     return body
 
@@ -174,7 +178,7 @@ def _load_pipeline_data_for_task_resolution(
 
     response = request_or_exit(
         httpx.get,
-        get_pipeline_data_url(),
+        get_api_url("pipeline/data"),
         params=selector.to_payload(),
         timeout=30,
         headers=auth_headers(api_key),
@@ -191,7 +195,9 @@ def _load_pipeline_data_for_task_resolution(
         for key in ("yaml", "data", "content"):
             value = body.get(key)
             if isinstance(value, dict):
-                return value, f"pipeline selector ({selector.display()})"
+                pipeline_root = value.get("pipeline")
+                if isinstance(pipeline_root, dict):
+                    return value, f"pipeline selector ({selector.display()})"
             if isinstance(value, str):
                 return _parse_pipeline_data_text(value), f"pipeline selector ({selector.display()})"
         return body, f"pipeline selector ({selector.display()})"

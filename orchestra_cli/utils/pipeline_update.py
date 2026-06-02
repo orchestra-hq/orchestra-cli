@@ -5,9 +5,10 @@ from .styling import red
 
 
 def build_update_selector(existing_pipeline: dict[str, object], action: str) -> PipelineSelector:
-    pipeline_id = existing_pipeline.get("id") or existing_pipeline.get("pipeline_id")
-    if pipeline_id:
-        return PipelineSelector(pipeline_id=str(pipeline_id))
+    for key in ("id", "pipeline_id"):
+        pipeline_id = existing_pipeline.get(key)
+        if isinstance(pipeline_id, str) and pipeline_id.strip():
+            return PipelineSelector(pipeline_id=pipeline_id.strip())
 
     alias = existing_pipeline.get("alias")
     if alias:

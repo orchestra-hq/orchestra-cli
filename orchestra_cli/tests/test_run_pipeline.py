@@ -20,6 +20,7 @@ from orchestra_cli.src.run_pipeline import (
     build_run_payload,
 )
 from orchestra_cli.utils.pipeline_selector import PipelineSelector
+from orchestra_cli.utils.pipeline_update import build_update_selector
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
@@ -111,6 +112,12 @@ def test_resolve_start_path_requires_identifier_when_no_selector_or_existing_pip
         _resolve_start_path(PipelineSelector())
 
     assert exc_info.value.exit_code == 1
+
+
+def test_build_update_selector_uses_alias_when_pipeline_id_is_not_a_string() -> None:
+    selector = build_update_selector({"id": 123, "alias": "demo"}, "Run")
+
+    assert selector == PipelineSelector(alias="demo")
 
 
 def test_format_task_run_timing_prefers_started_and_completed_window() -> None:
@@ -431,6 +438,57 @@ def test_run_task_name_resolves_from_remote_json_pipeline_definition(
     assert f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}" in result.output
 
 
+def test_run_task_name_ignores_metadata_only_wrapper_and_uses_top_level_pipeline(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        json={
+            "data": {"page": 1, "total": 1},
+            "pipeline": {
+                "task_group_1": {
+                    "tasks": {
+                        "task_1": {"name": "Task One"},
+                    },
+                },
+            },
+        },
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={
+            "taskIds": ["task_1"],
+            "continueDownstreamRun": False,
+        },
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--alias", "demo", "--task", "Task One", "--no-wait"],
+    )
+
+    assert result.exit_code == 0
+    assert f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}" in result.output
+
+
 def test_run_task_group_resolves_from_yaml(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text(
@@ -560,6 +618,66 @@ def test_run_path_lookup_requires_pipeline_identifier(
 
     assert result.exit_code == 1
     assert "failed to load pipeline id" in result.output
+
+
+def test_run_path_lookup_rejects_invalid_json_success_response(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        text="not json",
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--path", str(yaml_file), "--no-wait"])
+
+    assert result.exit_code == 1
+    assert "pipeline lookup response was not valid JSON" in result.output
+
+
+def test_run_path_lookup_rejects_empty_json_object_success_response(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--path", str(yaml_file), "--no-wait"])
+
+    assert result.exit_code == 1
+    assert "pipeline lookup response was empty" in result.output
 
 
 def test_run_with_branch_commit(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
