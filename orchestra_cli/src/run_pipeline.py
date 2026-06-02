@@ -445,7 +445,6 @@ def _stop_poll_status_display(poll_status_display: Live | None) -> None:
 
 
 def _sleep_with_status_updates(
-    *,
     poll_interval_seconds: int,
     poll_status_display: Live | None,
     status_value: str | None,
@@ -473,7 +472,6 @@ def _sleep_with_status_updates(
 
 
 def _poll_until_terminal(
-    *,
     selector_name: str,
     pipeline_run_id: str,
     api_key: str,
