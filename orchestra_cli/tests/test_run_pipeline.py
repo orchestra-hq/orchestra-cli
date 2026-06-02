@@ -18,6 +18,7 @@ from orchestra_cli.src.run_pipeline import (
     _format_task_run_timing,
     _parse_created_at_utc,
     _resolve_start_path,
+    _typed_environment_override,
     build_run_payload,
 )
 from orchestra_cli.utils.pipeline_selector import PipelineSelector
@@ -61,6 +62,12 @@ def test_build_run_payload_includes_task_environment_and_overrides() -> None:
         "taskIds": ["task_1", "task_2"],
         "continueDownstreamRun": False,
     }
+
+
+def test_typed_environment_override_treats_unicode_digits_as_string() -> None:
+    override = _typed_environment_override("٢")
+
+    assert override == {"type": "string", "value": "٢"}
 
 
 def test_parse_created_at_utc_reads_iso_timestamp() -> None:
@@ -1342,7 +1349,11 @@ def test_run_wait_fetches_task_runs_after_pipeline_status(
     ]
 
 
-def test_run_wait_invalid_status_exits(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+def test_run_wait_missing_status_retries_then_succeeds(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
     repo_root = tmp_path
     mapping = {
         ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
@@ -1367,6 +1378,56 @@ def test_run_wait_invalid_status_exits(httpx_mock: HTTPXMock, monkeypatch, tmp_p
         json={},
         status_code=200,
     )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-invalid/status",
+        json={"runStatus": "SUCCEEDED", "pipelineName": "demo"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-invalid/task_runs?page_size=50&page=1",
+        json={"page": 1, "pageSize": 50, "total": 0, "results": []},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
+
+    assert result.exit_code == 0
+    assert "Invalid status value: None" not in result.output
+    assert result.output.strip().splitlines()[-1] == "✅ Pipeline succeeded"
+
+
+def test_run_wait_missing_status_exits_after_retry_limit(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+    import time
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        json={"pipelineRunId": "run-missing"},
+        status_code=200,
+    )
+    for _ in range(4):
+        httpx_mock.add_response(
+            method="GET",
+            url="https://app.getorchestra.io/api/engine/public/pipeline_runs/run-missing/status",
+            json={},
+            status_code=200,
+        )
 
     result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
 

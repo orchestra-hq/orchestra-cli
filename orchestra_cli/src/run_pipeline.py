@@ -1,3 +1,4 @@
+import re
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -39,6 +40,7 @@ STATUS_STYLES = {
 }
 IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED"}
 TERMINAL_RUN_STATUSES = {"SUCCEEDED", "WARNING", "SKIPPED", "FAILED", "CANCELLED"}
+ASCII_INTEGER_PATTERN = re.compile(r"-?[0-9]+")
 
 
 def _parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
@@ -54,13 +56,14 @@ def _parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str
 
 
 def _typed_environment_override(value: str) -> dict[str, str | int | bool]:
-    lowered = value.strip().lower()
+    stripped = value.strip()
+    lowered = stripped.lower()
     if lowered == "true":
         return {"type": "bool", "value": True}
     if lowered == "false":
         return {"type": "bool", "value": False}
-    if value.strip().isdigit() or (value.strip().startswith("-") and value.strip()[1:].isdigit()):
-        return {"type": "int", "value": int(value.strip())}
+    if ASCII_INTEGER_PATTERN.fullmatch(stripped):
+        return {"type": "int", "value": int(stripped)}
     return {"type": "string", "value": value}
 
 
@@ -480,12 +483,14 @@ def _poll_until_terminal(
 ) -> None:
     """Poll the run status endpoint until the run reaches a terminal state."""
     poll_interval_seconds = 5
+    max_missing_run_status_polls = 3
     headers = auth_headers(api_key)
     status_url = get_api_url(f"pipeline_runs/{pipeline_run_id}/status")
     poll_status_display = _create_poll_status_display()
     last_status_value: str | None = None
     last_task_runs: list[dict[str, object]] = []
     can_fetch_task_runs = False
+    missing_run_status_polls = 0
 
     try:
         while True:
@@ -524,6 +529,7 @@ def _poll_until_terminal(
             created_at_utc = created_at_utc or _parse_created_at_utc(status_body)
 
             if isinstance(status_value, str):
+                missing_run_status_polls = 0
                 last_status_value = status_value
                 can_fetch_task_runs = status_value in (
                     IN_PROGRESS_RUN_STATUSES | TERMINAL_RUN_STATUSES
@@ -545,6 +551,10 @@ def _poll_until_terminal(
                     )
                 else:
                     typer.echo(f"Pipeline ({selector_name}) status: {status_value}")
+            else:
+                missing_run_status_polls += 1
+                if missing_run_status_polls <= max_missing_run_status_polls:
+                    continue
 
             if status_value == "SUCCEEDED":
                 _stop_poll_status_display(poll_status_display)
