@@ -3,6 +3,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+import typer
 from pytest_httpx import HTTPXMock
 from rich.console import Console
 from typer.testing import CliRunner
@@ -15,8 +16,10 @@ from orchestra_cli.src.run_pipeline import (
     _format_pipeline_duration,
     _format_task_run_timing,
     _parse_created_at_utc,
+    _resolve_start_path,
     build_run_payload,
 )
+from orchestra_cli.utils.pipeline_selector import PipelineSelector
 from tests.conftest import make_git_subprocess_mock
 
 runner = CliRunner()
@@ -86,6 +89,28 @@ def test_build_poll_status_text_includes_duration() -> None:
 def test_build_live_status_text_includes_update_age() -> None:
     text = _build_live_status_text(3)
     assert text.plain == "Live status (updated 3 seconds ago)"
+
+
+def test_resolve_start_path_uses_existing_pipeline_id_when_selector_has_no_alias() -> None:
+    selector = PipelineSelector(repository="org/repo", yaml_path="pipe.yaml")
+
+    assert _resolve_start_path(selector, {"id": "pipeline-id"}) == "pipelines/pipeline-id/start"
+
+
+def test_resolve_start_path_requires_identifier_when_existing_pipeline_missing_id() -> None:
+    selector = PipelineSelector(repository="org/repo", yaml_path="pipe.yaml")
+
+    with pytest.raises(typer.Exit) as exc_info:
+        _resolve_start_path(selector, {"pipeline_id": "legacy-id"})
+
+    assert exc_info.value.exit_code == 1
+
+
+def test_resolve_start_path_requires_identifier_when_no_selector_or_existing_pipeline() -> None:
+    with pytest.raises(typer.Exit) as exc_info:
+        _resolve_start_path(PipelineSelector())
+
+    assert exc_info.value.exit_code == 1
 
 
 def test_format_task_run_timing_prefers_started_and_completed_window() -> None:
@@ -183,6 +208,48 @@ def test_run_rejects_both_environment_id_and_name() -> None:
     )
     assert result.exit_code == 1
     assert "Provide only one of --environment-id or --environment-name" in result.output
+
+
+def test_run_rejects_alias_with_path(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+
+    result = runner.invoke(
+        app,
+        [
+            "pipeline",
+            "run",
+            "--alias",
+            "demo",
+            "--path",
+            str(yaml_file),
+            "--no-wait",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "--path cannot be used with --alias/-a for pipeline run" in result.output
+
+
+def test_run_rejects_pipeline_id_with_path(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+
+    result = runner.invoke(
+        app,
+        [
+            "pipeline",
+            "run",
+            "--pipeline-id",
+            "pipe-123",
+            "--path",
+            str(yaml_file),
+            "--no-wait",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "--path cannot be used with --pipeline-id/-i for pipeline run" in result.output
 
 
 def test_run_with_task_and_overrides(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
@@ -312,6 +379,58 @@ def test_run_task_name_resolves_from_remote_pipeline_data(
     assert f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}" in result.output
 
 
+def test_run_task_name_resolves_from_remote_json_pipeline_definition(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    repo_root = tmp_path
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(repo_root), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        json={
+            "name": "demo",
+            "pipeline": {
+                "task_group_1": {
+                    "tasks": {
+                        "task_1": {"name": "Task One"},
+                        "task_2": {"name": "Task Two"},
+                    },
+                },
+            },
+        },
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={
+            "taskIds": ["task_1"],
+            "continueDownstreamRun": False,
+        },
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--alias", "demo", "--task", "Task One", "--no-wait"],
+    )
+
+    assert result.exit_code == 0
+    assert f"Started pipeline (alias: demo), run id: {mock_pipeline_run_id}" in result.output
+
+
 def test_run_task_group_resolves_from_yaml(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text(
@@ -372,7 +491,7 @@ def test_run_task_group_resolves_from_yaml(httpx_mock: HTTPXMock, monkeypatch, t
     )
 
 
-def test_run_path_lookup_accepts_pipeline_id_field(
+def test_run_path_lookup_uses_existing_pipeline_id(
     httpx_mock: HTTPXMock,
     monkeypatch,
     tmp_path: Path,
@@ -392,7 +511,7 @@ def test_run_path_lookup_accepts_pipeline_id_field(
         method="GET",
         url="https://app.getorchestra.io/api/engine/public/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        json={"pipeline_id": "pipeline-id", "storage_provider": "ORCHESTRA"},
+        json={"id": "pipeline-id", "storage_provider": "ORCHESTRA"},
         status_code=200,
     )
     httpx_mock.add_response(
@@ -932,6 +1051,65 @@ def test_run_git_backed_path_rejects_branch_commit_overrides(
     )
     assert result.exit_code == 1
     assert "--branch/-b and --commit/-c are not supported for git-backed pipelines" in result.output
+
+
+def test_run_generated_alias_path_skips_git_backed_prep(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "My Pipeline.yaml"
+    yaml_file.write_text("name: demo\n")
+
+    import subprocess
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        make_git_subprocess_mock(
+            {("rev-parse", "--show-toplevel"): (1, "", "fatal: not a git repo")},
+        ),
+    )
+
+    httpx_mock.add_response(
+        method="GET",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        json={"id": "pipeline-id", "alias": "my-pipeline", "storage_provider": "GITHUB"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/my-pipeline/start",
+        match_headers={"Authorization": f"Bearer {mock_api_key}"},
+        match_json={"branch": "override", "commit": "deadbeef"},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "pipeline",
+            "run",
+            "--path",
+            str(yaml_file),
+            "--branch",
+            "override",
+            "--commit",
+            "deadbeef",
+            "--no-wait",
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Using git-backed run target branch" not in result.output
+    assert (
+        "--branch/-b and --commit/-c are not supported for git-backed pipelines"
+        not in result.output
+    )
+    assert f"Started pipeline (alias: my-pipeline), run id: {mock_pipeline_run_id}" in result.output
 
 
 def test_run_wait_fetches_task_runs_after_pipeline_status(

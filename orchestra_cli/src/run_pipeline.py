@@ -100,6 +100,21 @@ def _resolve_environment_value(
     return environment_id or environment_name
 
 
+def _validate_run_selector_inputs(
+    path: Path | None,
+    alias: str | None,
+    pipeline_id: str | None,
+) -> None:
+    if path is None:
+        return
+    if alias:
+        typer.echo(red("❌ --path cannot be used with --alias/-a for pipeline run"))
+        raise typer.Exit(code=1)
+    if pipeline_id:
+        typer.echo(red("❌ --path cannot be used with --pipeline-id/-i for pipeline run"))
+        raise typer.Exit(code=1)
+
+
 def _task_lookup_entries(
     pipeline_data: dict[str, object],
 ) -> tuple[dict[str, str], dict[str, list[str]]]:
@@ -458,8 +473,9 @@ def _sleep_with_status_updates(
     created_at_utc: datetime | None,
     task_runs: list[dict[str, object]],
     can_fetch_task_runs: bool,
-    sleep_fn: Callable[[float], None] = time.sleep,
+    sleep_fn: Callable[[float], None] | None = None,
 ) -> None:
+    sleep_fn = sleep_fn or time.sleep
     if poll_status_display is None or status_value is None:
         sleep_fn(poll_interval_seconds)
         return
@@ -634,15 +650,12 @@ def _resolve_start_path(
         return f"pipelines/{pipeline_identifier}/start"
 
     if existing_pipeline is not None:
-        existing_pipeline_id = existing_pipeline.get("id") or existing_pipeline.get(
-            "pipeline_id",
-        )
+        existing_pipeline_id = existing_pipeline.get("id")
         if isinstance(existing_pipeline_id, str) and existing_pipeline_id.strip():
             return f"pipelines/{existing_pipeline_id}/start"
-        typer.echo(red("❌ Run failed: failed to load pipeline id"))
-        raise typer.Exit(code=1)
 
-    return "pipelines/start"
+    typer.echo(red("❌ Run failed: failed to load pipeline id"))
+    raise typer.Exit(code=1)
 
 
 def start_pipeline_run(
@@ -706,7 +719,9 @@ def start_pipeline_run(
 
 
 def run_pipeline(
-    path: Path | None = pipeline_path_option(),
+    path: Path | None = pipeline_path_option(
+        "Path to pipeline YAML. Cannot be used with --alias or --pipeline-id.",
+    ),
     alias: str | None = pipeline_alias_option(),
     pipeline_id: str | None = pipeline_id_option(),
     branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
@@ -766,6 +781,7 @@ def run_pipeline(
     """
     Run a pipeline in Orchestra.
     """
+    _validate_run_selector_inputs(path, alias, pipeline_id)
     api_key = require_api_key()
     if continue_downstream_run and not task:
         typer.echo(red("❌ --continue can only be used when --task/-t is provided"))
@@ -786,6 +802,10 @@ def run_pipeline(
         _build_environment_overrides(environment_override) if environment_override else None
     )
 
+    selector_uses_repository_path = (
+        selector.repository is not None and selector.yaml_path is not None
+    )
+
     confirm_git_warnings_or_exit(force, path)
     run_selector = selector
     run_branch = branch
@@ -793,7 +813,7 @@ def run_pipeline(
     existing_pipeline: dict[str, object] | None = None
     if path is not None:
         existing_pipeline = _lookup_existing_pipeline(selector, api_key)
-        if existing_pipeline is None and selector.repository and selector.yaml_path:
+        if existing_pipeline is None and selector_uses_repository_path:
             typer.echo(
                 red(
                     "❌ Run failed: no existing pipeline was found for the provided "
@@ -802,7 +822,7 @@ def run_pipeline(
             )
             raise typer.Exit(code=1)
 
-    if existing_pipeline is not None and path is not None:
+    if existing_pipeline is not None and path is not None and selector_uses_repository_path:
         provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
         if provider != "ORCHESTRA":
             run_selector = build_update_selector(existing_pipeline, "Run")
