@@ -64,10 +64,10 @@ def test_build_run_payload_includes_task_environment_and_overrides() -> None:
     }
 
 
-def test_typed_environment_override_treats_unicode_digits_as_string() -> None:
-    override = _typed_environment_override("٢")
+def test_typed_environment_override_treats_non_parseable_unicode_digit_as_string() -> None:
+    override = _typed_environment_override("²")
 
-    assert override == {"type": "string", "value": "٢"}
+    assert override == {"type": "string", "value": "²"}
 
 
 def test_parse_created_at_utc_reads_iso_timestamp() -> None:

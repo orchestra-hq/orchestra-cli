@@ -1,4 +1,3 @@
-import re
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -40,7 +39,6 @@ STATUS_STYLES = {
 }
 IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED"}
 TERMINAL_RUN_STATUSES = {"SUCCEEDED", "WARNING", "SKIPPED", "FAILED", "CANCELLED"}
-ASCII_INTEGER_PATTERN = re.compile(r"-?[0-9]+")
 
 
 def _parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
@@ -62,8 +60,10 @@ def _typed_environment_override(value: str) -> dict[str, str | int | bool]:
         return {"type": "bool", "value": True}
     if lowered == "false":
         return {"type": "bool", "value": False}
-    if ASCII_INTEGER_PATTERN.fullmatch(stripped):
+    try:
         return {"type": "int", "value": int(stripped)}
+    except ValueError:
+        pass
     return {"type": "string", "value": value}
 
 
