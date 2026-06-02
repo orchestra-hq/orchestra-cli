@@ -9,10 +9,10 @@ from ..utils.api import (
     request_or_exit,
     require_api_key,
 )
-from ..utils.constants import get_pipeline_url, get_update_pipeline_url
+from ..utils.constants import get_update_pipeline_url
 from ..utils.git import GitAction, prepare_git_backed_run_target
+from ..utils.pipeline_lookup import lookup_existing_pipeline
 from ..utils.pipeline_selector import (
-    PipelineSelector,
     pipeline_alias_option,
     pipeline_id_option,
     pipeline_path_option,
@@ -24,27 +24,8 @@ from ..utils.yaml_loader import load_validated_pipeline_data
 from .pipeline_upsert import (
     build_upsert_payload,
     emit_success_with_edit_url,
-    require_pipeline_body_from_success_response,
     require_pipeline_id_from_success_response,
 )
-
-
-def _lookup_existing_pipeline(
-    selector: PipelineSelector,
-    api_key: str,
-) -> dict[str, object]:
-    response = request_or_exit(
-        httpx.get,
-        get_pipeline_url(),
-        params=selector.to_payload(),
-        timeout=30,
-        headers=auth_headers(api_key),
-    )
-
-    if response.status_code != 200:
-        raise fail_with_response("Update", response)
-
-    return require_pipeline_body_from_success_response(response, "Update")
 
 
 def update_pipeline(
@@ -71,7 +52,7 @@ def update_pipeline(
         raise typer.Exit(code=1)
     selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
     data = load_validated_pipeline_data(path)
-    existing_pipeline = _lookup_existing_pipeline(selector, api_key)
+    existing_pipeline = lookup_existing_pipeline(selector, api_key, "Update")
     pipeline_storage_provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
 
     if pipeline_storage_provider != "ORCHESTRA":

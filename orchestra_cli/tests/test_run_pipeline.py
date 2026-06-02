@@ -8,6 +8,7 @@ from pytest_httpx import HTTPXMock
 from rich.console import Console
 from typer.testing import CliRunner
 
+import orchestra_cli.src.run_pipeline as run_pipeline_module
 from orchestra_cli.src.cli import app
 from orchestra_cli.src.run_pipeline import (
     _build_live_status_text,
@@ -77,14 +78,14 @@ def test_parse_created_at_utc_reads_nested_pipeline_run_timestamp() -> None:
 def test_format_pipeline_duration_uses_human_readable_minutes() -> None:
     created_at = datetime(2026, 5, 29, 11, 30, 0, tzinfo=UTC)
     now_utc = datetime(2026, 5, 29, 11, 31, 30, tzinfo=UTC)
-    assert _format_pipeline_duration(created_at, now_utc) == "1:30 minute"
+    assert _format_pipeline_duration(created_at, now_utc) == "1:30 minutes"
 
 
 def test_build_poll_status_text_includes_duration() -> None:
     created_at = datetime(2026, 5, 29, 11, 30, 0, tzinfo=UTC)
     now_utc = datetime(2026, 5, 29, 11, 31, 30, tzinfo=UTC)
     text = _build_poll_status_text("RUNNING", created_at, now_utc)
-    assert text.plain == "Pipeline status: RUNNING (1:30 minute)"
+    assert text.plain == "Pipeline status: RUNNING (1:30 minutes)"
 
 
 def test_build_live_status_text_includes_update_age() -> None:
@@ -128,7 +129,7 @@ def test_format_task_run_timing_prefers_started_and_completed_window() -> None:
             "completedAt": "2026-05-29T11:31:30Z",
         },
     )
-    assert timing == "ran for 1:30 minute"
+    assert timing == "ran for 1:30 minutes"
 
 
 def test_build_task_runs_table_renders_status_and_timing() -> None:
@@ -1169,6 +1170,60 @@ def test_run_git_backed_path_rejects_branch_commit_overrides(
     )
     assert result.exit_code == 1
     assert "--branch/-b and --commit/-c are not supported for git-backed pipelines" in result.output
+
+
+def test_run_git_backed_path_rejects_branch_commit_before_git_warning_prompt(
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\n")
+    confirm_called = False
+
+    def fake_resolve_pipeline_selector(*_args, **_kwargs) -> PipelineSelector:
+        return PipelineSelector(repository="org/repo", yaml_path="pipe.yaml")
+
+    def fake_lookup_existing_pipeline(*_args, **_kwargs) -> dict[str, object]:
+        return {"id": "pipeline-id", "storage_provider": "GITHUB"}
+
+    def fake_confirm_git_warnings_or_exit(*_args, **_kwargs) -> None:
+        nonlocal confirm_called
+        confirm_called = True
+
+    monkeypatch.setattr(
+        run_pipeline_module,
+        "resolve_pipeline_selector",
+        fake_resolve_pipeline_selector,
+    )
+    monkeypatch.setattr(
+        run_pipeline_module,
+        "lookup_existing_pipeline",
+        fake_lookup_existing_pipeline,
+    )
+    monkeypatch.setattr(
+        run_pipeline_module,
+        "confirm_git_warnings_or_exit",
+        fake_confirm_git_warnings_or_exit,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "pipeline",
+            "run",
+            "--path",
+            str(yaml_file),
+            "--branch",
+            "override",
+            "--commit",
+            "deadbeef",
+            "--no-wait",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "--branch/-b and --commit/-c are not supported for git-backed pipelines" in result.output
+    assert confirm_called is False
 
 
 def test_run_generated_alias_path_skips_git_backed_prep(

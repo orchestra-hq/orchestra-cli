@@ -15,6 +15,7 @@ from rich.text import Text
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
 from ..utils.constants import get_api_url, get_base_url
 from ..utils.git import GitAction, confirm_git_warnings_or_exit, prepare_git_backed_run_target
+from ..utils.pipeline_lookup import lookup_existing_pipeline
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -38,32 +39,6 @@ STATUS_STYLES = {
 }
 IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED"}
 TERMINAL_RUN_STATUSES = {"SUCCEEDED", "WARNING", "SKIPPED", "FAILED", "CANCELLED"}
-
-
-def _lookup_existing_pipeline(selector: PipelineSelector, api_key: str) -> dict[str, object] | None:
-    response = request_or_exit(
-        httpx.get,
-        get_api_url("pipeline"),
-        params=selector.to_payload(),
-        timeout=30,
-        headers=auth_headers(api_key),
-    )
-    if response.status_code == 404:
-        return None
-    if response.status_code != 200:
-        raise fail_with_response("Run", response)
-    try:
-        body = response.json()
-    except Exception as exc:
-        typer.echo(red(f"❌ Run failed: pipeline lookup response was not valid JSON ({exc})"))
-        raise typer.Exit(code=1)
-    if not isinstance(body, dict):
-        typer.echo(red("❌ Run failed: pipeline lookup response was not a JSON object"))
-        raise typer.Exit(code=1)
-    if not body:
-        typer.echo(red("❌ Run failed: pipeline lookup response was empty"))
-        raise typer.Exit(code=1)
-    return body
 
 
 def _parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
@@ -324,11 +299,9 @@ def _format_pipeline_duration(created_at_utc: datetime, now_utc: datetime | None
     minutes, seconds = divmod(remainder, 60)
 
     if hours > 0:
-        unit = "hour" if hours == 1 else "hours"
-        return f"{hours}:{minutes:02d}:{seconds:02d} {unit}"
+        return f"{hours}:{minutes:02d}:{seconds:02d} hours"
     if minutes > 0:
-        unit = "minute" if minutes == 1 else "minutes"
-        return f"{minutes}:{seconds:02d} {unit}"
+        return f"{minutes}:{seconds:02d} minutes"
     unit = "second" if seconds == 1 else "seconds"
     return f"{seconds} {unit}"
 
@@ -812,22 +785,13 @@ def run_pipeline(
         selector.repository is not None and selector.yaml_path is not None
     )
 
-    confirm_git_warnings_or_exit(force, path)
     run_selector = selector
     run_branch = branch
     run_commit = commit
     existing_pipeline: dict[str, object] | None = None
+    should_prepare_git_backed_target = False
     if path is not None:
-        existing_pipeline = _lookup_existing_pipeline(selector, api_key)
-        if existing_pipeline is None and selector_uses_repository_path:
-            typer.echo(
-                red(
-                    "❌ Run failed: no existing pipeline was found for the provided "
-                    f"path selector ({selector.display()})",
-                ),
-            )
-            raise typer.Exit(code=1)
-
+        existing_pipeline = lookup_existing_pipeline(selector, api_key, "Run", allow_404=True)
     if existing_pipeline is not None and path is not None and selector_uses_repository_path:
         provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
         if provider != "ORCHESTRA":
@@ -840,17 +804,31 @@ def run_pipeline(
                     ),
                 )
                 raise typer.Exit(code=1)
-            run_branch, run_commit = prepare_git_backed_run_target(
-                path=path,
-                existing_pipeline=existing_pipeline,
-                force=force,
-                action=GitAction.RUN,
-            )
-            typer.echo(
-                green(
-                    f"✅ Using git-backed run target branch '{run_branch}' at commit {run_commit}",
-                ),
-            )
+            should_prepare_git_backed_target = True
+
+    confirm_git_warnings_or_exit(force, path)
+
+    if existing_pipeline is None and selector_uses_repository_path:
+        typer.echo(
+            red(
+                "❌ Run failed: no existing pipeline was found for the provided "
+                f"path selector ({selector.display()})",
+            ),
+        )
+        raise typer.Exit(code=1)
+
+    if should_prepare_git_backed_target and path is not None and existing_pipeline is not None:
+        run_branch, run_commit = prepare_git_backed_run_target(
+            path=path,
+            existing_pipeline=existing_pipeline,
+            force=force,
+            action=GitAction.RUN,
+        )
+        typer.echo(
+            green(
+                f"✅ Using git-backed run target branch '{run_branch}' at commit {run_commit}",
+            ),
+        )
 
     start_pipeline_run(
         selector=run_selector,
