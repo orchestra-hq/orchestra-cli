@@ -371,6 +371,9 @@ def migrate_pipeline(
         raise typer.Exit(code=1)
 
     existing_pipeline = lookup_existing_pipeline(selector, api_key, "Migrate")
+    if existing_pipeline is None:
+        typer.echo(red("❌ Migrate failed: pipeline lookup returned no pipeline"))
+        raise typer.Exit(code=1)
     provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
     if provider != "ORCHESTRA":
         typer.echo(

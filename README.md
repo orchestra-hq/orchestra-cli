@@ -318,18 +318,18 @@ Options
 
 - `-a, --alias` (optional): Pipeline alias to run.
 - `-i, --pipeline-id` (optional): Pipeline ID to run.
-- `-p, --path` (optional): Path to a local pipeline YAML file. When this points to a pipeline inside a git repository, the CLI resolves the pipeline from `repository` + `yaml_path` before starting the run. Cannot be combined with `--alias` or `--pipeline-id`.
+- `-p, --path` (optional): Path to a local pipeline YAML file. When this points to a pipeline inside a git repository, the CLI resolves the pipeline from `repository` + `yaml_path` before starting the run.
 - `-b, --branch` (optional): Git branch name to associate with this run.
 - `-c, --commit` (optional): Commit SHA to associate with this run.
 - `-t, --task` (optional): Task ID, task name, task-group ID, or task-group name to run. With `--path`, selectors resolve from the local YAML; otherwise the CLI loads pipeline data from Orchestra and resolves them there.
 - `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
 - `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
-- Provide exactly one selector mode: `--alias`, `--pipeline-id`, or `--path`.
+- Provide exactly one selector mode: `--alias`, `--pipeline-id`, or `--path`. These selector flags are mutually exclusive.
 
 Behavior
 
 - Prints the run ID when known and a link to the run lineage page.
-- Rejects mixed selector mode: `--path` cannot be combined with `--alias` or `--pipeline-id`.
+- Rejects mixed selector modes.
 - When `--path` is used for a repository-backed pipeline, the CLI must find an existing Orchestra pipeline for that `repository` + `yaml_path` selector before it can start the run.
 - When waiting, polls status every ~5s until a terminal state:
   - `SUCCEEDED` (exit `0`), `WARNING` (exit `0`), `SKIPPED` (exit `0`)

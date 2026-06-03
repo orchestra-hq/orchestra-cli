@@ -53,6 +53,9 @@ def update_pipeline(
     selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
     data = load_validated_pipeline_data(path)
     existing_pipeline = lookup_existing_pipeline(selector, api_key, "Update")
+    if existing_pipeline is None:
+        typer.echo(red("❌ Update failed: pipeline lookup returned no pipeline"))
+        raise typer.Exit(code=1)
     pipeline_storage_provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
 
     if pipeline_storage_provider != "ORCHESTRA":

@@ -1,5 +1,4 @@
 import json
-from typing import Literal, overload
 
 import httpx
 import typer
@@ -31,26 +30,6 @@ def require_pipeline_lookup_body(
         raise typer.Exit(code=1)
 
     return body
-
-
-@overload
-def lookup_existing_pipeline(
-    selector: PipelineSelector,
-    api_key: str,
-    action: str,
-    *,
-    allow_404: Literal[False] = False,
-) -> dict[str, object]: ...
-
-
-@overload
-def lookup_existing_pipeline(
-    selector: PipelineSelector,
-    api_key: str,
-    action: str,
-    *,
-    allow_404: Literal[True],
-) -> dict[str, object] | None: ...
 
 
 def lookup_existing_pipeline(
