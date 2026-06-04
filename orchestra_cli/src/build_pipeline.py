@@ -4,8 +4,9 @@ import httpx
 import typer
 
 from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
-from ..utils.constants import get_create_pipeline_url, get_pipeline_url, get_update_pipeline_url
+from ..utils.constants import get_create_pipeline_url, get_update_pipeline_url
 from ..utils.git import confirm_git_warnings_or_exit, prepare_git_backed_run_target
+from ..utils.pipeline_lookup import lookup_existing_pipeline
 from ..utils.pipeline_selector import (
     PipelineSelector,
     pipeline_alias_option,
@@ -43,26 +44,6 @@ def _extract_upsert_result(response: httpx.Response, action: str) -> tuple[str, 
         body,
         action,
     )
-
-
-def _lookup_existing_pipeline(
-    selector: PipelineSelector,
-    api_key: str,
-) -> dict[str, object] | None:
-    response = request_or_exit(
-        httpx.get,
-        get_pipeline_url(),
-        params=selector.to_payload(),
-        timeout=30,
-        headers=auth_headers(api_key),
-    )
-
-    if response.status_code == 404:
-        return None
-    if response.status_code != 200:
-        raise fail_with_response("Build", response)
-
-    return require_pipeline_body_from_success_response(response, "Build")
 
 
 def _build_create_selector(
@@ -174,7 +155,7 @@ def build_pipeline(
 
     confirm_git_warnings_or_exit(force, path)
     pipeline_data = load_validated_pipeline_data(path)
-    existing_pipeline = _lookup_existing_pipeline(lookup_selector, api_key)
+    existing_pipeline = lookup_existing_pipeline(lookup_selector, api_key, "Build", allow_404=True)
 
     if existing_pipeline is None:
         run_selector, version_number = _create_draft_pipeline(
@@ -188,7 +169,6 @@ def build_pipeline(
             selector=run_selector,
             api_key=api_key,
             payload=build_run_payload(
-                run_selector,
                 branch=branch,
                 commit=commit,
                 version_number=version_number,
@@ -210,7 +190,6 @@ def build_pipeline(
             selector=run_selector,
             api_key=api_key,
             payload=build_run_payload(
-                run_selector,
                 branch=branch,
                 commit=commit,
                 version_number=version_number,
@@ -245,7 +224,6 @@ def build_pipeline(
         selector=run_selector,
         api_key=api_key,
         payload=build_run_payload(
-            run_selector,
             branch=git_branch,
             commit=git_commit,
         ),

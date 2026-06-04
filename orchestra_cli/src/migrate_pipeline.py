@@ -23,10 +23,10 @@ from ..utils.git import (
     stage_and_commit_file_if_needed,
     suggest_migration_branch_name,
 )
+from ..utils.pipeline_lookup import lookup_existing_pipeline
 from ..utils.pipeline_selector import PipelineSelector, pipeline_alias_option, pipeline_id_option
 from ..utils.pipeline_update import storage_provider
 from ..utils.styling import bold, green, red, yellow
-from .pipeline_upsert import require_pipeline_body_from_success_response
 
 
 def migrate_path_option() -> Any:
@@ -49,19 +49,6 @@ def _resolve_migrate_selector(alias: str | None, pipeline_id: str | None) -> Pip
 
     typer.echo(red("Provide a pipeline alias or pipeline ID"))
     raise typer.Exit(code=1)
-
-
-def _lookup_pipeline(selector: PipelineSelector, api_key: str) -> dict[str, object]:
-    response = request_or_exit(
-        httpx.get,
-        get_api_url("pipeline"),
-        params=selector.to_payload(),
-        timeout=30,
-        headers=auth_headers(api_key),
-    )
-    if response.status_code != 200:
-        raise fail_with_response("Migrate", response)
-    return require_pipeline_body_from_success_response(response, "Migrate")
 
 
 def _extract_int(value: object) -> int | None:
@@ -383,7 +370,10 @@ def migrate_pipeline(
         typer.echo(red("Could not detect current branch from git"))
         raise typer.Exit(code=1)
 
-    existing_pipeline = _lookup_pipeline(selector, api_key)
+    existing_pipeline = lookup_existing_pipeline(selector, api_key, "Migrate")
+    if existing_pipeline is None:
+        typer.echo(red("❌ Migrate failed: pipeline lookup returned no pipeline"))
+        raise typer.Exit(code=1)
     provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
     if provider != "ORCHESTRA":
         typer.echo(

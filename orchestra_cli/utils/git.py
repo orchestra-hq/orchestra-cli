@@ -13,6 +13,7 @@ from .styling import bold, red, yellow
 class GitAction(StrEnum):
     BUILD = "Build"
     MIGRATE = "Migrate"
+    RUN = "Run"
     UPDATE = "Update"
 
 

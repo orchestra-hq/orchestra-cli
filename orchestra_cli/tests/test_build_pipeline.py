@@ -65,10 +65,9 @@ def test_build_updates_existing_draft_and_starts_version_by_repo_path(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "pipeline_id": "pipeline-id",
             "branch": "main",
             "commit": "deadbeef",
             "versionNumber": 12,
@@ -146,9 +145,9 @@ def test_build_creates_draft_when_pipeline_is_missing(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "versionNumber": 3},
+        match_json={"versionNumber": 3},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -219,9 +218,9 @@ def test_build_creates_draft_with_force_skips_alias_prompt(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "versionNumber": 3},
+        match_json={"versionNumber": 3},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -283,9 +282,9 @@ def test_build_without_alias_outside_git_generates_alias_from_path(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "versionNumber": 7},
+        match_json={"versionNumber": 7},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -356,9 +355,9 @@ def test_build_without_alias_outside_git_force_skips_alias_prompt(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "versionNumber": 7},
+        match_json={"versionNumber": 7},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -496,9 +495,9 @@ def test_build_git_backed_commits_selected_yaml_and_runs_with_detected_git_targe
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "branch": "main", "commit": "abc123"},
+        match_json={"branch": "main", "commit": "abc123"},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -559,9 +558,9 @@ def test_build_git_backed_happy_path_uses_current_git_state_without_commit(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "branch": "main", "commit": "abc123"},
+        match_json={"branch": "main", "commit": "abc123"},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
@@ -712,10 +711,9 @@ def test_build_git_backed_push_failure_can_retry_on_new_branch(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "pipeline_id": "pipeline-id",
             "branch": suggested_branch,
             "commit": "abc1234",
         },
@@ -822,10 +820,9 @@ def test_build_git_backed_force_auto_accepts_branch_retry(
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "pipeline_id": "pipeline-id",
             "branch": suggested_branch,
             "commit": "def5678",
         },
@@ -884,9 +881,9 @@ def test_build_uses_zero_latest_version_number(httpx_mock: HTTPXMock, monkeypatc
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/pipeline-id/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        match_json={"pipeline_id": "pipeline-id", "versionNumber": 0},
+        match_json={"versionNumber": 0},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
     )
