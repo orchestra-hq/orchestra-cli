@@ -93,7 +93,7 @@ def test_create_generates_alias_from_path_outside_git(tmp_path: Path, httpx_mock
         json={"id": "pipeline-id"},
         status_code=201,
         match_json={
-            "alias": "my-pipeline",
+            "alias": "my_pipeline",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -104,7 +104,7 @@ def test_create_generates_alias_from_path_outside_git(tmp_path: Path, httpx_mock
 
     assert result.exit_code == 0
     assert "generating a pipeline alias from --path" in result.output
-    assert "Generated alias: my-pipeline" in result.output
+    assert "Generated alias: my_pipeline" in result.output
     assert "created successfully" in result.output
 
 

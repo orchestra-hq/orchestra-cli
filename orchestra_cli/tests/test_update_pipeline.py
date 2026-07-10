@@ -208,8 +208,8 @@ def test_update_path_only_outside_git_force_skips_alias_prompt(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
-        json={"id": "pipeline-id", "alias": "my-pipeline", "storage_provider": "ORCHESTRA"},
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my_pipeline",
+        json={"id": "pipeline-id", "alias": "my_pipeline", "storage_provider": "ORCHESTRA"},
         status_code=200,
     )
     httpx_mock.add_response(
@@ -232,7 +232,7 @@ def test_update_path_only_outside_git_force_skips_alias_prompt(
 
     assert result.exit_code == 0
     assert "Press Enter to accept" not in result.output
-    assert "Generated alias: my-pipeline" in result.output
+    assert "Generated alias: my_pipeline" in result.output
     assert "updated successfully" in result.output
 
 

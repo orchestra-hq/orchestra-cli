@@ -262,7 +262,7 @@ def test_build_without_alias_outside_git_generates_alias_from_path(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my_pipeline",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         json={"detail": "not found"},
         status_code=404,
@@ -272,7 +272,7 @@ def test_build_without_alias_outside_git_generates_alias_from_path(
         url="https://app.getorchestra.io/api/engine/public/pipelines",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "alias": "my-pipeline",
+            "alias": "my_pipeline",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -297,8 +297,8 @@ def test_build_without_alias_outside_git_generates_alias_from_path(
 
     assert result.exit_code == 0
     assert "generating a pipeline alias from --path" in result.output
-    assert "Generated alias: my-pipeline" in result.output
-    assert "Creating draft pipeline (alias: my-pipeline)" in result.output
+    assert "Generated alias: my_pipeline" in result.output
+    assert "Creating draft pipeline (alias: my_pipeline)" in result.output
     assert result.output.strip().endswith(
         f"Started pipeline (pipeline_id: pipeline-id), run id: {mock_pipeline_run_id}",
     )
@@ -335,7 +335,7 @@ def test_build_without_alias_outside_git_force_skips_alias_prompt(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my_pipeline",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         json={"detail": "not found"},
         status_code=404,
@@ -345,7 +345,7 @@ def test_build_without_alias_outside_git_force_skips_alias_prompt(
         url="https://app.getorchestra.io/api/engine/public/pipelines",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={
-            "alias": "my-pipeline",
+            "alias": "my_pipeline",
             "data": {"name": "demo", "version": 1},
             "published": False,
             "storage_provider": "ORCHESTRA",
@@ -369,7 +369,7 @@ def test_build_without_alias_outside_git_force_skips_alias_prompt(
 
     assert result.exit_code == 0
     assert "Press Enter to accept" not in result.output
-    assert "Generated alias: my-pipeline" in result.output
+    assert "Generated alias: my_pipeline" in result.output
 
 
 def test_build_fails_without_version_number(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
