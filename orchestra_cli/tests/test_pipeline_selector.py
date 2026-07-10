@@ -61,7 +61,7 @@ def test_path_inside_git_resolves_repository_and_yaml_path(monkeypatch, tmp_path
 
 
 def test_generate_alias_from_path_slugifies_filename():
-    assert generate_alias_from_path(Path("My Pipeline.yaml")) == "my-pipeline"
+    assert generate_alias_from_path(Path("My Pipeline.yaml")) == "my_pipeline"
 
 
 def test_force_skips_generated_alias_prompt(monkeypatch, tmp_path: Path):
@@ -131,4 +131,4 @@ def test_build_style_resolve_generates_alias_from_path_without_alias_arg(
         use_git_path_selector=False,
     )
 
-    assert selector == PipelineSelector(alias="custom-name")
+    assert selector == PipelineSelector(alias="custom_name")
