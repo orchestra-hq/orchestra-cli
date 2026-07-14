@@ -818,14 +818,14 @@ def test_run_path_only_outside_git_force_skips_alias_prompt(
 
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my_pipeline",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         json={"detail": "not found"},
         status_code=404,
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/my-pipeline/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/my_pipeline/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         json={"pipelineRunId": mock_pipeline_run_id},
         status_code=200,
@@ -838,8 +838,8 @@ def test_run_path_only_outside_git_force_skips_alias_prompt(
 
     assert result.exit_code == 0
     assert "Press Enter to accept" not in result.output
-    assert "Generated alias: my-pipeline" in result.output
-    assert f"Started pipeline (alias: my-pipeline), run id: {mock_pipeline_run_id}" in result.output
+    assert "Generated alias: my_pipeline" in result.output
+    assert f"Started pipeline (alias: my_pipeline), run id: {mock_pipeline_run_id}" in result.output
 
 
 def test_run_path_checks_selected_repo_warnings(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
@@ -1253,14 +1253,14 @@ def test_run_generated_alias_path_skips_git_backed_prep(
 
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my-pipeline",
+        url="https://app.getorchestra.io/api/engine/public/pipeline?alias=my_pipeline",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
-        json={"id": "pipeline-id", "alias": "my-pipeline", "storage_provider": "GITHUB"},
+        json={"id": "pipeline-id", "alias": "my_pipeline", "storage_provider": "GITHUB"},
         status_code=200,
     )
     httpx_mock.add_response(
         method="POST",
-        url="https://app.getorchestra.io/api/engine/public/pipelines/my-pipeline/start",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/my_pipeline/start",
         match_headers={"Authorization": f"Bearer {mock_api_key}"},
         match_json={"branch": "override", "commit": "deadbeef"},
         json={"pipelineRunId": mock_pipeline_run_id},
@@ -1289,7 +1289,7 @@ def test_run_generated_alias_path_skips_git_backed_prep(
         "--branch/-b and --commit/-c are not supported for git-backed pipelines"
         not in result.output
     )
-    assert f"Started pipeline (alias: my-pipeline), run id: {mock_pipeline_run_id}" in result.output
+    assert f"Started pipeline (alias: my_pipeline), run id: {mock_pipeline_run_id}" in result.output
 
 
 def test_run_wait_fetches_task_runs_after_pipeline_status(

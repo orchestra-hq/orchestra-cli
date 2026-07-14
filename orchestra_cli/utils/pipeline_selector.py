@@ -51,7 +51,7 @@ def pipeline_path_option(help_text: str = "Path to pipeline YAML") -> Any:
 
 
 def generate_alias_from_path(path: Path) -> str:
-    alias = re.sub(r"[^a-z0-9]+", "-", path.stem.lower()).strip("-")
+    alias = re.sub(r"[^a-z0-9]+", "_", path.stem.lower()).strip("_")
     return alias or "pipeline"
 
 
