@@ -42,6 +42,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Two of our own releases must not race each other onto the tap: they touch
+    # the same formula, so the loser would hit a rebase conflict rather than a
+    # simple retry. Queue them instead of cancelling — every release needs to
+    # land, not just the newest.
+    concurrency:
+      group: homebrew-tap-push
+      cancel-in-progress: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -130,4 +137,21 @@ jobs:
           git config user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
           git add Formula/orchestra-cli.rb
           git commit -m "Brew formula update for orchestra-cli version ${VERSION}"
-          git push
+
+          # atlas releases to this same tap, so HEAD can move under us between
+          # checkout and push. Those commits touch Formula/atlas.rb, so a rebase
+          # replays ours cleanly; the concurrency group above keeps our own
+          # releases from colliding on Formula/orchestra-cli.rb.
+          for attempt in $(seq 1 5); do
+            if git push; then
+              exit 0
+            fi
+            echo "Attempt ${attempt}: push rejected, rebasing onto the latest tap"
+            if ! git pull --rebase origin "$(git rev-parse --abbrev-ref HEAD)"; then
+              git rebase --abort || true
+              echo "Could not rebase onto the tap; resolve by hand" >&2
+              exit 1
+            fi
+          done
+          echo "Could not push the formula after 5 attempts" >&2
+          exit 1

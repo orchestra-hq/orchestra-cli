@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -26,6 +27,10 @@ from pathlib import Path
 
 PYPI_URL = "https://pypi.org/pypi/{name}/{version}/json"
 PROJECT_NAME = "orchestra-cli"
+
+# Bounded so that a PyPI connection which opens but never responds fails the
+# release job instead of hanging it.
+PYPI_TIMEOUT_SECONDS = 30
 
 # The Python that the formula builds against. PYTHON_TAG must be the CPython
 # interpreter tag matching PYTHON_FORMULA, since wheels are selected by it.
@@ -124,7 +129,8 @@ def resolve_runtime_dependencies(project_root: Path) -> dict[str, str]:
 
 def fetch_pypi_files(name: str, version: str) -> list[dict]:
     """Return the PyPI file listing for one release."""
-    with urllib.request.urlopen(PYPI_URL.format(name=name, version=version)) as response:
+    url = PYPI_URL.format(name=name, version=version)
+    with urllib.request.urlopen(url, timeout=PYPI_TIMEOUT_SECONDS) as response:
         return json.load(response)["urls"]
 
 
@@ -157,9 +163,7 @@ def select_wheels(name: str, version: str, files: list[dict]) -> dict[WheelTarge
                 f"{target.platform_glob!r}. Remove it from WHEEL_PACKAGES to build "
                 f"it from source instead.",
             )
-        # Our targets have exactly one matching wheel each; sort so that a
-        # package publishing several stays deterministic between runs.
-        chosen = sorted(candidates, key=lambda entry: entry["filename"])[0]
+        chosen = sorted(candidates, key=lambda entry: _wheel_preference(entry["filename"]))[0]
         wheels[target] = Download(chosen["url"], chosen["digests"]["sha256"])
 
     return wheels
@@ -169,6 +173,30 @@ def _wheel_tags(filename: str) -> tuple[str, str, str]:
     """Return the (interpreter, abi, platform) tags of a wheel filename."""
     parts = filename.removesuffix(".whl").split("-")
     return parts[-3], parts[-2], parts[-1]
+
+
+def _platform_baseline(platform_tag: str) -> tuple[int, int]:
+    """Return the minimum OS version a platform tag requires.
+
+    ``macosx_10_12_x86_64`` is (10, 12) and ``manylinux_2_17_aarch64`` is
+    (2, 17). Legacy tags without an embedded version (``manylinux1_x86_64``)
+    return (0, 0), which correctly ranks them as the most compatible.
+    """
+    match = re.search(r"(?:macosx|manylinux)_(\d+)_(\d+)", platform_tag)
+    if match is None:
+        return 0, 0
+    return int(match.group(1)), int(match.group(2))
+
+
+def _wheel_preference(filename: str) -> tuple[int, tuple[int, int], str]:
+    """Return a sort key ranking wheels best-first.
+
+    An exact-interpreter wheel beats a stable-ABI one, and among equals the
+    lowest OS baseline wins because it runs on the widest range of machines.
+    The filename breaks any remaining tie so runs stay deterministic.
+    """
+    _, abi_tag, platform_tag = _wheel_tags(filename)
+    return (1 if abi_tag == "abi3" else 0), _platform_baseline(platform_tag), filename
 
 
 def _matches_platform(filename: str, platform_glob: str) -> bool:
