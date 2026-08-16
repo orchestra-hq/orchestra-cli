@@ -33,3 +33,74 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: uv publish --token ${UV_PUBLISH_TOKEN}
+
+  # Only runs when build-and-publish succeeded, which requires the version in
+  # pyproject.toml to be new — PyPI rejects a duplicate upload. Merges that do
+  # not bump the version therefore leave the tap pointing at the last release.
+  update-homebrew-tap:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Read released version
+        id: release
+        run: |
+          version=$(python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the release to appear on PyPI
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          url="https://pypi.org/pypi/orchestra-cli/${VERSION}/json"
+          for attempt in $(seq 1 30); do
+            if curl -fsS -o /dev/null "$url"; then
+              echo "orchestra-cli ${VERSION} is available on PyPI"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: not indexed yet, retrying in 10s"
+            sleep 10
+          done
+          echo "orchestra-cli ${VERSION} did not appear on PyPI within 5 minutes" >&2
+          exit 1
+
+      - name: Checkout the tap
+        uses: actions/checkout@v4
+        with:
+          repository: orchestra-hq/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Generate the formula
+        run: |
+          python scripts/generate_brew_formula.py \
+            --output homebrew-tap/Formula/orchestra-cli.rb
+
+      - name: Commit and push to the tap
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          # --porcelain rather than `git diff`, so that the very first run sees
+          # the formula while it is still untracked.
+          if [ -z "$(git status --porcelain -- Formula/orchestra-cli.rb)" ]; then
+            echo "Formula is already up to date; nothing to push"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/orchestra-cli.rb
+          git commit -m "Brew formula update for orchestra-cli version ${VERSION}"
+          git push
