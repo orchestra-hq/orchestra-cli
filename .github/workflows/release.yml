@@ -76,11 +76,23 @@ jobs:
           echo "orchestra-cli ${VERSION} did not appear on PyPI within 5 minutes" >&2
           exit 1
 
+      # Mints an installation token scoped to the tap for the length of this
+      # job, and revokes it on the way out. Nothing long-lived to rotate.
+      - name: Mint a token for the tap
+        id: tap-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.HOMEBREW_TAP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+          owner: orchestra-hq
+          repositories: homebrew-tap
+          permission-contents: write
+
       - name: Checkout the tap
         uses: actions/checkout@v4
         with:
           repository: orchestra-hq/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ steps.tap-token.outputs.token }}
           path: homebrew-tap
 
       - name: Generate the formula
@@ -88,10 +100,23 @@ jobs:
           python scripts/generate_brew_formula.py \
             --output homebrew-tap/Formula/orchestra-cli.rb
 
+      # The numeric user ID is what links the commit to the app's bot account
+      # rather than leaving it as an unattributed author.
+      - name: Look up the app's bot user ID
+        id: bot
+        env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
+          APP_SLUG: ${{ steps.tap-token.outputs.app-slug }}
+        run: |
+          user_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          echo "user-id=${user_id}" >> "$GITHUB_OUTPUT"
+
       - name: Commit and push to the tap
         working-directory: homebrew-tap
         env:
           VERSION: ${{ steps.release.outputs.version }}
+          APP_SLUG: ${{ steps.tap-token.outputs.app-slug }}
+          BOT_USER_ID: ${{ steps.bot.outputs.user-id }}
         run: |
           # --porcelain rather than `git diff`, so that the very first run sees
           # the formula while it is still untracked.
@@ -99,8 +124,8 @@ jobs:
             echo "Formula is already up to date; nothing to push"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
           git add Formula/orchestra-cli.rb
           git commit -m "Brew formula update for orchestra-cli version ${VERSION}"
           git push
