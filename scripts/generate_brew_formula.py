@@ -178,11 +178,27 @@ def _wheel_tags(filename: str) -> tuple[str, str, str]:
 def _platform_baseline(platform_tag: str) -> tuple[int, int]:
     """Return the minimum OS version a platform tag requires.
 
-    ``macosx_10_12_x86_64`` is (10, 12) and ``manylinux_2_17_aarch64`` is
-    (2, 17). Legacy tags without an embedded version (``manylinux1_x86_64``)
-    return (0, 0), which correctly ranks them as the most compatible.
+    ``macosx_10_12_x86_64`` is (10, 12) and ``manylinux_2_17_aarch64`` is the
+    glibc version (2, 17). A wheel may carry several compatible tags joined by
+    dots, as in ``manylinux_2_17_x86_64.manylinux2014_x86_64``; the lowest
+    baseline among them is what the wheel actually requires.
+
+    An unrecognised tag returns (0, 0) so it sorts as most compatible, which
+    keeps selection working rather than discarding the wheel.
     """
-    match = re.search(r"(?:macosx|manylinux)_(\d+)_(\d+)", platform_tag)
+    baselines = [_component_baseline(part) for part in platform_tag.split(".")]
+    return min(baselines)
+
+
+def _component_baseline(component: str) -> tuple[int, int]:
+    """Return the OS baseline of a single platform tag component."""
+    # The pre-PEP 600 spellings name a policy rather than a glibc version.
+    legacy_glibc = {"manylinux1": (2, 5), "manylinux2010": (2, 12), "manylinux2014": (2, 17)}
+    for name, baseline in legacy_glibc.items():
+        if component.startswith(name):
+            return baseline
+
+    match = re.match(r"(?:macosx|manylinux|musllinux)_(\d+)_(\d+)", component)
     if match is None:
         return 0, 0
     return int(match.group(1)), int(match.group(2))
