@@ -33,3 +33,173 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: uv publish --token ${UV_PUBLISH_TOKEN}
+
+  # Only runs when build-and-publish succeeded, which requires the version in
+  # pyproject.toml to be new — PyPI rejects a duplicate upload. Merges that do
+  # not bump the version therefore leave the tap pointing at the last release.
+  update-homebrew-tap:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Stops two of our own releases running here at once, which would conflict
+    # on the same formula rather than rebasing cleanly. This is not a FIFO
+    # queue — GitHub holds only one job pending per group and does not preserve
+    # arrival order — so the freshness check below is what actually guarantees
+    # the tap ends up at the newest version.
+    concurrency:
+      group: homebrew-tap-push
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Read released version
+        id: release
+        run: |
+          version=$(python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the release to appear on PyPI
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          url="https://pypi.org/pypi/orchestra-cli/${VERSION}/json"
+          for attempt in $(seq 1 30); do
+            if curl -fsS -o /dev/null "$url"; then
+              echo "orchestra-cli ${VERSION} is available on PyPI"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: not indexed yet, retrying in 10s"
+            sleep 10
+          done
+          echo "orchestra-cli ${VERSION} did not appear on PyPI within 5 minutes" >&2
+          exit 1
+
+      # Mints an installation token scoped to the tap for the length of this
+      # job, and revokes it on the way out. Nothing long-lived to rotate. Uses
+      # the same release App as orchestra-hq/atlas, which already publishes to
+      # this tap — see that repo's release.yml.
+      - name: Mint a token for the tap
+        id: tap-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: orchestra-hq
+          repositories: homebrew-tap
+          permission-contents: write
+
+      - name: Checkout the tap
+        uses: actions/checkout@v4
+        with:
+          repository: orchestra-hq/homebrew-tap
+          token: ${{ steps.tap-token.outputs.token }}
+          path: homebrew-tap
+
+      # The concurrency group above serialises our releases but does not order
+      # them, and GitHub keeps only one job pending per group. So a release can
+      # arrive here after a newer one already landed. Comparing against what is
+      # in the tap makes this idempotent and order-independent: the tap always
+      # ends up at the highest published version, whatever order jobs run in.
+      - name: Skip if the tap already has this version or newer
+        id: freshness
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          formula=Formula/orchestra-cli.rb
+          if [ ! -f "$formula" ]; then
+            echo "No formula in the tap yet; publishing ${VERSION}"
+            echo "should-update=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The formula carries no version field — Homebrew infers it from the
+          # sdist filename, so that is where we read it back from.
+          current=$(grep -oE 'orchestra_cli-[0-9][^/]*\.tar\.gz' "$formula" \
+            | head -1 | sed -E 's/^orchestra_cli-(.*)\.tar\.gz$/\1/')
+          if [ -z "$current" ]; then
+            echo "Could not read the current version out of ${formula}" >&2
+            exit 1
+          fi
+          echo "Tap has ${current}; this release is ${VERSION}"
+          # PEP 440 rather than a tuple of ints, so that a pre-release or dev
+          # build (0.4.0rc1, 0.3.3.dev1) compares correctly instead of raising
+          # and taking the release job down with it. packaging is not in our
+          # dependency closure, so uv supplies it for this one command.
+          newer=$(uv run --no-project --quiet --with packaging python -c \
+            'import sys; from packaging.version import Version; print(Version(sys.argv[1]) > Version(sys.argv[2]))' \
+            "$VERSION" "$current")
+          if [ "$newer" = "True" ]; then
+            echo "should-update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tap is already at ${current}; leaving it alone"
+            echo "should-update=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate the formula
+        if: steps.freshness.outputs.should-update == 'true'
+        run: |
+          python scripts/generate_brew_formula.py \
+            --output homebrew-tap/Formula/orchestra-cli.rb
+
+      # The numeric user ID is what links the commit to the app's bot account
+      # rather than leaving it as an unattributed author.
+      - name: Look up the app's bot user ID
+        if: steps.freshness.outputs.should-update == 'true'
+        id: bot
+        env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
+          APP_SLUG: ${{ steps.tap-token.outputs.app-slug }}
+        run: |
+          user_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          echo "user-id=${user_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push to the tap
+        if: steps.freshness.outputs.should-update == 'true'
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          APP_SLUG: ${{ steps.tap-token.outputs.app-slug }}
+          BOT_USER_ID: ${{ steps.bot.outputs.user-id }}
+        run: |
+          # --porcelain rather than `git diff`, so that the very first run sees
+          # the formula while it is still untracked.
+          if [ -z "$(git status --porcelain -- Formula/orchestra-cli.rb)" ]; then
+            echo "Formula is already up to date; nothing to push"
+            exit 0
+          fi
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
+          git add Formula/orchestra-cli.rb
+          git commit -m "Brew formula update for orchestra-cli version ${VERSION}"
+
+          # atlas releases to this same tap, so HEAD can move under us between
+          # checkout and push. Those commits touch Formula/atlas.rb, so a rebase
+          # replays ours cleanly; the concurrency group above keeps our own
+          # releases from colliding on Formula/orchestra-cli.rb.
+          for _ in $(seq 1 5); do
+            if git push; then
+              exit 0
+            fi
+            echo "Push rejected, rebasing onto the latest tap"
+            if ! git pull --rebase origin "$(git rev-parse --abbrev-ref HEAD)"; then
+              git rebase --abort || true
+              echo "Could not rebase onto the tap; resolve by hand" >&2
+              exit 1
+            fi
+          done
+
+          # The loop always ends on a rebase, so give that last one its push.
+          if ! git push; then
+            echo "Could not push the formula after 5 rebases" >&2
+            exit 1
+          fi

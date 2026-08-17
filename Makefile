@@ -19,3 +19,6 @@ build:
 
 publish:
 	uv publish
+
+brew-formula:
+	uv run python scripts/generate_brew_formula.py --output Formula/orchestra-cli.rb
