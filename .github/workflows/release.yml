@@ -131,7 +131,13 @@ jobs:
             exit 1
           fi
           echo "Tap has ${current}; this release is ${VERSION}"
-          newer=$(python -c 'import sys; p=lambda v: tuple(int(x) for x in v.split(".")); print(p(sys.argv[1]) > p(sys.argv[2]))' "$VERSION" "$current")
+          # PEP 440 rather than a tuple of ints, so that a pre-release or dev
+          # build (0.4.0rc1, 0.3.3.dev1) compares correctly instead of raising
+          # and taking the release job down with it. packaging is not in our
+          # dependency closure, so uv supplies it for this one command.
+          newer=$(uv run --no-project --quiet --with packaging python -c \
+            'import sys; from packaging.version import Version; print(Version(sys.argv[1]) > Version(sys.argv[2]))' \
+            "$VERSION" "$current")
           if [ "$newer" = "True" ]; then
             echo "should-update=true" >> "$GITHUB_OUTPUT"
           else
