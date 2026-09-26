@@ -501,12 +501,10 @@ def _poll_until_terminal(
                 task_runs=last_task_runs,
                 can_fetch_task_runs=can_fetch_task_runs,
             )
+            # Outside the try: its typer.Exit on a failed refresh must end the loop.
+            headers = auth_headers(require_api_key())
             try:
-                status_resp = httpx.get(
-                    status_url,
-                    headers=auth_headers(require_api_key()),
-                    timeout=30,
-                )
+                status_resp = httpx.get(status_url, headers=headers, timeout=30)
             except Exception as exc:
                 _stop_poll_status_display(poll_status_display)
                 poll_status_display = None

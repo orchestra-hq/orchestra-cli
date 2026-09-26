@@ -21,6 +21,7 @@ from orchestra_cli.src.run_pipeline import (
     _typed_environment_override,
     build_run_payload,
 )
+from orchestra_cli.utils.credentials import save_credentials
 from orchestra_cli.utils.pipeline_selector import PipelineSelector
 from orchestra_cli.utils.pipeline_update import build_update_selector
 from tests.conftest import make_git_subprocess_mock
@@ -1433,3 +1434,54 @@ def test_run_wait_missing_status_exits_after_retry_limit(
 
     assert result.exit_code == 1
     assert "Invalid status value: None" in result.output
+
+
+def test_run_wait_exits_when_login_refresh_fails_mid_poll(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    import subprocess
+    import time
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    monkeypatch.delenv("ORCHESTRA_API_KEY")
+    token_endpoint = "https://app.getorchestra.io/oauth/token"
+    login = {
+        "client_id": "cli-client",
+        "token_endpoint": token_endpoint,
+        "access_token": "at",
+        "refresh_token": "rt",
+        "expires_at": time.time() + 900,
+    }
+    save_credentials(login)
+    # The access token lapses while the CLI is waiting between polls.
+    monkeypatch.setattr(
+        time,
+        "sleep",
+        lambda _: save_credentials({**login, "expires_at": 0}),
+    )
+
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        json={"pipelineRunId": "run-xyz"},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=token_endpoint,
+        status_code=400,
+        json={"error": "invalid_grant"},
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
+
+    assert result.exit_code == 1
+    assert "Run `orchestra login` again" in result.output
+    assert "Polling request failed" not in result.output
