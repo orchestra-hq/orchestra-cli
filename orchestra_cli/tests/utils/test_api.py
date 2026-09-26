@@ -1,6 +1,7 @@
 import time
 from urllib.parse import parse_qs
 
+import httpx
 import pytest
 import typer
 from pytest_httpx import HTTPXMock
@@ -93,3 +94,23 @@ def test_refresh_server_error_is_not_reported_as_expired_login(httpx_mock: HTTPX
     output = capsys.readouterr().out
     assert "Token refresh failed with status 503" in output
     assert "expired" not in output
+
+
+def test_rejected_refresh_uses_token_another_process_just_rotated_in(httpx_mock: HTTPXMock):
+    cache_login(time.time() - 1)
+
+    def other_process_refreshes_first(_request):
+        save_credentials(
+            {
+                "client_id": "cli-client",
+                "token_endpoint": TOKEN_ENDPOINT,
+                "access_token": "at-other",
+                "refresh_token": "rt-other",
+                "expires_at": time.time() + 900,
+            },
+        )
+        return httpx.Response(400, json={"error": "invalid_grant"})
+
+    httpx_mock.add_callback(other_process_refreshes_first, method="POST", url=TOKEN_ENDPOINT)
+
+    assert require_api_key() == "at-other"
