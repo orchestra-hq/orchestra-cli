@@ -42,6 +42,9 @@ def require_api_key() -> str:
 
 
 def _refresh(credentials: dict) -> dict:
+    # ponytail: no cross-process lock, so two commands refreshing at the same moment
+    # race on the rotated refresh token and the loser is told to log in again. Add a
+    # file lock around refresh-and-save if parallel CLI use near expiry is common.
     response = request_or_exit(
         httpx.post,
         credentials["token_endpoint"],
@@ -52,10 +55,12 @@ def _refresh(credentials: dict) -> dict:
         },
         timeout=30,
     )
-    if response.status_code != 200:
+    # RFC 6749 §5.2: a refresh token that is no longer valid is a 400 invalid_grant.
+    if response.status_code == 400:
         typer.echo(red("Your Orchestra login has expired. Run `orchestra login` again."))
-        echo_response_error_body(response)
         raise typer.Exit(code=1)
+    if response.status_code != 200:
+        raise fail_with_response("Token refresh", response)
     refreshed = token_response_to_credentials(response.json(), credentials)
     save_credentials(refreshed)
     return refreshed

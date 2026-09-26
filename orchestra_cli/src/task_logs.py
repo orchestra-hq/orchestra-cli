@@ -216,7 +216,6 @@ def _watch_log_file(
     pipeline_run_id: str,
     task_run_id: str,
     filename: str,
-    api_key: str,
     watch: bool,
 ) -> None:
     offset = 0
@@ -225,7 +224,8 @@ def _watch_log_file(
 
     try:
         while True:
-            headers = {**auth_headers(api_key), "Range": f"bytes={offset}-"}
+            # Re-resolved per poll so a long follow outlives an access token's expiry.
+            headers = {**auth_headers(require_api_key()), "Range": f"bytes={offset}-"}
             response = request_or_exit(
                 httpx.get,
                 _download_log_url(pipeline_run_id, task_run_id),
@@ -304,6 +304,5 @@ def task_logs(
         pipeline_run_id=pipeline_run_id,
         task_run_id=task_run_id,
         filename=selected_filename,
-        api_key=api_key,
         watch=not no_watch,
     )

@@ -80,3 +80,14 @@ def test_login_for_another_host_is_not_used(monkeypatch):
 
     with pytest.raises(typer.Exit):
         require_api_key()
+
+
+def test_refresh_server_error_is_not_reported_as_expired_login(httpx_mock: HTTPXMock, capsys):
+    cache_login(time.time() - 1)
+    httpx_mock.add_response(method="POST", url=TOKEN_ENDPOINT, status_code=503)
+
+    with pytest.raises(typer.Exit):
+        require_api_key()
+    output = capsys.readouterr().out
+    assert "Token refresh failed with status 503" in output
+    assert "expired" not in output

@@ -221,11 +221,8 @@ def _parse_task_runs_response(response: httpx.Response) -> list[dict[str, object
     return []
 
 
-def _poll_all_task_runs(
-    pipeline_run_id: str,
-    api_key: str,
-) -> list[dict[str, object]]:
-    headers = auth_headers(api_key)
+def _poll_all_task_runs(pipeline_run_id: str) -> list[dict[str, object]]:
+    headers = auth_headers(require_api_key())
     task_runs: list[dict[str, object]] = []
     page = 1
     while True:
@@ -477,14 +474,16 @@ def _sleep_with_status_updates(
 def _poll_until_terminal(
     selector_name: str,
     pipeline_run_id: str,
-    api_key: str,
     lineage_url: str,
     created_at_utc: datetime | None = None,
 ) -> None:
-    """Poll the run status endpoint until the run reaches a terminal state."""
+    """Poll the run status endpoint until the run reaches a terminal state.
+
+    The credential is re-resolved on every poll: a run can outlive an
+    ``orchestra login`` access token, which refreshes only when asked for.
+    """
     poll_interval_seconds = 5
     max_missing_run_status_polls = 3
-    headers = auth_headers(api_key)
     status_url = get_api_url(f"pipeline_runs/{pipeline_run_id}/status")
     poll_status_display = _create_poll_status_display()
     last_status_value: str | None = None
@@ -503,7 +502,11 @@ def _poll_until_terminal(
                 can_fetch_task_runs=can_fetch_task_runs,
             )
             try:
-                status_resp = httpx.get(status_url, headers=headers, timeout=30)
+                status_resp = httpx.get(
+                    status_url,
+                    headers=auth_headers(require_api_key()),
+                    timeout=30,
+                )
             except Exception as exc:
                 _stop_poll_status_display(poll_status_display)
                 poll_status_display = None
@@ -535,10 +538,7 @@ def _poll_until_terminal(
                     IN_PROGRESS_RUN_STATUSES | TERMINAL_RUN_STATUSES
                 )
                 if can_fetch_task_runs:
-                    last_task_runs = _poll_all_task_runs(
-                        pipeline_run_id=pipeline_run_id,
-                        api_key=api_key,
-                    )
+                    last_task_runs = _poll_all_task_runs(pipeline_run_id)
                 if poll_status_display is not None:
                     poll_status_display.update(
                         _build_poll_display(
@@ -696,7 +696,6 @@ def start_pipeline_run(
         _poll_until_terminal(
             selector_name=selector_name,
             pipeline_run_id=str(pipeline_run_id),
-            api_key=api_key,
             lineage_url=lineage_url,
             created_at_utc=created_at_utc,
         )
