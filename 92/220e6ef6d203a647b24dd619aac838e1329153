@@ -1,0 +1,23 @@
+orchestra_cli/src/validate_pipeline.py
+  s_c82927632f2614::t_ae6cf196e5ca12 14-15,44-46,48,54-62,77-83
+orchestra_cli/tests/test_validate_pipeline.py
+  s_c82927632f2614::t_ae6cf196e5ca12 92-132
+README.md
+  s_c82927632f2614::t_ae6cf196e5ca12 66-68,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "92220e6ef6d203a647b24dd619aac838e1329153",
+  "prompts": {},
+  "sessions": {
+    "s_c82927632f2614": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d95c57e3-aec8-4b76-bc21-384f0c09580d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
