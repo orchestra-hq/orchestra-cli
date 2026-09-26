@@ -89,3 +89,44 @@ def test_validate_fails_on_duplicate_yaml_keys(tmp_path):
     assert "YAML snippet:" in result.output
     assert "connection: first" in result.output
     assert "team: data" in result.output
+
+
+def test_validate_oml_file_posts_expected_json(tmp_path, httpx_mock: HTTPXMock):
+    pipeline_file = tmp_path / "pipeline.oml"
+    pipeline_file.write_text('{"version": "v1", "name": "anomalies"}')
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "validate", str(pipeline_file)])
+
+    assert result.exit_code == 0
+    assert "Validation passed" in result.output
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 1
+    assert json.loads(requests[0].content) == {"version": "v1", "name": "anomalies"}
+
+
+def test_validate_oml_only_syntax_explains_limitation(tmp_path):
+    pipeline_file = tmp_path / "pipeline.oml"
+    pipeline_file.write_text("task:\n  sql: %sql select 1 %%\n")
+
+    result = runner.invoke(app, ["pipeline", "validate", str(pipeline_file)])
+
+    assert result.exit_code == 1
+    assert "Invalid YAML" in result.output
+    assert "embeds (`%sql ... %%`) are not supported yet" in result.output
+
+
+def test_validate_rejects_unsupported_extension(tmp_path):
+    pipeline_file = tmp_path / "pipeline.json"
+    pipeline_file.write_text('{"version": "v1"}')
+
+    result = runner.invoke(app, ["pipeline", "validate", str(pipeline_file)])
+
+    assert result.exit_code == 1
+    assert "Unsupported file extension '.json'" in result.output
+    assert ".yaml, .yml, .oml" in result.output

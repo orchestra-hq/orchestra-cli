@@ -63,7 +63,9 @@ New code and documentation should prefer the noun/verb form.
 
 ## pipeline validate
 
-Validate a YAML file against the Orchestra API schema.
+Validate a pipeline file against the Orchestra API schema. Supported extensions are `.yaml`, `.yml` and `.oml`; any other extension is rejected.
+
+`.oml` files are read as YAML, so only OML written in YAML or JSON syntax is supported. OML block terminators (`.`) and embeds (`%sql ... %%`) fail with an `Invalid YAML` error.
 
 ```bash
 orchestra pipeline validate path/to/pipeline.yaml
@@ -73,7 +75,7 @@ orchestra-cli pipeline validate path/to/pipeline.yaml
 
 Options
 
-- `file` (positional): Path to the YAML file to validate.
+- `file` (positional): Path to the `.yaml`, `.yml` or `.oml` file to validate.
 
 Behavior
 
