@@ -21,6 +21,9 @@ LOGIN_TIMEOUT_SECONDS = 300
 
 class _CallbackHandler(BaseHTTPRequestHandler):
     params: dict[str, str] | None = None
+    # Bounds reads on connections a browser opens speculatively and never uses, which
+    # would otherwise block the single-threaded server past the login deadline.
+    timeout = 5
 
     def do_GET(self):  # noqa: N802
         url = urlparse(self.path)
