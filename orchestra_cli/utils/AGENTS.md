@@ -31,11 +31,13 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 
 **`api.py`** — Shared HTTP/auth helpers. Every command should call into these instead of constructing headers, try/except blocks, or error rendering by hand:
 
-- `require_api_key()` — returns `ORCHESTRA_API_KEY` from the environment, or echoes `"ORCHESTRA_API_KEY is not set"` and exits with code 1.
+- `require_api_key()` — returns the bearer credential: `ORCHESTRA_API_KEY` if set, otherwise the cached `orchestra login` token (refreshed when near expiry). Exits with code 1 if neither is available.
 - `auth_headers(api_key)` — returns `{"Authorization": f"Bearer {api_key}"}`.
 - `request_or_exit(httpx_func, *args, **kwargs)` — invokes an `httpx` callable (e.g. `httpx.post`, `httpx.delete`) and on any transport exception echoes `"HTTP request failed: <msg>"` in red and exits with code 1.
 - `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
 - `fail_with_response(action, response)` — echoes `"❌ <action> failed with status <code>"` followed by `echo_response_error_body(response)` and exits with code 1. Use this for any non-success path of an HTTP call.
+
+**`credentials.py`** — the `orchestra login` token cache at `~/.orchestra/credentials.json`, keyed by host (`get_base_url()`). `load_credentials()` / `save_credentials(dict)`; writes are mode `0600`. Tests get an isolated `HOME` from an autouse fixture in `conftest.py`.
 
 **`yaml_loader.py`** — YAML loading + schema validation:
 

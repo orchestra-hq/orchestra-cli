@@ -1,0 +1,117 @@
+import base64
+import hashlib
+import json
+import threading
+import urllib.request
+import webbrowser
+from urllib.parse import parse_qs, urlencode, urlparse
+
+import pytest
+from pytest_httpx import HTTPXMock
+from typer.testing import CliRunner
+
+from orchestra_cli.src.cli import app
+
+runner = CliRunner()
+BASE = "https://app.getorchestra.io"
+TOKEN_ENDPOINT = f"{BASE}/oauth/token"
+
+
+@pytest.fixture(autouse=True)
+def mock_env(monkeypatch):
+    monkeypatch.setenv("BASE_URL", "")
+
+
+def mock_authorization_server(httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        method="GET",
+        url=f"{BASE}/.well-known/oauth-authorization-server",
+        json={
+            "authorization_endpoint": f"{BASE}/oauth/authorize",
+            "token_endpoint": TOKEN_ENDPOINT,
+            "registration_endpoint": f"{BASE}/oauth/register",
+        },
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE}/oauth/register",
+        status_code=201,
+        json={"client_id": "cli-client"},
+    )
+
+
+def fake_browser(monkeypatch, callback_params):
+    """Replace the browser with one that hits the loopback redirect, as consent would."""
+    opened = {}
+
+    def open_url(url):
+        query = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+        opened.update(query)
+        params = callback_params(query)
+        target = f"{query['redirect_uri']}?{urlencode(params)}"
+        threading.Thread(target=lambda: urllib.request.urlopen(target).read()).start()
+        return True
+
+    monkeypatch.setattr(webbrowser, "open", open_url)
+    return opened
+
+
+def test_login_completes_pkce_flow_and_caches_token(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    isolated_home,
+):
+    mock_authorization_server(httpx_mock)
+    httpx_mock.add_response(
+        method="POST",
+        url=TOKEN_ENDPOINT,
+        json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 900},
+    )
+    opened = fake_browser(monkeypatch, lambda q: {"code": "auth-code", "state": q["state"]})
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    assert "Logged in" in result.output
+    assert opened["code_challenge_method"] == "S256"
+    assert opened["scope"] == "orchestra:read orchestra:write offline_access"
+    assert urlparse(opened["redirect_uri"]).hostname == "127.0.0.1"
+
+    token_request = httpx_mock.get_requests(url=TOKEN_ENDPOINT)[0]
+    form = {k: v[0] for k, v in parse_qs(token_request.content.decode()).items()}
+    assert form["grant_type"] == "authorization_code"
+    assert form["code"] == "auth-code"
+    assert form["redirect_uri"] == opened["redirect_uri"]
+    digest = hashlib.sha256(form["code_verifier"].encode()).digest()
+    assert base64.urlsafe_b64encode(digest).rstrip(b"=").decode() == opened["code_challenge"]
+
+    path = isolated_home / ".orchestra" / "credentials.json"
+    assert path.stat().st_mode & 0o777 == 0o600
+    cached = json.loads(path.read_text())[BASE]
+    assert cached["access_token"] == "at-1"
+    assert cached["refresh_token"] == "rt-1"
+    assert cached["client_id"] == "cli-client"
+
+
+def test_login_rejects_mismatched_state(httpx_mock: HTTPXMock, monkeypatch, isolated_home):
+    mock_authorization_server(httpx_mock)
+    fake_browser(monkeypatch, lambda _: {"code": "auth-code", "state": "forged"})
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 1
+    assert "did not match" in result.output
+    assert not (isolated_home / ".orchestra" / "credentials.json").exists()
+
+
+def test_login_reports_denied_consent(httpx_mock: HTTPXMock, monkeypatch):
+    mock_authorization_server(httpx_mock)
+    fake_browser(
+        monkeypatch,
+        lambda q: {"error": "access_denied", "error_description": "denied", "state": q["state"]},
+    )
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 1
+    assert "Login failed: denied" in result.output

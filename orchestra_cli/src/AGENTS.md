@@ -36,7 +36,7 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 
 **Error handling:** All commands use `typer.Exit(code=1)` for failures — no exceptions propagate to the user. Use the helpers in `orchestra_cli/utils/api.py` for the common patterns rather than rolling your own:
 
-- `require_api_key()` — resolves `ORCHESTRA_API_KEY` or exits.
+- `require_api_key()` — resolves `ORCHESTRA_API_KEY` or the cached `orchestra login` token, or exits.
 - `request_or_exit(httpx.<method>, url, ...)` — wraps the request in a uniform transport-error handler.
 - `fail_with_response("Action", response)` — uniform `❌ Action failed with status <code>` output for non-success HTTP responses.
 - `auth_headers(api_key)` — builds the `Authorization` header.

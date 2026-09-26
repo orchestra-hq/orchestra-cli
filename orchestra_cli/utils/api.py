@@ -8,21 +8,71 @@ transport errors, or hand-roll JSON-vs-text error rendering themselves.
 
 import json
 import os
+import time
 from collections.abc import Callable
 
 import httpx
 import typer
 
+from .credentials import load_credentials, save_credentials
 from .styling import indent_message, red, yellow
+
+# Refresh this long before expiry so a token cannot lapse mid-request.
+_REFRESH_MARGIN_SECONDS = 60
 
 
 def require_api_key() -> str:
-    """Return ``ORCHESTRA_API_KEY`` from the environment or exit with code 1."""
+    """Return the bearer credential for API calls, or exit with code 1.
+
+    ``ORCHESTRA_API_KEY`` wins when set, so CI and scripts behave exactly as before
+    ``orchestra login`` existed. Otherwise the cached login token is used, refreshed
+    first if it is about to expire.
+    """
     api_key = os.getenv("ORCHESTRA_API_KEY")
-    if not api_key:
-        typer.echo(red("ORCHESTRA_API_KEY is not set"))
+    if api_key:
+        return api_key
+    credentials = load_credentials()
+    if not credentials:
+        typer.echo(red("ORCHESTRA_API_KEY is not set and you are not logged in"))
+        typer.echo(yellow("Run `orchestra login`, or set ORCHESTRA_API_KEY."))
         raise typer.Exit(code=1)
-    return api_key
+    if credentials["expires_at"] - _REFRESH_MARGIN_SECONDS <= time.time():
+        credentials = _refresh(credentials)
+    return credentials["access_token"]
+
+
+def _refresh(credentials: dict) -> dict:
+    response = request_or_exit(
+        httpx.post,
+        credentials["token_endpoint"],
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": credentials["refresh_token"],
+            "client_id": credentials["client_id"],
+        },
+        timeout=30,
+    )
+    if response.status_code != 200:
+        typer.echo(red("Your Orchestra login has expired. Run `orchestra login` again."))
+        echo_response_error_body(response)
+        raise typer.Exit(code=1)
+    refreshed = token_response_to_credentials(response.json(), credentials)
+    save_credentials(refreshed)
+    return refreshed
+
+
+def token_response_to_credentials(token: dict, previous: dict) -> dict:
+    """Merge a ``/token`` response over the previous credentials.
+
+    Refresh tokens rotate, so the response's one replaces the old; if the server
+    ever omits it, the old one is kept rather than lost.
+    """
+    return {
+        **previous,
+        "access_token": token["access_token"],
+        "refresh_token": token.get("refresh_token", previous.get("refresh_token")),
+        "expires_at": time.time() + token["expires_in"],
+    }
 
 
 def auth_headers(api_key: str) -> dict[str, str]:
