@@ -30,8 +30,9 @@ def save_credentials(credentials: dict) -> None:
     everything = {**_read_all(), get_base_url(): credentials}
     path = credentials_path()
     path.parent.mkdir(mode=0o700, exist_ok=True)
-    # Opened with 0600 so the tokens are never briefly readable by other users.
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # The open's mode only applies to a new file; tighten an existing one before
+    # any token is written to it.
+    os.chmod(path, 0o600)
     with os.fdopen(fd, "w") as f:
         json.dump(everything, f, indent=2)
-    os.chmod(path, 0o600)

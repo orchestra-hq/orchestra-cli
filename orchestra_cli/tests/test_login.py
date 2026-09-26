@@ -10,6 +10,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
+import orchestra_cli.src.login as login_module
 from orchestra_cli.src.cli import app
 
 runner = CliRunner()
@@ -43,16 +44,24 @@ def mock_authorization_server(httpx_mock: HTTPXMock):
 def fake_browser(monkeypatch, callback_params):
     """Replace the browser with one that hits the loopback redirect, as consent would."""
     opened = {}
+    # No proxy: a loopback request routed through one would never reach the CLI.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def open_url(url):
         query = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
         opened.update(query)
-        params = callback_params(query)
-        target = f"{query['redirect_uri']}?{urlencode(params)}"
-        threading.Thread(target=lambda: urllib.request.urlopen(target).read()).start()
+        target = f"{query['redirect_uri']}?{urlencode(callback_params(query))}"
+
+        threading.Thread(
+            target=lambda: opener.open(target, timeout=5).read(),
+            daemon=True,
+        ).start()
         return True
 
     monkeypatch.setattr(webbrowser, "open", open_url)
+    # If the callback thread fails, pytest reports its exception; this keeps the
+    # test from first sitting out the real five-minute login deadline.
+    monkeypatch.setattr(login_module, "LOGIN_TIMEOUT_SECONDS", 10)
     return opened
 
 

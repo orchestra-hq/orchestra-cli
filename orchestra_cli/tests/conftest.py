@@ -21,4 +21,5 @@ def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]
 def isolated_home(monkeypatch, tmp_path):
     # Keeps tests off the developer's real ~/.orchestra login cache.
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     return tmp_path

@@ -29,6 +29,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`
 
 | Command                              | Description                                                                                 |
 | ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `orchestra login`                    | Log in through your browser so later commands need no API key.                              |
 | `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema.                          |
 | `orchestra pipeline import`          | Register a pipeline YAML (from a git repo) with Orchestra under an alias.                   |
 | `orchestra pipeline get`             | Fetch one pipeline by path, alias, or pipeline ID.                                          |

@@ -57,7 +57,9 @@ def test_refreshes_expiring_token_and_stores_rotated_refresh_token(httpx_mock: H
     assert form["refresh_token"] == ["rt-old"]
     cached = load_credentials()
     assert cached is not None
+    assert cached["access_token"] == "at-new"
     assert cached["refresh_token"] == "rt-new"
+    assert require_api_key() == "at-new"
 
 
 def test_rejected_refresh_asks_user_to_log_in_again(httpx_mock: HTTPXMock, capsys):

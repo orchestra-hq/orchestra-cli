@@ -55,9 +55,11 @@ def _refresh(credentials: dict) -> dict:
         },
         timeout=30,
     )
-    # RFC 6749 §5.2: a refresh token that is no longer valid is a 400 invalid_grant.
-    if response.status_code == 400:
+    # A client error (invalid_grant, or a registration that has since expired) means
+    # the cached login is unusable; a fresh one is the only fix.
+    if 400 <= response.status_code < 500:
         typer.echo(red("Your Orchestra login has expired. Run `orchestra login` again."))
+        echo_response_error_body(response)
         raise typer.Exit(code=1)
     if response.status_code != 200:
         raise fail_with_response("Token refresh", response)
