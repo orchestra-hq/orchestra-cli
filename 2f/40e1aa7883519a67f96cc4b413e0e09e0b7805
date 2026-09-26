@@ -1,0 +1,26 @@
+orchestra_cli/src/login.py
+  s_f8f433a4232616::t_90680370f06a11 38
+orchestra_cli/tests/utils/test_api.py
+  s_f8f433a4232616::t_90680370f06a11 4,97-116
+orchestra_cli/utils/credentials.py
+  s_f8f433a4232616::t_90680370f06a11 34-35,39
+  s_f8f433a4232616::t_0db6dd4966371f 9,36
+orchestra_cli/utils/api.py
+  s_f8f433a4232616::t_90680370f06a11 56-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f40e1aa7883519a67f96cc4b413e0e09e0b7805",
+  "prompts": {},
+  "sessions": {
+    "s_f8f433a4232616": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9633ad4d-86e4-43aa-8a78-074546209854",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
