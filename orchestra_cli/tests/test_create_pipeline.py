@@ -249,3 +249,15 @@ def test_create_success_with_invalid_json_fails(tmp_path: Path, httpx_mock: HTTP
     result = runner.invoke(app, ["pipeline", "new", "--alias", "demo", "--path", str(yaml_file)])
     assert result.exit_code == 1
     assert "success response was not valid JSON" in result.output
+
+
+def test_create_rejects_unsupported_extension(tmp_path: Path):
+    pipeline_file = tmp_path / "pipe.json"
+    pipeline_file.write_text('{"name": "demo"}')
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "new", "--alias", "demo", "--path", str(pipeline_file)],
+    )
+    assert result.exit_code == 1
+    assert "Unsupported file extension '.json'" in result.output

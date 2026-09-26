@@ -9,9 +9,7 @@ import yaml
 from ..utils.api import request_or_exit
 from ..utils.constants import get_api_url
 from ..utils.styling import bold, green, indent_message, red, yellow
-from ..utils.yaml_loader import load_yaml
-
-SUPPORTED_EXTENSIONS = (".yaml", ".yml", ".oml")
+from ..utils.yaml_loader import echo_invalid_yaml, exit_if_unsupported_extension, load_yaml
 
 
 def get_yaml_snippet(data: Any, loc: list[Any]) -> dict[str, Any] | None:
@@ -51,14 +49,7 @@ def validate(
         typer.echo(red(f"File not found: {file}"))
         raise typer.Exit(code=1)
 
-    if file.suffix.lower() not in SUPPORTED_EXTENSIONS:
-        typer.echo(
-            red(
-                f"Unsupported file extension '{file.suffix}': "
-                f"expected one of {', '.join(SUPPORTED_EXTENSIONS)}",
-            ),
-        )
-        raise typer.Exit(code=1)
+    exit_if_unsupported_extension(file)
 
     data, err = load_yaml(file)
     if err is not None:
@@ -73,14 +64,7 @@ def validate(
                 _render_validation_details(details, data)
                 raise typer.Exit(code=1)
 
-        typer.echo(red(f"Invalid YAML: {err}"))
-        if file.suffix.lower() == ".oml":
-            typer.echo(
-                yellow(
-                    ".oml files are read as YAML, so OML block terminators (`.`) "
-                    "and embeds (`%sql ... %%`) are not supported yet.",
-                ),
-            )
+        echo_invalid_yaml(file, err)
         raise typer.Exit(code=1)
 
     response = request_or_exit(httpx.post, get_api_url("pipelines/schema"), json=data, timeout=10)

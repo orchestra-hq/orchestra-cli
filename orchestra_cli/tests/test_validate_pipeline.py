@@ -118,7 +118,7 @@ def test_validate_oml_only_syntax_explains_limitation(tmp_path):
 
     assert result.exit_code == 1
     assert "Invalid YAML" in result.output
-    assert "embeds (`%sql ... %%`) are not supported yet" in result.output
+    assert "embeds (`%sql ... %%`), those are not supported yet" in result.output
 
 
 def test_validate_rejects_unsupported_extension(tmp_path):

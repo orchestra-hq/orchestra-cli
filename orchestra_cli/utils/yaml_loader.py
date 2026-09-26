@@ -16,6 +16,8 @@ import yaml
 from .constants import get_api_url
 from .styling import indent_message, red, yellow
 
+SUPPORTED_EXTENSIONS = (".yaml", ".yml", ".oml")
+
 
 class DuplicateKeyYAMLError(Exception):
     def __init__(self, details: list[dict[str, Any]], parsed_data: dict[str, Any] | None = None):
@@ -67,6 +69,28 @@ class DuplicateKeySafeLoader(yaml.SafeLoader):
         return mapping
 
 
+def exit_if_unsupported_extension(path: Path) -> None:
+    if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        typer.echo(
+            red(
+                f"Unsupported file extension '{path.suffix}': "
+                f"expected one of {', '.join(SUPPORTED_EXTENSIONS)}",
+            ),
+        )
+        raise typer.Exit(code=1)
+
+
+def echo_invalid_yaml(path: Path, err: str) -> None:
+    typer.echo(red(f"Invalid YAML: {err}"))
+    if path.suffix.lower() == ".oml":
+        typer.echo(
+            yellow(
+                ".oml files are read as YAML. If this file uses OML block terminators (`.`) "
+                "or embeds (`%sql ... %%`), those are not supported yet.",
+            ),
+        )
+
+
 def load_yaml(file: Path) -> tuple[dict | None, str | None]:
     """Read a YAML file and return ``(data, None)`` or ``(None, error_message)``."""
     try:
@@ -109,9 +133,11 @@ def load_validated_pipeline_data(path: Path) -> dict:
         typer.echo(red(f"File not found: {path}"))
         raise typer.Exit(code=1)
 
+    exit_if_unsupported_extension(path)
+
     data, err = load_yaml(path)
     if err is not None:
-        typer.echo(red(f"Invalid YAML: {err}"))
+        echo_invalid_yaml(path, err)
         raise typer.Exit(code=1)
 
     ok, err_msg = validate_yaml_with_api(data or {})

@@ -39,9 +39,11 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 
 **`yaml_loader.py`** — YAML loading + schema validation:
 
+- `exit_if_unsupported_extension(path)` — exits unless the file ends in `.yaml`, `.yml` or `.oml`.
+- `echo_invalid_yaml(path, err)` — prints the `Invalid YAML` error, plus a hint about unsupported OML syntax for `.oml` files.
 - `load_yaml(path)` — returns `(data, None)` on success or `(None, error_message)`.
 - `validate_yaml_with_api(data)` — POSTs to the `schema` endpoint; returns `(ok, err_message)`.
-- `load_validated_pipeline_data(path)` — convenience wrapper that loads, validates, and exits cleanly on any failure. Used by every command that takes a `--path` to a YAML file.
+- `load_validated_pipeline_data(path)` — convenience wrapper that checks the extension, loads, validates, and exits cleanly on any failure. Used by every command that takes a `--path` to a YAML file.
 
 ---
 
