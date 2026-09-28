@@ -41,6 +41,8 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`
 | `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
 | `orchestra task logs`                | Fetch or follow logs for a single task run.                                                 |
 
+Commands that read a local pipeline file (`pipeline validate`, `import`, `new`, `update`, `build`, and `run --path` with `--task`) accept `.yaml`, `.yml` and `.oml` files; any other extension is rejected. `.oml` files are read as YAML, so only OML written in YAML or JSON syntax is supported. OML block terminators (`.`) and embeds (`%sql ... %%`) fail with an `Invalid YAML` error.
+
 Use `orchestra --help`, `orchestra <noun> --help`, or `orchestra <noun> <verb> --help` for built-in help.
 
 ### Legacy command names
@@ -63,7 +65,7 @@ New code and documentation should prefer the noun/verb form.
 
 ## pipeline validate
 
-Validate a YAML file against the Orchestra API schema.
+Validate a pipeline file against the Orchestra API schema.
 
 ```bash
 orchestra pipeline validate path/to/pipeline.yaml
@@ -73,7 +75,7 @@ orchestra-cli pipeline validate path/to/pipeline.yaml
 
 Options
 
-- `file` (positional): Path to the YAML file to validate.
+- `file` (positional): Path to the `.yaml`, `.yml` or `.oml` file to validate.
 
 Behavior
 
