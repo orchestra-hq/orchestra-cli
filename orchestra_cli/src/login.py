@@ -4,6 +4,7 @@ import secrets
 import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from importlib.resources import files
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
@@ -35,7 +36,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
-        self.wfile.write(b"<p>Return to your terminal to finish logging in to Orchestra.</p>")
+        self.wfile.write(files(__package__).joinpath("login_page.html").read_bytes())
 
     def log_message(self, format, *args):  # noqa: ARG002
         pass
