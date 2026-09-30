@@ -49,16 +49,23 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-def _wait_for_callback(server: HTTPServer) -> dict[str, str]:
-    _CallbackHandler.params = None
+def _wait_for_callback(server: HTTPServer, state: str) -> dict[str, str]:
+    """Wait for the redirect carrying this login's ``state``.
+
+    Any other request to the callback (a prefetch, a stale tab, another local
+    process) is ignored rather than ending the login.
+    """
     deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
     server.timeout = 1
-    while _CallbackHandler.params is None:
+    while True:
+        _CallbackHandler.params = None
         if time.monotonic() > deadline:
             typer.echo(red("Timed out waiting for the browser to complete login"))
             raise typer.Exit(code=1)
         server.handle_request()
-    return _CallbackHandler.params
+        params = _CallbackHandler.params
+        if params is not None and params.get("state") == state:
+            return params
 
 
 def login():
@@ -120,11 +127,8 @@ def login():
         typer.echo(yellow("Opening your browser to log in. If it does not open, visit:"))
         typer.echo(authorize_url)
         webbrowser.open(authorize_url)
-        params = _wait_for_callback(server)
+        params = _wait_for_callback(server, state)
 
-    if params.get("state") != state:
-        typer.echo(red("Login failed: the browser response did not match this login attempt"))
-        raise typer.Exit(code=1)
     if "error" in params:
         detail = params.get("error_description", params["error"])
         typer.echo(red(f"Login failed: {detail}"))
@@ -144,10 +148,14 @@ def login():
     )
     if response.status_code != 200:
         raise fail_with_response("Token exchange", response)
+    token = response.json()
+    if "refresh_token" not in token:
+        typer.echo(red("Login failed: no refresh token was granted, so the login cannot be kept"))
+        raise typer.Exit(code=1)
 
     save_credentials(
         token_response_to_credentials(
-            response.json(),
+            token,
             {"client_id": client_id, "token_endpoint": metadata["token_endpoint"]},
         ),
     )

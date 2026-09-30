@@ -30,11 +30,31 @@ def cache_login(expires_at: float):
     )
 
 
-def test_api_key_wins_over_cached_login(monkeypatch):
+def test_login_wins_over_api_key(monkeypatch):
     cache_login(time.time() + 900)
     monkeypatch.setenv("ORCHESTRA_API_KEY", "account-key")
 
+    assert require_api_key() == "at-old"
+
+
+def test_api_key_is_used_when_not_logged_in(monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_API_KEY", "account-key")
+
     assert require_api_key() == "account-key"
+
+
+def test_expired_login_falls_back_to_api_key(httpx_mock: HTTPXMock, monkeypatch, capsys):
+    cache_login(time.time() - 1)
+    monkeypatch.setenv("ORCHESTRA_API_KEY", "account-key")
+    httpx_mock.add_response(
+        method="POST",
+        url=TOKEN_ENDPOINT,
+        status_code=400,
+        json={"error": "invalid_grant"},
+    )
+
+    assert require_api_key() == "account-key"
+    assert "using ORCHESTRA_API_KEY" in capsys.readouterr().out
 
 
 def test_uses_cached_token_while_fresh():
@@ -114,3 +134,23 @@ def test_rejected_refresh_uses_token_another_process_just_rotated_in(httpx_mock:
     httpx_mock.add_callback(other_process_refreshes_first, method="POST", url=TOKEN_ENDPOINT)
 
     assert require_api_key() == "at-other"
+
+
+@pytest.mark.parametrize("failure", ["network", "server"])
+def test_refresh_outage_keeps_token_that_has_not_lapsed(httpx_mock: HTTPXMock, failure):
+    cache_login(time.time() + 30)
+    if failure == "network":
+        httpx_mock.add_exception(httpx.ConnectError("unreachable"), url=TOKEN_ENDPOINT)
+    else:
+        httpx_mock.add_response(method="POST", url=TOKEN_ENDPOINT, status_code=503)
+
+    assert require_api_key() == "at-old"
+
+
+def test_refresh_network_error_on_lapsed_token_exits(httpx_mock: HTTPXMock, capsys):
+    cache_login(time.time() - 1)
+    httpx_mock.add_exception(httpx.ConnectError("unreachable"), url=TOKEN_ENDPOINT)
+
+    with pytest.raises(typer.Exit):
+        require_api_key()
+    assert "HTTP request failed" in capsys.readouterr().out

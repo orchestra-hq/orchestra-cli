@@ -42,7 +42,11 @@ def mock_authorization_server(httpx_mock: HTTPXMock):
 
 
 def fake_browser(monkeypatch, callback_params):
-    """Replace the browser with one that hits the loopback redirect, as consent would."""
+    """Replace the browser with one that hits the loopback redirect, as consent would.
+
+    ``callback_params`` returns the query for the redirect, or a list of queries to
+    send one after another.
+    """
     opened = {}
     # No proxy: a loopback request routed through one would never reach the CLI.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -50,12 +54,17 @@ def fake_browser(monkeypatch, callback_params):
     def open_url(url):
         query = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
         opened.update(query)
-        target = f"{query['redirect_uri']}?{urlencode(callback_params(query))}"
+        calls = callback_params(query)
+        targets = [
+            f"{query['redirect_uri']}?{urlencode(params)}"
+            for params in (calls if isinstance(calls, list) else [calls])
+        ]
 
-        threading.Thread(
-            target=lambda: opener.open(target, timeout=5).read(),
-            daemon=True,
-        ).start()
+        def hit_callbacks():
+            for target in targets:
+                opener.open(target, timeout=5).read()
+
+        threading.Thread(target=hit_callbacks, daemon=True).start()
         return True
 
     monkeypatch.setattr(webbrowser, "open", open_url)
@@ -102,14 +111,45 @@ def test_login_completes_pkce_flow_and_caches_token(
     assert cached["client_id"] == "cli-client"
 
 
-def test_login_rejects_mismatched_state(httpx_mock: HTTPXMock, monkeypatch, isolated_home):
+def test_login_ignores_callback_with_foreign_state(httpx_mock: HTTPXMock, monkeypatch):
     mock_authorization_server(httpx_mock)
-    fake_browser(monkeypatch, lambda _: {"code": "auth-code", "state": "forged"})
+    httpx_mock.add_response(
+        method="POST",
+        url=TOKEN_ENDPOINT,
+        json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 900},
+    )
+    fake_browser(
+        monkeypatch,
+        lambda q: [
+            {"code": "forged-code", "state": "forged"},
+            {"code": "auth-code", "state": q["state"]},
+        ],
+    )
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    form = parse_qs(httpx_mock.get_requests(url=TOKEN_ENDPOINT)[0].content.decode())
+    assert form["code"] == ["auth-code"]
+
+
+def test_login_without_refresh_token_fails_cleanly(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    isolated_home,
+):
+    mock_authorization_server(httpx_mock)
+    httpx_mock.add_response(
+        method="POST",
+        url=TOKEN_ENDPOINT,
+        json={"access_token": "at-1", "expires_in": 900},
+    )
+    fake_browser(monkeypatch, lambda q: {"code": "auth-code", "state": q["state"]})
 
     result = runner.invoke(app, ["login"])
 
     assert result.exit_code == 1
-    assert "did not match" in result.output
+    assert "no refresh token was granted" in result.output
     assert not (isolated_home / ".orchestra" / "credentials.json").exists()
 
 

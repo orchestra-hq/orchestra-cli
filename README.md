@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Credential for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`). Optional if you have run `orchestra login`; when set, it takes precedence over the login.
+- `ORCHESTRA_API_KEY`: Credential for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`). Not needed once you have run `orchestra login`: a login takes precedence, and the key is used only when you are not logged in or your login has expired.
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -105,7 +105,7 @@ Log in through your browser instead of pasting an API key. The token is cached i
 orchestra login
 ```
 
-Logins are per host: a login made with `BASE_URL` pointing at another environment is only used against that environment. CI and scripts should keep using `ORCHESTRA_API_KEY`.
+Logins are per host: a login made with `BASE_URL` pointing at another environment is only used against that environment. CI and scripts, where nobody is logged in, keep using `ORCHESTRA_API_KEY`.
 
 ---
 

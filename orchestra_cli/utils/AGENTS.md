@@ -31,7 +31,7 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 
 **`api.py`** — Shared HTTP/auth helpers. Every command should call into these instead of constructing headers, try/except blocks, or error rendering by hand:
 
-- `require_api_key()` — returns the bearer credential: `ORCHESTRA_API_KEY` if set, otherwise the cached `orchestra login` token (refreshed when near expiry). Exits with code 1 if neither is available.
+- `require_api_key()` — returns the bearer credential: the cached `orchestra login` token (refreshed when near expiry) if there is a usable one, otherwise `ORCHESTRA_API_KEY`. Exits with code 1 if neither is available.
 - `auth_headers(api_key)` — returns `{"Authorization": f"Bearer {api_key}"}`.
 - `request_or_exit(httpx_func, *args, **kwargs)` — invokes an `httpx` callable (e.g. `httpx.post`, `httpx.delete`) and on any transport exception echoes `"HTTP request failed: <msg>"` in red and exits with code 1.
 - `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
