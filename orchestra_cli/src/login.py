@@ -18,7 +18,6 @@ from ..utils.styling import green, red, yellow
 SCOPES = "orchestra:read orchestra:write offline_access"
 CALLBACK_PATH = "/callback"
 LOGIN_TIMEOUT_SECONDS = 300
-REQUIRED_METADATA = ("authorization_endpoint", "token_endpoint", "registration_endpoint")
 
 
 class _CallbackHandler(BaseHTTPRequestHandler):
@@ -80,7 +79,8 @@ def login():
         metadata = response.json()
     except ValueError:
         metadata = None
-    if not isinstance(metadata, dict) or not all(k in metadata for k in REQUIRED_METADATA):
+    required = ("authorization_endpoint", "token_endpoint", "registration_endpoint")
+    if not isinstance(metadata, dict) or not all(k in metadata for k in required):
         typer.echo(red(f"{base_url} does not support `orchestra login`"))
         raise typer.Exit(code=1)
 

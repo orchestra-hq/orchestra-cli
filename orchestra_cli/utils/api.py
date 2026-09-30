@@ -73,13 +73,12 @@ def _refresh(credentials: dict) -> dict:
 def token_response_to_credentials(token: dict, previous: dict) -> dict:
     """Merge a ``/token`` response over the previous credentials.
 
-    Refresh tokens rotate, so the response's one replaces the old; if the server
-    ever omits it, the old one is kept rather than lost.
+    Refresh tokens rotate, so every response carries a new one that replaces the old.
     """
     return {
         **previous,
         "access_token": token["access_token"],
-        "refresh_token": token.get("refresh_token", previous.get("refresh_token")),
+        "refresh_token": token["refresh_token"],
         "expires_at": time.time() + token["expires_in"],
     }
 
