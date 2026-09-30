@@ -37,7 +37,7 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 - `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
 - `fail_with_response(action, response)` — echoes `"❌ <action> failed with status <code>"` followed by `echo_response_error_body(response)` and exits with code 1. Use this for any non-success path of an HTTP call.
 
-**`credentials.py`** — the `orchestra login` token cache at `~/.orchestra/credentials.json`, keyed by host (`get_base_url()`). `load_credentials()` / `save_credentials(dict)`; writes are mode `0600`. Tests get an isolated `HOME` from an autouse fixture in `conftest.py`.
+**`credentials.py`** — the `orchestra login` token cache at `~/.orchestra/credentials.json`, keyed by host (`get_base_url()`). `load_credentials()` / `save_credentials(dict)` / `clear_credentials()`; writes are atomic and mode `0600`. Tests get an isolated `HOME` from an autouse fixture in `conftest.py`.
 
 **`yaml_loader.py`** — YAML loading + schema validation:
 

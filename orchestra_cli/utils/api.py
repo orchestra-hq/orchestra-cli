@@ -14,7 +14,7 @@ from collections.abc import Callable
 import httpx
 import typer
 
-from .credentials import load_credentials, save_credentials
+from .credentials import clear_credentials, load_credentials, save_credentials
 from .styling import indent_message, red, yellow
 
 # Refresh this long before expiry so a token cannot lapse mid-request.
@@ -36,7 +36,11 @@ def require_api_key() -> str:
     api_key = os.getenv("ORCHESTRA_API_KEY")
     if api_key:
         if logged_in:
-            typer.echo(yellow("Your Orchestra login has expired; using ORCHESTRA_API_KEY."))
+            # stderr, so output piped from a command that otherwise succeeds stays clean.
+            typer.echo(
+                yellow("Your Orchestra login has expired; using ORCHESTRA_API_KEY."),
+                err=True,
+            )
         return api_key
     if logged_in:
         typer.echo(red("Your Orchestra login has expired. Run `orchestra login` again."))
@@ -72,10 +76,12 @@ def _refresh(credentials: dict) -> dict | None:
     if 400 <= response.status_code < 500:
         # Another CLI process may have refreshed first, rotating the refresh token
         # this one sent; its saved result is then still good. Otherwise the login
-        # itself is unusable (invalid_grant, or a registration that has since expired).
+        # itself is unusable (invalid_grant, or a registration that has since expired)
+        # and is forgotten, so later calls don't retry a refresh that cannot succeed.
         latest = load_credentials()
         if latest and latest["refresh_token"] != credentials["refresh_token"]:
             return latest
+        clear_credentials()
         return None
     if response.status_code != 200:
         if still_valid:

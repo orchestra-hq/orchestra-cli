@@ -54,7 +54,14 @@ def test_expired_login_falls_back_to_api_key(httpx_mock: HTTPXMock, monkeypatch,
     )
 
     assert require_api_key() == "account-key"
-    assert "using ORCHESTRA_API_KEY" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "using ORCHESTRA_API_KEY" in captured.err
+    assert captured.out == ""
+
+    # The dead login is forgotten: no second refresh attempt, no repeated warning.
+    assert require_api_key() == "account-key"
+    assert capsys.readouterr().err == ""
+    assert load_credentials() is None
 
 
 def test_uses_cached_token_while_fresh():
@@ -154,3 +161,12 @@ def test_refresh_network_error_on_lapsed_token_exits(httpx_mock: HTTPXMock, caps
     with pytest.raises(typer.Exit):
         require_api_key()
     assert "HTTP request failed" in capsys.readouterr().out
+
+
+def test_non_object_cache_is_treated_as_not_logged_in(monkeypatch, isolated_home):
+    path = isolated_home / ".orchestra" / "credentials.json"
+    path.parent.mkdir()
+    path.write_text("[]")
+    monkeypatch.setenv("ORCHESTRA_API_KEY", "account-key")
+
+    assert require_api_key() == "account-key"

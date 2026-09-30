@@ -18,9 +18,10 @@ def credentials_path() -> Path:
 
 def _read_all() -> dict:
     try:
-        return json.loads(credentials_path().read_text())
+        everything = json.loads(credentials_path().read_text())
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
+    return everything if isinstance(everything, dict) else {}
 
 
 def load_credentials() -> dict | None:
@@ -28,7 +29,16 @@ def load_credentials() -> dict | None:
 
 
 def save_credentials(credentials: dict) -> None:
-    everything = {**_read_all(), get_base_url(): credentials}
+    _write_all({**_read_all(), get_base_url(): credentials})
+
+
+def clear_credentials() -> None:
+    everything = _read_all()
+    everything.pop(get_base_url(), None)
+    _write_all(everything)
+
+
+def _write_all(everything: dict) -> None:
     path = credentials_path()
     path.parent.mkdir(mode=0o700, exist_ok=True)
     # Written to a fresh 0600 file and swapped in, so a concurrent reader never sees a
