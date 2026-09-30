@@ -18,6 +18,7 @@ from ..utils.styling import green, red, yellow
 SCOPES = "orchestra:read orchestra:write offline_access"
 CALLBACK_PATH = "/callback"
 LOGIN_TIMEOUT_SECONDS = 300
+REQUIRED_METADATA = ("authorization_endpoint", "token_endpoint", "registration_endpoint")
 
 
 class _CallbackHandler(BaseHTTPRequestHandler):
@@ -73,7 +74,15 @@ def login():
     )
     if response.status_code != 200:
         raise fail_with_response("Discovery", response)
-    metadata = response.json()
+    # The web app answers unknown paths with a 200 HTML page, so a host without an
+    # authorization server behind it still reaches this point.
+    try:
+        metadata = response.json()
+    except ValueError:
+        metadata = None
+    if not isinstance(metadata, dict) or not all(k in metadata for k in REQUIRED_METADATA):
+        typer.echo(red(f"{base_url} does not support `orchestra login`"))
+        raise typer.Exit(code=1)
 
     with HTTPServer(("127.0.0.1", 0), _CallbackHandler) as server:
         redirect_uri = f"http://127.0.0.1:{server.server_port}{CALLBACK_PATH}"

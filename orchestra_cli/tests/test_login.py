@@ -124,3 +124,17 @@ def test_login_reports_denied_consent(httpx_mock: HTTPXMock, monkeypatch):
 
     assert result.exit_code == 1
     assert "Login failed: denied" in result.output
+
+
+def test_login_explains_host_without_authorization_server(httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        method="GET",
+        url=f"{BASE}/.well-known/oauth-authorization-server",
+        text="<!doctype html><html></html>",
+        headers={"Content-Type": "text/html"},
+    )
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 1
+    assert "does not support `orchestra login`" in result.output
