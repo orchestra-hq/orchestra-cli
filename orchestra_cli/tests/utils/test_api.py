@@ -1,4 +1,5 @@
 import time
+from types import SimpleNamespace
 from urllib.parse import parse_qs
 
 import httpx
@@ -6,6 +7,7 @@ import pytest
 import typer
 from pytest_httpx import HTTPXMock
 
+import orchestra_cli.utils.api as api_module
 from orchestra_cli.utils.api import require_api_key
 from orchestra_cli.utils.credentials import load_credentials, save_credentials
 
@@ -170,3 +172,23 @@ def test_non_object_cache_is_treated_as_not_logged_in(monkeypatch, isolated_home
     monkeypatch.setenv("ORCHESTRA_API_KEY", "account-key")
 
     assert require_api_key() == "account-key"
+
+
+def test_token_that_lapses_during_a_failed_refresh_is_not_returned(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    capsys,
+):
+    clock = [time.time()]
+    monkeypatch.setattr(api_module, "time", SimpleNamespace(time=lambda: clock[0]))
+    cache_login(clock[0] + 30)
+
+    def slow_timeout(_request):
+        clock[0] += 31  # the token lapses while the request hangs
+        raise httpx.ReadTimeout("timed out")
+
+    httpx_mock.add_callback(slow_timeout, method="POST", url=TOKEN_ENDPOINT)
+
+    with pytest.raises(typer.Exit):
+        require_api_key()
+    assert "HTTP request failed" in capsys.readouterr().out

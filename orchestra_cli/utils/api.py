@@ -57,7 +57,6 @@ def _refresh(credentials: dict) -> dict | None:
     the current token still works: it is kept and the next call retries. Only a
     token that has actually lapsed makes that fatal.
     """
-    still_valid = credentials["expires_at"] > time.time()
     try:
         response = httpx.post(
             credentials["token_endpoint"],
@@ -69,7 +68,8 @@ def _refresh(credentials: dict) -> dict | None:
             timeout=30,
         )
     except httpx.HTTPError as e:
-        if still_valid:
+        # Checked after the request, which can itself outlast the token.
+        if credentials["expires_at"] > time.time():
             return credentials
         typer.echo(red(f"HTTP request failed: {e}"))
         raise typer.Exit(code=1)
@@ -84,7 +84,7 @@ def _refresh(credentials: dict) -> dict | None:
         clear_credentials()
         return None
     if response.status_code != 200:
-        if still_valid:
+        if credentials["expires_at"] > time.time():
             return credentials
         raise fail_with_response("Token refresh", response)
     refreshed = token_response_to_credentials(response.json(), credentials)
