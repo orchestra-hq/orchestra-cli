@@ -8,7 +8,7 @@ from ..utils.api import (
     auth_headers,
     fail_with_response,
     request_or_exit,
-    require_api_key,
+    require_credential,
 )
 from ..utils.constants import get_api_url
 from ..utils.git import (
@@ -43,7 +43,7 @@ def import_pipeline(
     """
     Create a pipeline in Orchestra by referencing a YAML file in your git repository.
     """
-    api_key = require_api_key()
+    require_credential()
     if path is None:
         typer.echo(red("Provide --path to import a pipeline from git"))
         raise typer.Exit(code=1)
@@ -102,7 +102,7 @@ def import_pipeline(
         get_api_url("pipelines/import"),
         json=payload,
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
 
     if response.status_code == 201:

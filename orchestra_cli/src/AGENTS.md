@@ -36,10 +36,10 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 
 **Error handling:** All commands use `typer.Exit(code=1)` for failures — no exceptions propagate to the user. Use the helpers in `orchestra_cli/utils/api.py` for the common patterns rather than rolling your own:
 
-- `require_api_key()` — resolves the cached `orchestra login` token, falling back to `ORCHESTRA_API_KEY`, or exits.
+- `require_credential()` — resolves the cached `orchestra login` token, falling back to `ORCHESTRA_API_KEY`, or exits.
 - `request_or_exit(httpx.<method>, url, ...)` — wraps the request in a uniform transport-error handler.
 - `fail_with_response("Action", response)` — uniform `❌ Action failed with status <code>` output for non-success HTTP responses.
-- `auth_headers(api_key)` — builds the `Authorization` header.
+- `auth_headers()` — builds the `Authorization` header, resolving the credential afresh. Call it per request; never hold a credential or headers across requests, since a login token can expire mid-command.
 
 **YAML loading:** Commands that take a `--path` to a pipeline YAML should use `load_validated_pipeline_data(path)` from `orchestra_cli/utils/yaml_loader.py` — it loads, schema-validates against the API, and exits cleanly on any failure.
 
@@ -56,7 +56,7 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 **Import style:** Use relative imports within `src/`:
 
 ```python
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
+from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
 from ..utils.constants import get_api_url
 from ..utils.styling import red, green
 from ..utils.git import detect_repo_root

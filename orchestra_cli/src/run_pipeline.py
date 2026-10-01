@@ -12,7 +12,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
+from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
 from ..utils.constants import get_api_url, get_base_url
 from ..utils.git import GitAction, confirm_git_warnings_or_exit, prepare_git_backed_run_target
 from ..utils.pipeline_lookup import lookup_existing_pipeline
@@ -149,7 +149,6 @@ def _parse_pipeline_data_text(yaml_text: str) -> dict[str, object]:
 def _load_pipeline_data_for_task_resolution(
     path: Path | None,
     selector: PipelineSelector,
-    api_key: str,
 ) -> tuple[dict[str, object], str]:
     if path is not None:
         return load_validated_pipeline_data(path), f"YAML at {path}"
@@ -159,7 +158,7 @@ def _load_pipeline_data_for_task_resolution(
         get_api_url("pipeline/data"),
         params=selector.to_payload(),
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
     if response.status_code != 200:
         raise fail_with_response("Run", response)
@@ -222,7 +221,6 @@ def _parse_task_runs_response(response: httpx.Response) -> list[dict[str, object
 
 
 def _poll_all_task_runs(pipeline_run_id: str) -> list[dict[str, object]]:
-    headers = auth_headers(require_api_key())
     task_runs: list[dict[str, object]] = []
     page = 1
     while True:
@@ -231,7 +229,7 @@ def _poll_all_task_runs(pipeline_run_id: str) -> list[dict[str, object]]:
             get_api_url(f"pipeline_runs/{pipeline_run_id}/task_runs"),
             params={"page_size": 50, "page": page},
             timeout=30,
-            headers=headers,
+            headers=auth_headers(),
         )
         if not (200 <= response.status_code < 300):
             typer.echo(red(f"❌ Task run polling failed with HTTP {response.status_code}"))
@@ -502,7 +500,7 @@ def _poll_until_terminal(
                 can_fetch_task_runs=can_fetch_task_runs,
             )
             # Outside the try: its typer.Exit on a failed refresh must end the loop.
-            headers = auth_headers(require_api_key())
+            headers = auth_headers()
             try:
                 status_resp = httpx.get(status_url, headers=headers, timeout=30)
             except Exception as exc:
@@ -645,7 +643,6 @@ def _resolve_start_path(
 
 def start_pipeline_run(
     selector: PipelineSelector,
-    api_key: str,
     payload: dict[str, Any] | None,
     wait: bool,
     failure_action: str,
@@ -660,7 +657,7 @@ def start_pipeline_run(
         get_api_url(start_path),
         json=payload if payload is not None else None,
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
 
     if 200 <= response.status_code < 300:
@@ -766,7 +763,7 @@ def run_pipeline(
     Run a pipeline in Orchestra.
     """
     _validate_run_selector_inputs(path, alias, pipeline_id)
-    api_key = require_api_key()
+    require_credential()
     if continue_downstream_run and not task:
         typer.echo(red("❌ --continue can only be used when --task/-t is provided"))
         raise typer.Exit(code=1)
@@ -777,7 +774,6 @@ def run_pipeline(
         pipeline_data, task_source_description = _load_pipeline_data_for_task_resolution(
             path,
             selector,
-            api_key,
         )
         task_ids = _resolve_task_ids(task, pipeline_data, task_source_description)
     environment = _resolve_environment_value(environment_id, environment_name)
@@ -796,7 +792,7 @@ def run_pipeline(
     existing_pipeline: dict[str, object] | None = None
     should_prepare_git_backed_target = False
     if path is not None:
-        existing_pipeline = lookup_existing_pipeline(selector, api_key, "Run", allow_404=True)
+        existing_pipeline = lookup_existing_pipeline(selector, "Run", allow_404=True)
     if existing_pipeline is not None and path is not None and selector_uses_repository_path:
         provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
         if provider != "ORCHESTRA":
@@ -837,7 +833,6 @@ def run_pipeline(
 
     start_pipeline_run(
         selector=run_selector,
-        api_key=api_key,
         payload=build_run_payload(
             branch=run_branch,
             commit=run_commit,

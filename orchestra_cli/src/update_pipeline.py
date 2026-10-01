@@ -7,7 +7,7 @@ from ..utils.api import (
     auth_headers,
     fail_with_response,
     request_or_exit,
-    require_api_key,
+    require_credential,
 )
 from ..utils.constants import get_update_pipeline_url
 from ..utils.git import GitAction, prepare_git_backed_run_target
@@ -46,13 +46,13 @@ def update_pipeline(
     """
     Update an Orchestra-backed pipeline from a local YAML file.
     """
-    api_key = require_api_key()
+    require_credential()
     if path is None:
         typer.echo(red("Provide --path to update a pipeline from YAML"))
         raise typer.Exit(code=1)
     selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
     data = load_validated_pipeline_data(path)
-    existing_pipeline = lookup_existing_pipeline(selector, api_key, "Update")
+    existing_pipeline = lookup_existing_pipeline(selector, "Update")
     if existing_pipeline is None:
         typer.echo(red("❌ Update failed: pipeline lookup returned no pipeline"))
         raise typer.Exit(code=1)
@@ -82,7 +82,7 @@ def update_pipeline(
         get_update_pipeline_url(),
         json=payload,
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
 
     if response.status_code == 200:
