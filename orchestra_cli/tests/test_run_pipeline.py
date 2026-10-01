@@ -1485,3 +1485,71 @@ def test_run_wait_exits_when_login_refresh_fails_mid_poll(
     assert result.exit_code == 1
     assert "Run `orchestra login` again" in result.output
     assert "Polling request failed" not in result.output
+
+
+def test_run_wait_sends_each_refreshed_login_token(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    import subprocess
+    import time
+
+    from orchestra_cli.utils.credentials import load_credentials
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    monkeypatch.delenv("ORCHESTRA_API_KEY")
+    token_endpoint = "https://app.getorchestra.io/oauth/token"
+    save_credentials(
+        {
+            "client_id": "cli-client",
+            "token_endpoint": token_endpoint,
+            "access_token": "at-0",
+            "refresh_token": "rt-0",
+            "expires_at": time.time() + 900,
+        },
+    )
+
+    def expire_access_token(_seconds: float) -> None:
+        credentials = load_credentials()
+        assert credentials is not None
+        save_credentials({**credentials, "expires_at": 0})
+
+    # Each wait between polls outlasts the current access token.
+    monkeypatch.setattr(time, "sleep", expire_access_token)
+
+    base = "https://app.getorchestra.io/api/engine/public"
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{base}/pipelines/demo/start",
+        match_headers={"Authorization": "Bearer at-0"},
+        json={"pipelineRunId": "run-xyz"},
+    )
+    for token, run_status in (("at-1", "RUNNING"), ("at-2", "SUCCEEDED")):
+        httpx_mock.add_response(
+            method="POST",
+            url=token_endpoint,
+            json={"access_token": token, "refresh_token": f"r{token}", "expires_in": 900},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base}/pipeline_runs/run-xyz/status",
+            match_headers={"Authorization": f"Bearer {token}"},
+            json={"runStatus": run_status, "pipelineName": "demo"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base}/pipeline_runs/run-xyz/task_runs?page_size=50&page=1",
+            match_headers={"Authorization": f"Bearer {token}"},
+            json={"results": []},
+        )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
+
+    assert result.exit_code == 0, result.output
+    assert "Pipeline succeeded" in result.output

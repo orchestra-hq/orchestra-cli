@@ -7,7 +7,7 @@ from ..utils.api import (
     auth_headers,
     fail_with_response,
     request_or_exit,
-    require_api_key,
+    require_credential,
 )
 from ..utils.constants import get_api_url
 from ..utils.styling import indent_message, red, yellow
@@ -19,13 +19,13 @@ def fetch_pipelines():
 
     The API always includes each pipeline's latest run metadata.
     """
-    api_key = require_api_key()
+    require_credential()
 
     response = request_or_exit(
         httpx.get,
         get_api_url("pipelines"),
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
 
     if response.status_code == 200:

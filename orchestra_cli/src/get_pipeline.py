@@ -10,7 +10,7 @@ from ..utils.api import (
     auth_headers,
     fail_with_response,
     request_or_exit,
-    require_api_key,
+    require_credential,
 )
 from ..utils.constants import get_pipeline_url
 from ..utils.pipeline_selector import (
@@ -50,7 +50,7 @@ def get_pipeline(
     """
     Fetch one pipeline using the shared selector model.
     """
-    api_key = require_api_key()
+    require_credential()
     selector = resolve_pipeline_selector(alias, pipeline_id, path)
 
     response = request_or_exit(
@@ -58,7 +58,7 @@ def get_pipeline(
         get_pipeline_url(),
         params=selector.to_payload(),
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
 
     if response.status_code == 200:

@@ -3,7 +3,7 @@ from pathlib import Path
 import httpx
 import typer
 
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
+from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
 from ..utils.constants import get_create_pipeline_url, get_update_pipeline_url
 from ..utils.git import confirm_git_warnings_or_exit, prepare_git_backed_run_target
 from ..utils.pipeline_lookup import lookup_existing_pipeline
@@ -68,7 +68,6 @@ def _create_draft_pipeline(
     lookup_selector: PipelineSelector,
     pipeline_data: dict[str, object],
     force: bool,
-    api_key: str,
 ) -> tuple[PipelineSelector, int]:
     create_selector = _build_create_selector(path, lookup_selector, force)
     payload = build_upsert_payload(pipeline_data, publish=False, selector=create_selector)
@@ -79,7 +78,7 @@ def _create_draft_pipeline(
         get_create_pipeline_url(),
         json=payload,
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
 
     if create_response.status_code == 201:
@@ -98,7 +97,6 @@ def _create_draft_pipeline(
 def _update_draft_pipeline(
     existing_pipeline: dict[str, object],
     pipeline_data: dict[str, object],
-    api_key: str,
 ) -> tuple[PipelineSelector, int]:
     update_selector = build_update_selector(existing_pipeline, "Build")
     payload = build_upsert_payload(pipeline_data, publish=False, selector=update_selector)
@@ -109,7 +107,7 @@ def _update_draft_pipeline(
         get_update_pipeline_url(),
         json=payload,
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
 
     if update_response.status_code == 200:
@@ -145,7 +143,7 @@ def build_pipeline(
     """
     Validate local YAML, create or update a draft pipeline, and start the draft version.
     """
-    api_key = require_api_key()
+    require_credential()
     if path is None:
         typer.echo(
             red("A pipeline YAML file path is required (use -p or --path with your YAML file)"),
@@ -155,7 +153,7 @@ def build_pipeline(
 
     confirm_git_warnings_or_exit(force, path)
     pipeline_data = load_validated_pipeline_data(path)
-    existing_pipeline = lookup_existing_pipeline(lookup_selector, api_key, "Build", allow_404=True)
+    existing_pipeline = lookup_existing_pipeline(lookup_selector, "Build", allow_404=True)
 
     if existing_pipeline is None:
         run_selector, version_number = _create_draft_pipeline(
@@ -163,11 +161,9 @@ def build_pipeline(
             lookup_selector=lookup_selector,
             pipeline_data=pipeline_data,
             force=force,
-            api_key=api_key,
         )
         start_pipeline_run(
             selector=run_selector,
-            api_key=api_key,
             payload=build_run_payload(
                 branch=branch,
                 commit=commit,
@@ -183,12 +179,10 @@ def build_pipeline(
         run_selector, version_number = _update_draft_pipeline(
             existing_pipeline=existing_pipeline,
             pipeline_data=pipeline_data,
-            api_key=api_key,
         )
 
         start_pipeline_run(
             selector=run_selector,
-            api_key=api_key,
             payload=build_run_payload(
                 branch=branch,
                 commit=commit,
@@ -222,7 +216,6 @@ def build_pipeline(
 
     start_pipeline_run(
         selector=run_selector,
-        api_key=api_key,
         payload=build_run_payload(
             branch=git_branch,
             commit=git_commit,

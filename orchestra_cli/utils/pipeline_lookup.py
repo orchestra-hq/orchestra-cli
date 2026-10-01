@@ -34,7 +34,6 @@ def require_pipeline_lookup_body(
 
 def lookup_existing_pipeline(
     selector: PipelineSelector,
-    api_key: str,
     action: str,
     *,
     allow_404: bool = False,
@@ -44,7 +43,7 @@ def lookup_existing_pipeline(
         get_api_url("pipeline"),
         params=selector.to_payload(),
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
     if response.status_code == 404 and allow_404:
         return None

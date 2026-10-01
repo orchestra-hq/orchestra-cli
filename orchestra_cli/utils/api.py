@@ -21,7 +21,7 @@ from .styling import indent_message, red, yellow
 _REFRESH_MARGIN_SECONDS = 60
 
 
-def require_api_key() -> str:
+def require_credential() -> str:
     """Return the bearer credential for API calls, or exit with code 1.
 
     An ``orchestra login`` session wins, refreshed first if it is about to expire;
@@ -105,8 +105,13 @@ def token_response_to_credentials(token: dict, previous: dict) -> dict:
     }
 
 
-def auth_headers(api_key: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {api_key}"}
+def auth_headers() -> dict[str, str]:
+    """Return the ``Authorization`` header for one request.
+
+    Resolved afresh each time so a command running longer than an access token's
+    lifetime keeps working; build headers per request rather than reusing them.
+    """
+    return {"Authorization": f"Bearer {require_credential()}"}
 
 
 def request_or_exit(

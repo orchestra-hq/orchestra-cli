@@ -8,7 +8,7 @@ import click
 import httpx
 import typer
 
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_api_key
+from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
 from ..utils.constants import get_api_url
 from ..utils.styling import bold, indent_message, red, yellow
 
@@ -26,13 +26,13 @@ def _success_json_or_exit(response: httpx.Response, action: str) -> object:
         raise typer.Exit(code=1)
 
 
-def _resolve_pipeline_run_id(task_run_id: str, api_key: str) -> str:
+def _resolve_pipeline_run_id(task_run_id: str) -> str:
     response = request_or_exit(
         httpx.get,
         get_api_url("task_runs"),
         params={"task_run_ids": task_run_id},
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
     if response.status_code != 200:
         raise fail_with_response("Resolve task run", response)
@@ -69,12 +69,12 @@ def _download_log_url(pipeline_run_id: str, task_run_id: str) -> str:
     return f"{_task_logs_url(pipeline_run_id, task_run_id)}/download"
 
 
-def _list_log_filenames(pipeline_run_id: str, task_run_id: str, api_key: str) -> list[str]:
+def _list_log_filenames(pipeline_run_id: str, task_run_id: str) -> list[str]:
     response = request_or_exit(
         httpx.get,
         _task_logs_url(pipeline_run_id, task_run_id),
         timeout=30,
-        headers=auth_headers(api_key),
+        headers=auth_headers(),
     )
     if response.status_code != 200:
         raise fail_with_response("List task logs", response)
@@ -224,8 +224,7 @@ def _watch_log_file(
 
     try:
         while True:
-            # Re-resolved per poll so a long follow outlives an access token's expiry.
-            headers = {**auth_headers(require_api_key()), "Range": f"bytes={offset}-"}
+            headers = {**auth_headers(), "Range": f"bytes={offset}-"}
             response = request_or_exit(
                 httpx.get,
                 _download_log_url(pipeline_run_id, task_run_id),
@@ -292,12 +291,12 @@ def task_logs(
     """
     Fetch logs for a single Orchestra task run.
     """
-    api_key = require_api_key()
-    pipeline_run_id = _resolve_pipeline_run_id(task_run_id, api_key)
+    require_credential()
+    pipeline_run_id = _resolve_pipeline_run_id(task_run_id)
     selected_filename = filename
     if not selected_filename:
         selected_filename = _select_filename(
-            _list_log_filenames(pipeline_run_id, task_run_id, api_key),
+            _list_log_filenames(pipeline_run_id, task_run_id),
         )
 
     _watch_log_file(
