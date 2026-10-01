@@ -20,7 +20,7 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Required for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`).
+- `ORCHESTRA_API_KEY`: Credential for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`). Not needed once you have run `orchestra login`: a login takes precedence, and the key is used only when you are not logged in or your login has expired.
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -29,6 +29,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`
 
 | Command                              | Description                                                                                 |
 | ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `orchestra login`                    | Log in through your browser so later commands need no API key.                              |
 | `orchestra pipeline validate <file>` | Validate a pipeline YAML locally against the Orchestra API schema.                          |
 | `orchestra pipeline import`          | Register a pipeline YAML (from a git repo) with Orchestra under an alias.                   |
 | `orchestra pipeline get`             | Fetch one pipeline by path, alias, or pipeline ID.                                          |
@@ -95,6 +96,18 @@ pipeline:
   tasks:
     - type: foo
 ```
+
+---
+
+## login
+
+Log in through your browser instead of pasting an API key. The token is cached in `~/.orchestra/credentials.json` (readable only by you) and refreshed automatically, so later commands need no `ORCHESTRA_API_KEY`.
+
+```bash
+orchestra login
+```
+
+Logins are per host: a login made with `BASE_URL` pointing at another environment is only used against that environment. CI and scripts, where nobody is logged in, keep using `ORCHESTRA_API_KEY`.
 
 ---
 

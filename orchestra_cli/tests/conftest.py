@@ -1,3 +1,6 @@
+import pytest
+
+
 def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]]):
     class Result:
         def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
@@ -12,3 +15,11 @@ def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]
         return Result(rc, out, err)
 
     return _mock_run
+
+
+@pytest.fixture(autouse=True)
+def isolated_home(monkeypatch, tmp_path):
+    # Keeps tests off the developer's real ~/.orchestra login cache.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    return tmp_path

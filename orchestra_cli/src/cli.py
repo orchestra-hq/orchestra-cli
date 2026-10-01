@@ -6,6 +6,7 @@ from .delete_pipeline import delete_pipeline
 from .fetch_pipelines import fetch_pipelines
 from .get_pipeline import get_pipeline
 from .import_pipeline import import_pipeline
+from .login import login
 from .migrate_pipeline import migrate_pipeline
 from .run_pipeline import run_pipeline
 from .task_logs import task_logs
@@ -18,6 +19,7 @@ pipeline_app = typer.Typer(help="Manage Orchestra pipelines (validate, import, r
 app.add_typer(pipeline_app, name="pipeline")
 task_app = typer.Typer(help="Inspect Orchestra task runs.")
 app.add_typer(task_app, name="task")
+app.command(name="login")(login)
 
 pipeline_app.command(name="validate")(validate)
 pipeline_app.command(name="import")(import_pipeline)
