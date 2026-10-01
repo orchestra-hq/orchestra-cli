@@ -1,0 +1,52 @@
+orchestra_cli/src/update_pipeline.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 10,49,55,85
+orchestra_cli/src/create_pipeline.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 10,39,57
+orchestra_cli/src/build_pipeline.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 6,81,110,146,156
+orchestra_cli/utils/AGENTS.md
+  s_0afd721a4ee052::t_35b7ff3578ff13 34-35
+orchestra_cli/src/fetch_pipelines.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 10,22,28
+orchestra_cli/utils/pipeline_lookup.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 46
+orchestra_cli/utils/api.py
+  s_0afd721a4ee052::t_04a3ded8d57012 24,108-114
+orchestra_cli/tests/utils/test_api.py
+  s_0afd721a4ee052::t_35b7ff3578ff13 11,39,45,58,64,72,83,92,105,114,122,145,156,164,174,193
+orchestra_cli/src/task_logs.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 11,29,35,72,77,227,294-295,299
+orchestra_cli/tests/test_run_pipeline.py
+  s_0afd721a4ee052::t_cf80037cf0beef 1488-1516,1523,1525-1554
+  s_0afd721a4ee052::t_ef6cf6df75d1dc 1517-1522,1524
+  s_0afd721a4ee052::t_6b8412660096c9 1555
+orchestra_cli/src/migrate_pipeline.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 8,124,134,347,373,385,414
+orchestra_cli/src/AGENTS.md
+  s_0afd721a4ee052::t_35b7ff3578ff13 39,42,59
+orchestra_cli/src/import_pipeline.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 11,46,105
+orchestra_cli/src/run_pipeline.py
+  s_0afd721a4ee052::t_04a3ded8d57012 232
+  s_0afd721a4ee052::t_48c05810f1fd3d 15,161,503,660,766,795
+orchestra_cli/src/delete_pipeline.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 10,30,42
+orchestra_cli/src/get_pipeline.py
+  s_0afd721a4ee052::t_48c05810f1fd3d 13,53,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4328385a76de5d67cdcc9059a32f79cffe064aa",
+  "prompts": {},
+  "sessions": {
+    "s_0afd721a4ee052": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52b9b55f-9fdd-4820-9643-baffed6c0294",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
