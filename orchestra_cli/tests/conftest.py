@@ -1,3 +1,4 @@
+import click
 import pytest
 
 
@@ -15,6 +16,21 @@ def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]
         return Result(rc, out, err)
 
     return _mock_run
+
+
+def press_keys(monkeypatch, *keys: str):
+    """Make ``click.getchar`` return ``keys`` in order, raising on Ctrl+C/D as click does."""
+    pending = list(keys)
+
+    def getchar():
+        key = pending.pop(0)
+        if key == "\x03":
+            raise KeyboardInterrupt
+        if key == "\x04":
+            raise EOFError
+        return key
+
+    monkeypatch.setattr(click, "getchar", getchar)
 
 
 @pytest.fixture(autouse=True)

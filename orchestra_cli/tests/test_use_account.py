@@ -1,12 +1,16 @@
 import json
 import time
+from types import SimpleNamespace
 
+import click
 import pytest
 from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
+from orchestra_cli.src import use_account as use_account_module
 from orchestra_cli.src.cli import app
 from orchestra_cli.utils.credentials import load_credentials, save_credentials
+from tests.conftest import press_keys
 
 runner = CliRunner()
 
@@ -156,3 +160,57 @@ def test_list_marks_default(httpx_mock: HTTPXMock):
         {"id": "acc-1", "name": "Some Great Account", "default": False},
         {"id": "acc-2", "name": "Globex", "default": True},
     ]
+
+
+@pytest.fixture
+def terminal(monkeypatch):
+    stdin = SimpleNamespace(isatty=lambda: True)
+    monkeypatch.setattr(use_account_module, "sys", SimpleNamespace(stdin=stdin))
+
+
+def pick_with(httpx_mock: HTTPXMock, monkeypatch, *keys: str):
+    press_keys(monkeypatch, *keys)
+    httpx_mock.add_response(method="GET", url=ACCOUNTS_URL, json=ACCOUNTS)
+    return runner.invoke(app, ["accounts", "use"])
+
+
+@pytest.mark.usefixtures("terminal")
+def test_pick_saves_chosen_account(httpx_mock: HTTPXMock, monkeypatch):
+    result = pick_with(httpx_mock, monkeypatch, "\x1b[B", "\r")
+
+    assert result.exit_code == 0
+    assert "Default account: Globex" in result.output
+    assert (load_credentials() or {})["account_id"] == "acc-2"
+
+
+@pytest.mark.usefixtures("terminal")
+def test_pick_starts_on_current_default(httpx_mock: HTTPXMock, monkeypatch):
+    assert use(httpx_mock, "acc-2").exit_code == 0
+
+    result = pick_with(httpx_mock, monkeypatch, "\r")
+
+    assert result.exit_code == 0
+    assert (load_credentials() or {})["account_id"] == "acc-2"
+
+
+@pytest.mark.usefixtures("terminal")
+@pytest.mark.parametrize("cancel", ["\x1b", "\x03"])
+def test_pick_cancel_leaves_default(httpx_mock: HTTPXMock, monkeypatch, cancel):
+    assert use(httpx_mock, "acc-1").exit_code == 0
+
+    result = pick_with(httpx_mock, monkeypatch, "\x1b[B", cancel)
+
+    assert result.exit_code == 1
+    assert "unchanged" in result.output
+    assert (load_credentials() or {})["account_id"] == "acc-1"
+
+
+def test_pick_without_terminal_exits_with_hint(httpx_mock: HTTPXMock, monkeypatch):
+    monkeypatch.setattr(click, "getchar", lambda: pytest.fail("read a key without a terminal"))
+
+    result = runner.invoke(app, ["accounts", "use"])
+
+    assert result.exit_code == 1
+    assert "pass a workspace id or name" in result.output
+    assert httpx_mock.get_requests() == []
+    assert "account_id" not in (load_credentials() or {})
