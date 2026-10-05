@@ -1,0 +1,41 @@
+orchestra_cli/src/use_account.py
+  s_335f3d35aa3d05::t_aeb8e1e1d69283 1-33
+orchestra_cli/utils/accounts.py
+  s_335f3d35aa3d05::t_aeb8e1e1d69283 19
+orchestra_cli/src/list_accounts.py
+  s_335f3d35aa3d05::t_aeb8e1e1d69283 6,11-13
+orchestra_cli/utils/api.py
+  s_335f3d35aa3d05::t_aeb8e1e1d69283 133,136-140,146-147
+  s_335f3d35aa3d05::t_0a9c096382addf 143-145
+orchestra_cli/src/README.md
+  s_335f3d35aa3d05::t_371b5c581e136a 20
+README.md
+  s_335f3d35aa3d05::t_371b5c581e136a 24,46,416,421-436
+  s_335f3d35aa3d05::t_96c806e76745b5 437-439
+orchestra_cli/utils/AGENTS.md
+  s_335f3d35aa3d05::t_371b5c581e136a 35,41
+orchestra_cli/tests/test_list_accounts.py
+  s_335f3d35aa3d05::t_685e7312e152cb 34,58
+orchestra_cli/tests/test_use_account.py
+  s_335f3d35aa3d05::t_685e7312e152cb 1-124,126-158
+  s_335f3d35aa3d05::t_0a9c096382addf 125
+orchestra_cli/src/cli.py
+  s_335f3d35aa3d05::t_371b5c581e136a 15,40
+  s_335f3d35aa3d05::t_d1814083edb54b 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b978d879272b38be36f5a54282ece5c0dd2e117",
+  "prompts": {},
+  "sessions": {
+    "s_335f3d35aa3d05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e5ef000-5f88-4a30-a211-09ba13a98c94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
