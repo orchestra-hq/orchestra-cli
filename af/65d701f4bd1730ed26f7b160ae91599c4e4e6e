@@ -1,0 +1,23 @@
+orchestra_cli/src/use_account.py
+  s_335f3d35aa3d05::t_1fd1fc456c750b 12,27-34,39
+orchestra_cli/src/list_accounts.py
+  s_335f3d35aa3d05::t_1fd1fc456c750b 11-12,14
+orchestra_cli/tests/test_use_account.py
+  s_335f3d35aa3d05::t_1fd1fc456c750b 94,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af65d701f4bd1730ed26f7b160ae91599c4e4e6e",
+  "prompts": {},
+  "sessions": {
+    "s_335f3d35aa3d05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e5ef000-5f88-4a30-a211-09ba13a98c94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
