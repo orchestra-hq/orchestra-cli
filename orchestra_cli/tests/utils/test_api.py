@@ -208,7 +208,10 @@ def test_several_accounts_400_hints_how_to_pick_one(capsys):
 
     api_module.fail_with_response("Fetch pipelines", response)
 
-    assert ACCOUNT_HINT in capsys.readouterr().out
+    assert (
+        "Pick one with --account-id, or set a default with `orchestra accounts use`"
+        " (see `orchestra accounts list`)." in capsys.readouterr().out
+    )
 
 
 @pytest.mark.parametrize(
