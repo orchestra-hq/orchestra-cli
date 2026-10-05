@@ -181,4 +181,20 @@ def fail_with_response(action: str, response: httpx.Response) -> typer.Exit:
     """Echo a uniform ``❌ <action> failed with status <code>`` error and exit 1."""
     typer.echo(red(f"❌ {action} failed with status {response.status_code}"))
     echo_response_error_body(response)
+    # The API's message names a header, and it has no error code to match instead.
+    if response.status_code == 400 and "covers several accounts" in _detail(response):
+        typer.echo(
+            yellow(
+                "Pick one with --account-id, or set a default with `orchestra accounts use`"
+                " (see `orchestra accounts list`).",
+            ),
+        )
     return typer.Exit(code=1)
+
+
+def _detail(response: httpx.Response) -> str:
+    try:
+        detail = response.json().get("detail")
+    except Exception:
+        return ""
+    return detail if isinstance(detail, str) else ""

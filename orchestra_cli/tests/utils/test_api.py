@@ -192,3 +192,35 @@ def test_token_that_lapses_during_a_failed_refresh_is_not_returned(
     with pytest.raises(typer.Exit):
         require_credential()
     assert "HTTP request failed" in capsys.readouterr().out
+
+
+ACCOUNT_HINT = "Pick one with --account-id"
+
+
+def test_several_accounts_400_hints_how_to_pick_one(capsys):
+    response = httpx.Response(
+        400,
+        json={
+            "detail": "This token covers several accounts: "
+            "name one with the X-Orchestra-Account-Id header",
+        },
+    )
+
+    api_module.fail_with_response("Fetch pipelines", response)
+
+    assert ACCOUNT_HINT in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(400, json={"detail": "Invalid pipeline"}),
+        httpx.Response(400, text="covers several accounts"),
+        httpx.Response(400, json=["covers several accounts"]),
+        httpx.Response(403, json={"detail": "This token covers several accounts"}),
+    ],
+)
+def test_other_errors_get_no_account_hint(response, capsys):
+    api_module.fail_with_response("Fetch pipelines", response)
+
+    assert ACCOUNT_HINT not in capsys.readouterr().out
