@@ -39,7 +39,7 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 - `require_credential()` — resolves the cached `orchestra login` token, falling back to `ORCHESTRA_API_KEY`, or exits.
 - `request_or_exit(httpx.<method>, url, ...)` — wraps the request in a uniform transport-error handler.
 - `fail_with_response("Action", response)` — uniform `❌ Action failed with status <code>` output for non-success HTTP responses.
-- `account_id_option()` + `set_account_id(account_id)` — every workspace-scoped API command takes the `--account-id` option and calls `set_account_id` before making requests, so `auth_headers()` sends `X-Orchestra-Account-Id` when an account is set.
+- `account_id_option()` — every workspace-scoped API command declares `_account_id: str | None = account_id_option()`. The option stores the value itself, so `auth_headers()` sends `X-Orchestra-Account-Id` when an account is set; the command body never touches it.
 - `auth_headers()` — builds the `Authorization` header (and account header), resolving the credential afresh. Call it per request; never hold a credential or headers across requests, since a login token can expire mid-command.
 
 **YAML loading:** Commands that take a `--path` to a pipeline YAML should use `load_validated_pipeline_data(path)` from `orchestra_cli/utils/yaml_loader.py` — it loads, schema-validates against the API, and exits cleanly on any failure.

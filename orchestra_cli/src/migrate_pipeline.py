@@ -11,7 +11,6 @@ from ..utils.api import (
     fail_with_response,
     request_or_exit,
     require_credential,
-    set_account_id,
 )
 from ..utils.constants import get_api_url
 from ..utils.git import (
@@ -347,12 +346,11 @@ def migrate_pipeline(
         "--force/--no-force",
         help="Skip interactive prompts and continue with inferred migration choices",
     ),
-    account_id: str | None = account_id_option(),
+    _account_id: str | None = account_id_option(),
 ) -> None:
     """
     Migrate an Orchestra-backed pipeline to git-backed storage.
     """
-    set_account_id(account_id)
     require_credential()
     selector = _resolve_migrate_selector(alias, pipeline_id)
 

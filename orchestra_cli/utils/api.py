@@ -21,22 +21,29 @@ from .styling import indent_message, red, yellow
 # Refresh this long before expiry so a token cannot lapse mid-request.
 _REFRESH_MARGIN_SECONDS = 60
 
-# The workspace a multi-account login token acts in; set once per command.
+# The workspace a multi-account login token acts in, stored by ``account_id_option()``.
 _account_id: str | None = None
 
 
+def _store_account_id(value: str | None) -> str | None:
+    global _account_id
+    _account_id = value
+    return value
+
+
 def account_id_option() -> Any:
+    """Return the ``--account-id`` option, which ``auth_headers()`` picks up with no further wiring.
+
+    Click runs the callback on every invocation, unset or not, so one command's
+    account never leaks into the next.
+    """
     return typer.Option(
         None,
         "--account-id",
         envvar="ORCHESTRA_ACCOUNT_ID",
+        callback=_store_account_id,
         help="Workspace to act in, for a login that covers several accounts",
     )
-
-
-def set_account_id(account_id: str | None) -> None:
-    global _account_id
-    _account_id = account_id
 
 
 def require_credential() -> str:

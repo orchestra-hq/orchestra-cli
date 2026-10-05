@@ -9,7 +9,6 @@ from ..utils.api import (
     fail_with_response,
     request_or_exit,
     require_credential,
-    set_account_id,
 )
 from ..utils.constants import get_delete_pipeline_url
 from ..utils.pipeline_selector import (
@@ -25,12 +24,11 @@ def delete_pipeline(
     path: Path | None = pipeline_path_option(),
     alias: str | None = pipeline_alias_option(),
     pipeline_id: str | None = pipeline_id_option(),
-    account_id: str | None = account_id_option(),
+    _account_id: str | None = account_id_option(),
 ):
     """
     Delete a pipeline by selector.
     """
-    set_account_id(account_id)
     require_credential()
     selector = resolve_pipeline_selector(alias, pipeline_id, path)
 

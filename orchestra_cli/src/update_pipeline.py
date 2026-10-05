@@ -9,7 +9,6 @@ from ..utils.api import (
     fail_with_response,
     request_or_exit,
     require_credential,
-    set_account_id,
 )
 from ..utils.constants import get_update_pipeline_url
 from ..utils.git import GitAction, prepare_git_backed_run_target
@@ -44,12 +43,11 @@ def update_pipeline(
         "--force/--no-force",
         help="Ignore prompts and continue with inferred git update choices",
     ),
-    account_id: str | None = account_id_option(),
+    _account_id: str | None = account_id_option(),
 ):
     """
     Update an Orchestra-backed pipeline from a local YAML file.
     """
-    set_account_id(account_id)
     require_credential()
     if path is None:
         typer.echo(red("Provide --path to update a pipeline from YAML"))
