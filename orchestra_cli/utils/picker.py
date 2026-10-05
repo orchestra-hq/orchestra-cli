@@ -35,11 +35,11 @@ def pick(labels: list[str], start: int = 0) -> int | None:
 
 
 def _render(labels: list[str], index: int, height: int) -> Text:
-    # Show only the rows that fit, keeping the selection in view, so it never
+    # Show only the rows that fit, one line each, keeping the selection in view so it never
     # moves onto a row the terminal has cut off.
     rows = max(height - 1, 1)
     top = max(min(index - rows // 2, len(labels) - rows), 0)
-    text = Text()
+    text = Text(no_wrap=True, overflow="ellipsis")
     for i, label in enumerate(labels[top : top + rows], start=top):
         if i == index:
             text.append(f"❯ {label}\n", style="bold cyan")
