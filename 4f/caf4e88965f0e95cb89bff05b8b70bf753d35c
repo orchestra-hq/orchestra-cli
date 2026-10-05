@@ -1,0 +1,21 @@
+orchestra_cli/src/AGENTS.md
+  s_639cf249f52dcc::t_ccfcae36e61693 42
+orchestra_cli/tests/test_fetch_pipelines.py
+  s_639cf249f52dcc::t_ccfcae36e61693 3,102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4fcaf4e88965f0e95cb89bff05b8b70bf753d35c",
+  "prompts": {},
+  "sessions": {
+    "s_639cf249f52dcc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e16e31ef-f93c-4bb3-820d-c0e65dbe8c8d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
