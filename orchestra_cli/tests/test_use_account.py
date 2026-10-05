@@ -1,6 +1,5 @@
 import json
 import time
-from types import SimpleNamespace
 
 import click
 import pytest
@@ -164,8 +163,7 @@ def test_list_marks_default(httpx_mock: HTTPXMock):
 
 @pytest.fixture
 def terminal(monkeypatch):
-    tty = SimpleNamespace(isatty=lambda: True)
-    monkeypatch.setattr(use_account_module, "sys", SimpleNamespace(stdin=tty, stdout=tty))
+    monkeypatch.setattr(use_account_module, "can_pick", lambda: True)
 
 
 def pick_with(httpx_mock: HTTPXMock, monkeypatch, *keys: str):

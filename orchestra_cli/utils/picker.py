@@ -1,4 +1,7 @@
+import sys
+
 import click
+from rich import get_console
 from rich.live import Live
 from rich.text import Text
 
@@ -10,11 +13,17 @@ ENTER_KEYS = {"\r", "\n"}
 ESCAPE = "\x1b"
 
 
+def can_pick() -> bool:
+    """Whether ``pick`` can read keys and draw its menu, using the same test as rich's ``Live``."""
+    console = get_console()
+    return sys.stdin.isatty() and console.is_terminal and not console.is_dumb_terminal
+
+
 def pick(labels: list[str], start: int = 0) -> int | None:
     """Let the user choose one of ``labels`` (not empty) with the arrow keys; return its index.
 
-    Returns None when they press Esc, Ctrl+C or Ctrl+D. It needs an interactive
-    terminal, so callers check that stdin and stdout are one first.
+    Returns None when they press Esc, Ctrl+C or Ctrl+D. Callers check ``can_pick()``
+    first, since without a terminal it waits for keys behind an invisible menu.
     """
     index = start
     with Live(auto_refresh=False, transient=True) as live:

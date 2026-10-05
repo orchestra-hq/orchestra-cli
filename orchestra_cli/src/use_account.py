@@ -1,10 +1,8 @@
-import sys
-
 import typer
 
 from ..utils.accounts import fetch_accounts
 from ..utils.credentials import load_credentials, save_credentials
-from ..utils.picker import pick
+from ..utils.picker import can_pick, pick
 from ..utils.styling import green, red, yellow
 
 
@@ -16,7 +14,7 @@ def use_account(
 ):
     """Set the workspace later commands act in when no --account-id is given."""
     _require_login()
-    if id_or_name is None and not (sys.stdin.isatty() and sys.stdout.isatty()):
+    if id_or_name is None and not can_pick():
         typer.echo(red("No terminal to pick an account in; pass a workspace id or name."))
         raise typer.Exit(code=1)
     accounts = fetch_accounts()
