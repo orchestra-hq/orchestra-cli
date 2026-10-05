@@ -4,6 +4,7 @@ import httpx
 import typer
 
 from ..utils.api import (
+    account_id_option,
     auth_headers,
     fail_with_response,
     request_or_exit,
@@ -32,6 +33,7 @@ def create_pipeline(
         "--publish/--no-publish",
         help="Whether the pipeline is published and can be triggered",
     ),
+    _account_id: str | None = account_id_option(),
 ):
     """
     Create an Orchestra-backed pipeline from a local YAML file.

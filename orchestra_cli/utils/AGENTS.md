@@ -32,7 +32,8 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 **`api.py`** — Shared HTTP/auth helpers. Every command should call into these instead of constructing headers, try/except blocks, or error rendering by hand:
 
 - `require_credential()` — returns the bearer credential: the cached `orchestra login` token (refreshed when near expiry) if there is a usable one, otherwise `ORCHESTRA_API_KEY`. Exits with code 1 if neither is available.
-- `auth_headers()` — returns `{"Authorization": "Bearer <credential>"}`, calling `require_credential()` each time so a long-running command never sends an expired login token. Build it per request rather than reusing it.
+- `auth_headers()` — returns `{"Authorization": "Bearer <credential>"}`, plus `X-Orchestra-Account-Id` when an account is set, calling `require_credential()` each time so a long-running command never sends an expired login token. Build it per request rather than reusing it.
+- `account_id_option()` — every workspace-scoped API command declares `_account_id: str | None = account_id_option()` (`--account-id`, falling back to `ORCHESTRA_ACCOUNT_ID`). Its callback stores the value for `auth_headers()`, so all the command's requests carry the header with no call in the command body.
 - `request_or_exit(httpx_func, *args, **kwargs)` — invokes an `httpx` callable (e.g. `httpx.post`, `httpx.delete`) and on any transport exception echoes `"HTTP request failed: <msg>"` in red and exits with code 1.
 - `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
 - `fail_with_response(action, response)` — echoes `"❌ <action> failed with status <code>"` followed by `echo_response_error_body(response)` and exits with code 1. Use this for any non-success path of an HTTP call.

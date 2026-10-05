@@ -7,6 +7,7 @@ import httpx
 import typer
 
 from ..utils.api import (
+    account_id_option,
     auth_headers,
     fail_with_response,
     request_or_exit,
@@ -46,6 +47,7 @@ def get_pipeline(
     path: Path | None = pipeline_path_option(),
     alias: str | None = pipeline_alias_option(),
     pipeline_id: str | None = pipeline_id_option(),
+    _account_id: str | None = account_id_option(),
 ):
     """
     Fetch one pipeline using the shared selector model.

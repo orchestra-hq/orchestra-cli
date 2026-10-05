@@ -4,6 +4,7 @@ import httpx
 import typer
 
 from ..utils.api import (
+    account_id_option,
     auth_headers,
     fail_with_response,
     request_or_exit,
@@ -42,6 +43,7 @@ def update_pipeline(
         "--force/--no-force",
         help="Ignore prompts and continue with inferred git update choices",
     ),
+    _account_id: str | None = account_id_option(),
 ):
     """
     Update an Orchestra-backed pipeline from a local YAML file.
