@@ -10,7 +10,7 @@ from orchestra_cli.utils.credentials import load_credentials, save_credentials
 
 runner = CliRunner()
 
-ACCOUNTS_URL = "https://app.getorchestra.io/api/engine/public/accounts"
+ACCOUNTS_URL = "https://app.getorchestra.io/public/v1/accounts"
 PIPELINES_URL = "https://app.getorchestra.io/api/engine/public/pipelines"
 TOKEN_ENDPOINT = "https://auth.example/token"
 ACCOUNTS = [

@@ -2,7 +2,7 @@ import httpx
 import typer
 
 from .api import auth_headers, fail_with_response, request_or_exit
-from .constants import get_api_url
+from .constants import get_base_url
 from .styling import indent_message, red, yellow
 
 
@@ -14,7 +14,8 @@ def fetch_accounts() -> list[dict]:
     """
     response = request_or_exit(
         httpx.get,
-        get_api_url("accounts"),
+        # Unlike the pipeline endpoints, this one is served from the public v1 API.
+        f"{get_base_url()}/public/v1/accounts",
         timeout=30,
         headers=auth_headers(scoped=False),
     )

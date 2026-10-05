@@ -412,7 +412,7 @@ orchestra accounts list
 
 Behavior
 
-- Sends `GET /api/engine/public/accounts`, with no account header.
+- Sends `GET /public/v1/accounts`, with no account header.
 - Prints the `[{id, name}]` response as pretty JSON, adding `default: true` to the account saved by `accounts use` and `false` to the rest.
 - Exit codes: `0` on success, `1` on failure.
 
