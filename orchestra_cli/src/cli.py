@@ -6,6 +6,7 @@ from .delete_pipeline import delete_pipeline
 from .fetch_pipelines import fetch_pipelines
 from .get_pipeline import get_pipeline
 from .import_pipeline import import_pipeline
+from .list_accounts import list_accounts
 from .login import login
 from .migrate_pipeline import migrate_pipeline
 from .run_pipeline import run_pipeline
@@ -20,6 +21,8 @@ app.add_typer(pipeline_app, name="pipeline")
 task_app = typer.Typer(help="Inspect Orchestra task runs.")
 app.add_typer(task_app, name="task")
 app.command(name="login")(login)
+accounts_app = typer.Typer(help="Inspect the Orchestra workspaces your credential covers.")
+app.add_typer(accounts_app, name="accounts")
 
 pipeline_app.command(name="validate")(validate)
 pipeline_app.command(name="import")(import_pipeline)
@@ -32,6 +35,7 @@ pipeline_app.command(name="build")(build_pipeline)
 pipeline_app.command(name="delete")(delete_pipeline)
 pipeline_app.command(name="migrate")(migrate_pipeline)
 task_app.command(name="logs")(task_logs)
+accounts_app.command(name="list")(list_accounts)
 
 # Legacy top-level aliases (hidden) - keep the old `orchestra <command>` syntax working
 # so existing scripts and CI pipelines do not break. Hidden from `--help` to keep the

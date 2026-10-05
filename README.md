@@ -20,12 +20,12 @@ pipx install orchestra-cli
 
 ## Environment variables
 
-- `ORCHESTRA_API_KEY`: Credential for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`). Not needed once you have run `orchestra login`: a login takes precedence, and the key is used only when you are not logged in or your login has expired.
+- `ORCHESTRA_API_KEY`: Credential for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`, `accounts list`). Not needed once you have run `orchestra login`: a login takes precedence, and the key is used only when you are not logged in or your login has expired.
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
 
-Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`:
+Commands follow a `noun verb` shape. The current nouns are `pipeline`, `task` and `accounts`:
 
 | Command                              | Description                                                                                 |
 | ------------------------------------ | ------------------------------------------------------------------------------------------- |
@@ -41,6 +41,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline` and `task`
 | `orchestra pipeline run`             | Start a pipeline run by selector, optionally pinning branch/commit and waiting.             |
 | `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
 | `orchestra task logs`                | Fetch or follow logs for a single task run.                                                 |
+| `orchestra accounts list`            | List the workspaces your login or API key covers, with their ids, as JSON.                  |
 
 Commands that read a local pipeline file (`pipeline validate`, `import`, `new`, `update`, `build`, and `run --path` with `--task`) accept `.yaml`, `.yml` and `.oml` files; any other extension is rejected. `.oml` files are read as YAML, so only OML written in YAML or JSON syntax is supported. OML block terminators (`.`) and embeds (`%sql ... %%`) fail with an `Invalid YAML` error.
 
@@ -396,6 +397,22 @@ Behavior
 - When the pipeline exists and is Orchestra-backed, the CLI updates that draft and starts the returned `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
 - Existing git-backed pipelines reuse the same commit + branch-protection logic as `pipeline update`, then run using the resolved branch/commit target.
 - Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.
+
+---
+
+## accounts list
+
+List the workspaces the current credential covers. An `orchestra login` token can cover several workspaces; an API key lists just its own.
+
+```bash
+orchestra accounts list
+```
+
+Behavior
+
+- Sends `GET /api/engine/public/accounts`, with no account header.
+- Prints the `[{id, name}]` response as pretty JSON.
+- Exit codes: `0` on success, `1` on failure.
 
 ---
 
