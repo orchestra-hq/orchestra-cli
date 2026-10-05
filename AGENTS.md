@@ -99,7 +99,7 @@ orchestra-cli --help   # equivalent alias
 
 Both `orchestra` and `orchestra-cli` entry points map to `orchestra_cli.src.cli:app`.
 
-The CLI uses a `noun verb` structure (currently the only noun is `pipeline`): `orchestra pipeline validate`, `orchestra pipeline import`, `orchestra pipeline new`, `orchestra pipeline update`, `orchestra pipeline get`, `orchestra pipeline delete`, `orchestra pipeline run`. The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`, `create-pipeline`, `update-pipeline`, `delete-pipeline`) are registered as hidden top-level aliases for backwards compatibility. Prefer the noun/verb form in new code and docs.
+The CLI uses a `noun verb` structure (nouns: `pipeline`, `task`, `accounts`): `orchestra pipeline validate`, `orchestra pipeline import`, `orchestra pipeline new`, `orchestra pipeline update`, `orchestra pipeline get`, `orchestra pipeline delete`, `orchestra pipeline run`, plus `orchestra task logs` and `orchestra accounts list`. The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`, `create-pipeline`, `update-pipeline`, `delete-pipeline`) are registered as hidden top-level aliases for backwards compatibility. Prefer the noun/verb form in new code and docs.
 
 ---
 
