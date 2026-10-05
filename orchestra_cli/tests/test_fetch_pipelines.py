@@ -1,5 +1,6 @@
 import json
 
+import click
 import pytest
 from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
@@ -98,4 +99,4 @@ def test_list_pipelines_help_shows_account_id():
     result = runner.invoke(app, ["pipeline", "list", "--help"])
 
     assert result.exit_code == 0
-    assert "--account-id" in result.output
+    assert "--account-id" in click.unstyle(result.output)
