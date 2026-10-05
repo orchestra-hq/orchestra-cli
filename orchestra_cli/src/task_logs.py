@@ -8,7 +8,14 @@ import click
 import httpx
 import typer
 
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
+from ..utils.api import (
+    account_id_option,
+    auth_headers,
+    fail_with_response,
+    request_or_exit,
+    require_credential,
+    set_account_id,
+)
 from ..utils.constants import get_api_url
 from ..utils.styling import bold, indent_message, red, yellow
 
@@ -287,10 +294,12 @@ def task_logs(
         "--no-watch",
         help="Print current log content once without waiting for new lines",
     ),
+    account_id: str | None = account_id_option(),
 ):
     """
     Fetch logs for a single Orchestra task run.
     """
+    set_account_id(account_id)
     require_credential()
     pipeline_run_id = _resolve_pipeline_run_id(task_run_id)
     selected_filename = filename

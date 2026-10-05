@@ -5,10 +5,12 @@ import httpx
 import typer
 
 from ..utils.api import (
+    account_id_option,
     auth_headers,
     fail_with_response,
     request_or_exit,
     require_credential,
+    set_account_id,
 )
 from ..utils.constants import get_api_url
 from ..utils.git import (
@@ -39,10 +41,12 @@ def import_pipeline(
         "-w",
         help="Git branch to use for the imported pipeline (defaults to current local branch)",
     ),
+    account_id: str | None = account_id_option(),
 ):
     """
     Create a pipeline in Orchestra by referencing a YAML file in your git repository.
     """
+    set_account_id(account_id)
     require_credential()
     if path is None:
         typer.echo(red("Provide --path to import a pipeline from git"))

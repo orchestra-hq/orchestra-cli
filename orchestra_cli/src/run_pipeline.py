@@ -12,7 +12,14 @@ from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
+from ..utils.api import (
+    account_id_option,
+    auth_headers,
+    fail_with_response,
+    request_or_exit,
+    require_credential,
+    set_account_id,
+)
 from ..utils.constants import get_api_url, get_base_url
 from ..utils.git import GitAction, confirm_git_warnings_or_exit, prepare_git_backed_run_target
 from ..utils.pipeline_lookup import lookup_existing_pipeline
@@ -758,11 +765,13 @@ def run_pipeline(
         "--force/--no-force",
         help="Ignore any warnings and run the pipeline anyway",
     ),
+    account_id: str | None = account_id_option(),
 ):
     """
     Run a pipeline in Orchestra.
     """
     _validate_run_selector_inputs(path, alias, pipeline_id)
+    set_account_id(account_id)
     require_credential()
     if continue_downstream_run and not task:
         typer.echo(red("❌ --continue can only be used when --task/-t is provided"))

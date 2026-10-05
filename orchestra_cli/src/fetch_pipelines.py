@@ -4,21 +4,24 @@ import httpx
 import typer
 
 from ..utils.api import (
+    account_id_option,
     auth_headers,
     fail_with_response,
     request_or_exit,
     require_credential,
+    set_account_id,
 )
 from ..utils.constants import get_api_url
 from ..utils.styling import indent_message, red, yellow
 
 
-def fetch_pipelines():
+def fetch_pipelines(account_id: str | None = account_id_option()):
     """
     Fetch pipelines available to the current Orchestra API key.
 
     The API always includes each pipeline's latest run metadata.
     """
+    set_account_id(account_id)
     require_credential()
 
     response = request_or_exit(

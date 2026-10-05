@@ -21,6 +21,7 @@ pipx install orchestra-cli
 ## Environment variables
 
 - `ORCHESTRA_API_KEY`: Credential for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`). Not needed once you have run `orchestra login`: a login takes precedence, and the key is used only when you are not logged in or your login has expired.
+- `ORCHESTRA_ACCOUNT_ID`: Optional. The workspace to act in when your `orchestra login` covers several. Every API command also takes `--account-id`, which wins over the variable. API keys belong to one account and don't need it.
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure

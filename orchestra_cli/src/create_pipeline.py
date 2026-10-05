@@ -4,10 +4,12 @@ import httpx
 import typer
 
 from ..utils.api import (
+    account_id_option,
     auth_headers,
     fail_with_response,
     request_or_exit,
     require_credential,
+    set_account_id,
 )
 from ..utils.constants import get_create_pipeline_url
 from ..utils.pipeline_selector import (
@@ -32,10 +34,12 @@ def create_pipeline(
         "--publish/--no-publish",
         help="Whether the pipeline is published and can be triggered",
     ),
+    account_id: str | None = account_id_option(),
 ):
     """
     Create an Orchestra-backed pipeline from a local YAML file.
     """
+    set_account_id(account_id)
     require_credential()
     if path is None:
         typer.echo(red("Provide --path to create a pipeline from YAML"))

@@ -10,6 +10,7 @@ import json
 import os
 import time
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 import typer
@@ -19,6 +20,23 @@ from .styling import indent_message, red, yellow
 
 # Refresh this long before expiry so a token cannot lapse mid-request.
 _REFRESH_MARGIN_SECONDS = 60
+
+# The workspace a multi-account login token acts in; set once per command.
+_account_id: str | None = None
+
+
+def account_id_option() -> Any:
+    return typer.Option(
+        None,
+        "--account-id",
+        envvar="ORCHESTRA_ACCOUNT_ID",
+        help="Workspace to act in, for a login that covers several accounts",
+    )
+
+
+def set_account_id(account_id: str | None) -> None:
+    global _account_id
+    _account_id = account_id
 
 
 def require_credential() -> str:
@@ -106,12 +124,15 @@ def token_response_to_credentials(token: dict, previous: dict) -> dict:
 
 
 def auth_headers() -> dict[str, str]:
-    """Return the ``Authorization`` header for one request.
+    """Return the ``Authorization`` header, plus ``X-Orchestra-Account-Id`` if set, for one request.
 
     Resolved afresh each time so a command running longer than an access token's
     lifetime keeps working; build headers per request rather than reusing them.
     """
-    return {"Authorization": f"Bearer {require_credential()}"}
+    headers = {"Authorization": f"Bearer {require_credential()}"}
+    if _account_id:
+        headers["X-Orchestra-Account-Id"] = _account_id
+    return headers
 
 
 def request_or_exit(

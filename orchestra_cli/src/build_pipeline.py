@@ -3,7 +3,14 @@ from pathlib import Path
 import httpx
 import typer
 
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
+from ..utils.api import (
+    account_id_option,
+    auth_headers,
+    fail_with_response,
+    request_or_exit,
+    require_credential,
+    set_account_id,
+)
 from ..utils.constants import get_create_pipeline_url, get_update_pipeline_url
 from ..utils.git import confirm_git_warnings_or_exit, prepare_git_backed_run_target
 from ..utils.pipeline_lookup import lookup_existing_pipeline
@@ -139,10 +146,12 @@ def build_pipeline(
         "--force/--no-force",
         help="Ignore any warnings and run the pipeline anyway",
     ),
+    account_id: str | None = account_id_option(),
 ) -> None:
     """
     Validate local YAML, create or update a draft pipeline, and start the draft version.
     """
+    set_account_id(account_id)
     require_credential()
     if path is None:
         typer.echo(
