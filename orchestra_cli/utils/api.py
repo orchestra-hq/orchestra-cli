@@ -130,7 +130,7 @@ def token_response_to_credentials(token: dict, previous: dict) -> dict:
     }
 
 
-def auth_headers(*, scoped: bool = True) -> dict[str, str]:
+def auth_headers(scoped: bool = True) -> dict[str, str]:
     """Return the ``Authorization`` header, plus ``X-Orchestra-Account-Id`` if set, for one request.
 
     The account is ``--account-id``, then ``ORCHESTRA_ACCOUNT_ID``, then the
