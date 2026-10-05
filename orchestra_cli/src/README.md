@@ -17,6 +17,7 @@ CLI command implementations. See `AGENTS.md` for conventions, patterns, and how 
 | `build_pipeline.py` | `orchestra pipeline build` — validates local YAML, creates/updates a draft pipeline, and starts that draft version |
 | `migrate_pipeline.py` | `orchestra pipeline migrate` — migrates an Orchestra-backed pipeline to git-backed storage |
 | `list_accounts.py` | `orchestra accounts list` — lists the workspaces the current credential covers |
+| `use_account.py` | `orchestra accounts use` — saves the default workspace on the login |
 | `run_pipeline.py` | `orchestra pipeline run` — starts a pipeline run; optionally polls until completion |
 
 Each command module exports a single public function registered in `cli.py`.

@@ -130,15 +130,21 @@ def token_response_to_credentials(token: dict, previous: dict) -> dict:
     }
 
 
-def auth_headers() -> dict[str, str]:
+def auth_headers(*, scoped: bool = True) -> dict[str, str]:
     """Return the ``Authorization`` header, plus ``X-Orchestra-Account-Id`` if set, for one request.
 
-    Resolved afresh each time so a command running longer than an access token's
-    lifetime keeps working; build headers per request rather than reusing them.
+    The account is ``--account-id``, then ``ORCHESTRA_ACCOUNT_ID``, then the
+    ``orchestra accounts use`` default; ``scoped=False`` leaves it out for calls that
+    aren't about one workspace. Resolved afresh each time so a command running longer
+    than an access token's lifetime keeps working; build headers per request rather
+    than reusing them.
     """
     headers = {"Authorization": f"Bearer {require_credential()}"}
-    if _account_id:
-        headers["X-Orchestra-Account-Id"] = _account_id
+    # Read after require_credential(), which forgets a dead login before falling back
+    # to ORCHESTRA_API_KEY, so a key never carries the login's default.
+    account_id = (_account_id or (load_credentials() or {}).get("account_id")) if scoped else None
+    if account_id:
+        headers["X-Orchestra-Account-Id"] = account_id
     return headers
 
 

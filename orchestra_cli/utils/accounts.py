@@ -16,7 +16,7 @@ def fetch_accounts() -> list[dict]:
         httpx.get,
         get_api_url("accounts"),
         timeout=30,
-        headers=auth_headers(),
+        headers=auth_headers(scoped=False),
     )
     if response.status_code != 200:
         raise fail_with_response("List accounts", response)

@@ -32,13 +32,13 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 **`api.py`** — Shared HTTP/auth helpers. Every command should call into these instead of constructing headers, try/except blocks, or error rendering by hand:
 
 - `require_credential()` — returns the bearer credential: the cached `orchestra login` token (refreshed when near expiry) if there is a usable one, otherwise `ORCHESTRA_API_KEY`. Exits with code 1 if neither is available.
-- `auth_headers()` — returns `{"Authorization": "Bearer <credential>"}`, plus `X-Orchestra-Account-Id` when an account is set, calling `require_credential()` each time so a long-running command never sends an expired login token. Build it per request rather than reusing it.
+- `auth_headers()` — returns `{"Authorization": "Bearer <credential>"}`, plus `X-Orchestra-Account-Id` from `--account-id`, `ORCHESTRA_ACCOUNT_ID` or the login's saved `account_id` (in that order; `scoped=False` omits it), calling `require_credential()` each time so a long-running command never sends an expired login token. Build it per request rather than reusing it.
 - `account_id_option()` — every workspace-scoped API command declares `_account_id: str | None = account_id_option()` (`--account-id`, falling back to `ORCHESTRA_ACCOUNT_ID`). Its callback stores the value for `auth_headers()`, so all the command's requests carry the header with no call in the command body.
 - `request_or_exit(httpx_func, *args, **kwargs)` — invokes an `httpx` callable (e.g. `httpx.post`, `httpx.delete`) and on any transport exception echoes `"HTTP request failed: <msg>"` in red and exits with code 1.
 - `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
 - `fail_with_response(action, response)` — echoes `"❌ <action> failed with status <code>"` followed by `echo_response_error_body(response)` and exits with code 1. Use this for any non-success path of an HTTP call.
 
-**`accounts.py`** — `fetch_accounts()` returns the workspaces the current credential covers (`GET /accounts`, `[{id, name}]`), exiting 1 on any failure. It sends no account header, since the call isn't scoped to a workspace.
+**`accounts.py`** — `fetch_accounts()` returns the workspaces the current credential covers (`GET /accounts`, `[{id, name}]`), exiting 1 on any failure. It calls `auth_headers(scoped=False)`, since the call isn't scoped to a workspace.
 
 **`credentials.py`** — the `orchestra login` token cache at `~/.orchestra/credentials.json`, keyed by host (`get_base_url()`). `load_credentials()` / `save_credentials(dict)` / `clear_credentials()`; writes are atomic and mode `0600`. Tests get an isolated `HOME` from an autouse fixture in `conftest.py`.
 
