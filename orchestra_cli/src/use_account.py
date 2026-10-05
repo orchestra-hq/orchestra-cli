@@ -9,6 +9,7 @@ def use_account(
     id_or_name: str = typer.Argument(..., help="Workspace id, or its name (case-insensitive)"),
 ):
     """Set the workspace later commands act in when no --account-id is given."""
+    _require_login()
     accounts = fetch_accounts()
     matches = [account for account in accounts if account["id"] == id_or_name] or [
         account for account in accounts if account["name"].casefold() == id_or_name.casefold()
@@ -23,11 +24,16 @@ def use_account(
             typer.echo(yellow(f"  {account['id']}"))
         raise typer.Exit(code=1)
 
-    # Read after fetching, which may have refreshed and rotated the saved tokens.
+    account = matches[0]
+    # Read again after fetching, which may have refreshed and rotated the saved tokens.
+    credentials = _require_login()
+    save_credentials({**credentials, "account_id": account["id"], "account_name": account["name"]})
+    typer.echo(green(f"Default account: {account['name']}"))
+
+
+def _require_login() -> dict:
     credentials = load_credentials()
     if credentials is None:
         typer.echo(red("A default account needs `orchestra login`; an API key covers one account."))
         raise typer.Exit(code=1)
-    account = matches[0]
-    save_credentials({**credentials, "account_id": account["id"], "account_name": account["name"]})
-    typer.echo(green(f"Default account: {account['name']}"))
+    return credentials

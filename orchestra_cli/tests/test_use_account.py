@@ -91,11 +91,11 @@ def test_use_requires_login(httpx_mock: HTTPXMock, monkeypatch, tmp_path):
     (tmp_path / ".orchestra" / "credentials.json").unlink()
     monkeypatch.setenv("ORCHESTRA_API_KEY", "fake-key")
 
-    result = use(httpx_mock, "acc-1")
+    result = runner.invoke(app, ["accounts", "use", "acc-1"])
 
     assert result.exit_code == 1
     assert "orchestra login" in result.output
-    assert load_credentials() is None
+    assert httpx_mock.get_requests() == []
 
 
 def test_use_sends_no_account_header(httpx_mock: HTTPXMock, monkeypatch):
