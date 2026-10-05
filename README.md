@@ -432,7 +432,7 @@ Behavior
 
 - Fetches the accounts as `accounts list` does, then matches an exact id first and a case-insensitive exact name second.
 - Exits `1`, listing the valid names, when nothing matches, and asks for the id when several workspaces share the name.
-- With no argument, lists the workspaces with the current default highlighted: ↑/↓ moves, Enter saves, and Esc, Ctrl+C or Ctrl+D exits `1` leaving the default unchanged. Without a terminal (CI, piped input) it exits `1` and asks for an id or name instead.
+- With no argument, lists the workspaces with the cursor on the current default: ↑/↓ moves, Enter saves, and Esc, Ctrl+C or Ctrl+D exits `1` leaving the default unchanged. Without a terminal (CI, piped input) it exits `1` and asks for an id or name instead.
 - Saves the account into the login's entry in `~/.orchestra/credentials.json`. It survives token refreshes; running `orchestra login` again clears it.
 - `--account-id` and `ORCHESTRA_ACCOUNT_ID` still override the default. It is never sent with an API key.
 - Exits `1` when you are using an API key rather than a login, since a key covers one account.

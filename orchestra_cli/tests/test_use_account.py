@@ -164,8 +164,8 @@ def test_list_marks_default(httpx_mock: HTTPXMock):
 
 @pytest.fixture
 def terminal(monkeypatch):
-    stdin = SimpleNamespace(isatty=lambda: True)
-    monkeypatch.setattr(use_account_module, "sys", SimpleNamespace(stdin=stdin))
+    tty = SimpleNamespace(isatty=lambda: True)
+    monkeypatch.setattr(use_account_module, "sys", SimpleNamespace(stdin=tty, stdout=tty))
 
 
 def pick_with(httpx_mock: HTTPXMock, monkeypatch, *keys: str):

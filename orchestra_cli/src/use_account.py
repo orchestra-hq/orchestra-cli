@@ -16,7 +16,7 @@ def use_account(
 ):
     """Set the workspace later commands act in when no --account-id is given."""
     _require_login()
-    if id_or_name is None and not sys.stdin.isatty():
+    if id_or_name is None and not (sys.stdin.isatty() and sys.stdout.isatty()):
         typer.echo(red("No terminal to pick an account in; pass a workspace id or name."))
         raise typer.Exit(code=1)
     accounts = fetch_accounts()

@@ -40,7 +40,7 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 
 **`accounts.py`** — `fetch_accounts()` returns the workspaces the current credential covers (`GET /public/v1/accounts`, `[{id, name}]`), exiting 1 on any failure. It calls `auth_headers(scoped=False)`, since the call isn't scoped to a workspace.
 
-**`picker.py`** — `pick(labels, start=0)` shows an arrow-key menu (keys from `click.getchar()`, redrawn with `rich.live.Live`) and returns the chosen index, or `None` on Esc, Ctrl+C or Ctrl+D. It blocks on the keyboard, so check `sys.stdin.isatty()` before calling it. Tests feed keys with `press_keys(monkeypatch, ...)` from `tests/conftest.py`.
+**`picker.py`** — `pick(labels, start=0)` shows an arrow-key menu (keys from `click.getchar()`, redrawn with `rich.live.Live`) and returns the chosen index, or `None` on Esc, Ctrl+C or Ctrl+D. It blocks on the keyboard, so check that stdin and stdout are terminals before calling it. Tests feed keys with `press_keys(monkeypatch, ...)` from `tests/conftest.py`.
 
 **`credentials.py`** — the `orchestra login` token cache at `~/.orchestra/credentials.json`, keyed by host (`get_base_url()`). `load_credentials()` / `save_credentials(dict)` / `clear_credentials()`; writes are atomic and mode `0600`. Tests get an isolated `HOME` from an autouse fixture in `conftest.py`.
 

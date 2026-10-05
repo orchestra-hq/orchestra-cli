@@ -11,14 +11,15 @@ ESCAPE = "\x1b"
 
 
 def pick(labels: list[str], start: int = 0) -> int | None:
-    """Let the user choose one of ``labels`` with the arrow keys; return its index.
+    """Let the user choose one of ``labels`` (not empty) with the arrow keys; return its index.
 
     Returns None when they press Esc, Ctrl+C or Ctrl+D. It needs an interactive
-    terminal, so callers check that stdin is one first.
+    terminal, so callers check that stdin and stdout are one first.
     """
     index = start
-    with Live(_render(labels, index), auto_refresh=False, transient=True) as live:
+    with Live(auto_refresh=False, transient=True) as live:
         while True:
+            live.update(_render(labels, index, live.console.height), refresh=True)
             try:
                 key = click.getchar()
             except (KeyboardInterrupt, EOFError):
@@ -31,12 +32,15 @@ def pick(labels: list[str], start: int = 0) -> int | None:
                 index = (index - 1) % len(labels)
             elif key in DOWN_KEYS:
                 index = (index + 1) % len(labels)
-            live.update(_render(labels, index), refresh=True)
 
 
-def _render(labels: list[str], index: int) -> Text:
+def _render(labels: list[str], index: int, height: int) -> Text:
+    # Show only the rows that fit, keeping the selection in view, so it never
+    # moves onto a row the terminal has cut off.
+    rows = max(height - 1, 1)
+    top = max(min(index - rows // 2, len(labels) - rows), 0)
     text = Text()
-    for i, label in enumerate(labels):
+    for i, label in enumerate(labels[top : top + rows], start=top):
         if i == index:
             text.append(f"❯ {label}\n", style="bold cyan")
         else:
