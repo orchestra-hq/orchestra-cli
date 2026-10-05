@@ -1,0 +1,27 @@
+README.md
+  s_335f3d35aa3d05::t_59662f67236c89 415
+orchestra_cli/utils/accounts.py
+  s_335f3d35aa3d05::t_59662f67236c89 5,17-18
+orchestra_cli/tests/test_list_accounts.py
+  s_335f3d35aa3d05::t_59662f67236c89 13
+orchestra_cli/tests/test_use_account.py
+  s_335f3d35aa3d05::t_59662f67236c89 13
+orchestra_cli/utils/AGENTS.md
+  s_335f3d35aa3d05::t_f392dde279eafa 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e44f6415b00530c75a0e56a7bf11e75468a84726",
+  "prompts": {},
+  "sessions": {
+    "s_335f3d35aa3d05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e5ef000-5f88-4a30-a211-09ba13a98c94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
