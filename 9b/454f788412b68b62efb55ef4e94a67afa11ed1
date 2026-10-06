@@ -1,0 +1,73 @@
+orchestra_cli/src/get_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 49,55,59
+  s_a2adbf7be803b9::t_55d357d214f199 10
+orchestra_cli/src/build_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 84,103,112,146
+  s_a2adbf7be803b9::t_67093833d0c5fd 8,73,152,162,166,173,188,194,228
+orchestra_cli/src/task_logs.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 37,76-80,82,222,235,238,295
+  s_a2adbf7be803b9::t_bccfb9f8dd5972 13,35,301-302,306,310
+orchestra_cli/utils/accounts.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 17
+  s_a2adbf7be803b9::t_1505b0ac263819 4,10,13-14
+orchestra_cli/utils/pipeline_lookup.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 43
+  s_a2adbf7be803b9::t_0d0758c8bc2715 6,36
+orchestra_cli/src/update_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 45,51,57,83
+  s_a2adbf7be803b9::t_39d248e67b8f55 7
+orchestra_cli/src/fetch_pipelines.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 16,23,26
+  s_a2adbf7be803b9::t_31160e640eb312 7
+orchestra_cli/tests/test_run_pipeline.py
+  s_a2adbf7be803b9::t_f3f269bcb64a9c 1552-1555,1560-1561
+  s_a2adbf7be803b9::t_a890ba080dd83d 1559
+orchestra_cli/src/create_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 35,41,55
+  s_a2adbf7be803b9::t_1b6da1fb7053fe 7
+orchestra_cli/utils/AGENTS.md
+  s_a2adbf7be803b9::t_a890ba080dd83d 35-37
+orchestra_cli/src/import_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 42,48,103
+  s_a2adbf7be803b9::t_af46bf88574cf5 8
+orchestra_cli/utils/api.py
+  s_a2adbf7be803b9::t_3e7d8ce11436b4 27
+  s_a2adbf7be803b9::t_6d5a593fc5ca74 132
+  s_a2adbf7be803b9::t_a1c2957d1be696 15,120,126-131,133-140,145-149,157,160-162
+  s_a2adbf7be803b9::t_de6190f7e62770 121,123,125,141-144
+orchestra_cli/src/migrate_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 140,351,357,383,395,419
+  s_a2adbf7be803b9::t_416f179ff17ba0 10,130-134
+orchestra_cli/src/delete_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 26,32,40
+  s_a2adbf7be803b9::t_c1d3530f7a637b 7
+orchestra_cli/tests/test_task_logs.py
+  s_a2adbf7be803b9::t_f3f269bcb64a9c 74-107
+orchestra_cli/src/AGENTS.md
+  s_a2adbf7be803b9::t_a890ba080dd83d 40,42-43,60
+orchestra_cli/src/run_pipeline.py
+  s_a2adbf7be803b9::t_b19e0b249ef7ac 164,228,233,476,484,507-510,542,650,662,696,766
+  s_a2adbf7be803b9::t_3536162be8f058 17,156,773,782,803,843
+orchestra_cli/tests/test_delete_pipeline.py
+  s_a2adbf7be803b9::t_792dcdca6b4de6 67,73,92-93
+orchestra_cli/src/list_accounts.py
+  s_a2adbf7be803b9::t_9007adcf1fb6cb 6,12
+orchestra_cli/src/use_account.py
+  s_a2adbf7be803b9::t_2392eace90b86c 4,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b454f788412b68b62efb55ef4e94a67afa11ed1",
+  "prompts": {},
+  "sessions": {
+    "s_a2adbf7be803b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d39794e-3be7-48db-a2d0-c344926627bd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
