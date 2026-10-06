@@ -1,0 +1,21 @@
+orchestra_cli/utils/picker.py
+  s_1dc38feca9482f::t_a01dcd9de63aae 40-42
+orchestra_cli/tests/utils/test_picker.py
+  s_1dc38feca9482f::t_a01dcd9de63aae 23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b8ab49f51847e19db4a9b419aee61e9c136ff3e",
+  "prompts": {},
+  "sessions": {
+    "s_1dc38feca9482f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5caf33e4-c476-44ff-a2d2-d4067ba5fba2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
