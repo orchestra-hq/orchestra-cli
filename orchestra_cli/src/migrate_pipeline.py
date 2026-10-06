@@ -7,7 +7,7 @@ import typer
 
 from ..utils.api import (
     account_id_option,
-    auth_headers,
+    api_client,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -127,17 +127,19 @@ def _choose_migration_version(existing_pipeline: dict[str, object], force: bool)
     raise typer.Exit(code=1)
 
 
-def _download_pipeline_yaml(selector: PipelineSelector, version: int | None) -> str:
+def _download_pipeline_yaml(
+    client: httpx.Client,
+    selector: PipelineSelector,
+    version: int | None,
+) -> str:
     params = selector.to_payload()
     if version is not None:
         params["version"] = str(version)
 
     response = request_or_exit(
-        httpx.get,
+        client.get,
         get_api_url("pipeline/data"),
         params=params,
-        timeout=30,
-        headers=auth_headers(),
     )
     if response.status_code != 200:
         raise fail_with_response("Migrate", response)
@@ -346,12 +348,13 @@ def migrate_pipeline(
         "--force/--no-force",
         help="Skip interactive prompts and continue with inferred migration choices",
     ),
-    _account_id: str | None = account_id_option(),
+    account_id: str | None = account_id_option(),
 ) -> None:
     """
     Migrate an Orchestra-backed pipeline to git-backed storage.
     """
     require_credential()
+    client = api_client(account_id)
     selector = _resolve_migrate_selector(alias, pipeline_id)
 
     repo_root = require_repo_root(path, GitAction.MIGRATE)
@@ -377,7 +380,7 @@ def migrate_pipeline(
         typer.echo(red("Could not detect current branch from git"))
         raise typer.Exit(code=1)
 
-    existing_pipeline = lookup_existing_pipeline(selector, "Migrate")
+    existing_pipeline = lookup_existing_pipeline(client, selector, "Migrate")
     if existing_pipeline is None:
         typer.echo(red("❌ Migrate failed: pipeline lookup returned no pipeline"))
         raise typer.Exit(code=1)
@@ -389,7 +392,7 @@ def migrate_pipeline(
         raise typer.Exit(code=1)
 
     target_version = _choose_migration_version(existing_pipeline, force)
-    downloaded_yaml = _download_pipeline_yaml(selector, target_version)
+    downloaded_yaml = _download_pipeline_yaml(client, selector, target_version)
     target_path, selected_yaml = _resolve_target_path_and_yaml(path, downloaded_yaml, force)
     relative_path = ensure_repo_relative_path(target_path, repo_root, GitAction.MIGRATE)
     _write_yaml(target_path, selected_yaml)
@@ -413,12 +416,10 @@ def migrate_pipeline(
         payload["working_branch"] = effective_working_branch
 
     response = request_or_exit(
-        httpx.patch,
+        client.patch,
         get_api_url("pipelines/storage-settings"),
         params=selector.to_payload(),
         json=payload,
-        timeout=30,
-        headers=auth_headers(),
     )
     if not (200 <= response.status_code < 300):
         raise fail_with_response("Migrate", response)

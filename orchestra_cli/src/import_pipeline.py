@@ -1,12 +1,11 @@
 import json
 from pathlib import Path
 
-import httpx
 import typer
 
 from ..utils.api import (
     account_id_option,
-    auth_headers,
+    api_client,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -40,12 +39,13 @@ def import_pipeline(
         "-w",
         help="Git branch to use for the imported pipeline (defaults to current local branch)",
     ),
-    _account_id: str | None = account_id_option(),
+    account_id: str | None = account_id_option(),
 ):
     """
     Create a pipeline in Orchestra by referencing a YAML file in your git repository.
     """
     require_credential()
+    client = api_client(account_id)
     if path is None:
         typer.echo(red("Provide --path to import a pipeline from git"))
         raise typer.Exit(code=1)
@@ -100,11 +100,9 @@ def import_pipeline(
         payload["alias"] = alias
 
     response = request_or_exit(
-        httpx.post,
+        client.post,
         get_api_url("pipelines/import"),
         json=payload,
-        timeout=30,
-        headers=auth_headers(),
     )
 
     if response.status_code == 201:

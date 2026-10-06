@@ -12,6 +12,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import click
 import httpx
 import typer
 
@@ -21,27 +22,13 @@ from .styling import indent_message, red, yellow
 # Refresh this long before expiry so a token cannot lapse mid-request.
 _REFRESH_MARGIN_SECONDS = 60
 
-# The workspace a multi-account login token acts in, stored by ``account_id_option()``.
-_account_id: str | None = None
-
-
-def _store_account_id(value: str | None) -> str | None:
-    global _account_id
-    _account_id = value
-    return value
-
 
 def account_id_option() -> Any:
-    """Return the ``--account-id`` option, which ``auth_headers()`` picks up with no further wiring.
-
-    Click runs the callback on every invocation, unset or not, so one command's
-    account never leaks into the next.
-    """
+    """Return the ``--account-id`` option, whose value a command passes to ``api_client()``."""
     return typer.Option(
         None,
         "--account-id",
         envvar="ORCHESTRA_ACCOUNT_ID",
-        callback=_store_account_id,
         help="Workspace to act in, for a login that covers several accounts",
     )
 
@@ -130,22 +117,36 @@ def token_response_to_credentials(token: dict, previous: dict) -> dict:
     }
 
 
-def auth_headers(scoped: bool = True) -> dict[str, str]:
-    """Return the ``Authorization`` header, plus ``X-Orchestra-Account-Id`` if set, for one request.
+class _OrchestraAuth(httpx.Auth):
+    """Sets ``Authorization`` and any ``X-Orchestra-Account-Id`` on each request.
 
-    The account is ``--account-id``, then ``ORCHESTRA_ACCOUNT_ID``, then the
-    ``orchestra accounts use`` default; ``scoped=False`` leaves it out for calls that
-    aren't about one workspace. Resolved afresh each time so a command running longer
-    than an access token's lifetime keeps working; build headers per request rather
-    than reusing them.
+    Per request, not per client, so a command outliving a login access token keeps working.
     """
-    headers = {"Authorization": f"Bearer {require_credential()}"}
-    # Read after require_credential(), which forgets a dead login before falling back
-    # to ORCHESTRA_API_KEY, so a key never carries the login's default.
-    account_id = (_account_id or (load_credentials() or {}).get("account_id")) if scoped else None
-    if account_id:
-        headers["X-Orchestra-Account-Id"] = account_id
-    return headers
+
+    def __init__(self, account_id: str | None, scoped: bool):
+        self._account_id = account_id
+        self._scoped = scoped
+
+    def auth_flow(self, request: httpx.Request):
+        request.headers["Authorization"] = f"Bearer {require_credential()}"
+        # After require_credential(), which drops a dead login, so a key never gets its default.
+        if self._scoped:
+            account_id = self._account_id or (load_credentials() or {}).get("account_id")
+            if account_id:
+                request.headers["X-Orchestra-Account-Id"] = account_id
+        yield request
+
+
+def api_client(account_id: str | None = None, *, scoped: bool = True) -> httpx.Client:
+    """Return the client a command sends every Orchestra API request through, closed with it.
+
+    The account is ``account_id``, else the ``accounts use`` default; ``scoped=False`` sends none.
+    """
+    client = httpx.Client(auth=_OrchestraAuth(account_id, scoped), timeout=30)
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None:
+        ctx.call_on_close(client.close)
+    return client
 
 
 def request_or_exit(
@@ -153,14 +154,12 @@ def request_or_exit(
     *args: object,
     **kwargs: object,
 ) -> httpx.Response:
-    """Invoke an ``httpx`` request function, exiting cleanly on transport errors.
-
-    Takes the ``httpx`` callable (e.g. ``httpx.post``) rather than a method
-    string so existing tests can still ``monkeypatch.setattr(httpx, "delete", ...)``
-    to simulate transport failures.
-    """
+    """Invoke a request method such as ``client.post``, exiting cleanly on transport errors."""
     try:
         return httpx_func(*args, **kwargs)
+    except typer.Exit:
+        # The client's auth already explained why the credential is unusable.
+        raise
     except Exception as e:
         typer.echo(red(f"HTTP request failed: {e}"))
         raise typer.Exit(code=1)

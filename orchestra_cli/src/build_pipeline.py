@@ -5,7 +5,7 @@ import typer
 
 from ..utils.api import (
     account_id_option,
-    auth_headers,
+    api_client,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -70,6 +70,7 @@ def _build_create_selector(
 
 
 def _create_draft_pipeline(
+    client: httpx.Client,
     path: Path,
     lookup_selector: PipelineSelector,
     pipeline_data: dict[str, object],
@@ -80,11 +81,9 @@ def _create_draft_pipeline(
 
     typer.echo(f"Creating draft pipeline ({create_selector.display()})")
     create_response = request_or_exit(
-        httpx.post,
+        client.post,
         get_create_pipeline_url(),
         json=payload,
-        timeout=30,
-        headers=auth_headers(),
     )
 
     if create_response.status_code == 201:
@@ -101,6 +100,7 @@ def _create_draft_pipeline(
 
 
 def _update_draft_pipeline(
+    client: httpx.Client,
     existing_pipeline: dict[str, object],
     pipeline_data: dict[str, object],
 ) -> tuple[PipelineSelector, int]:
@@ -109,11 +109,9 @@ def _update_draft_pipeline(
 
     typer.echo(f"Updating draft pipeline ({update_selector.display()})")
     update_response = request_or_exit(
-        httpx.put,
+        client.put,
         get_update_pipeline_url(),
         json=payload,
-        timeout=30,
-        headers=auth_headers(),
     )
 
     if update_response.status_code == 200:
@@ -145,12 +143,13 @@ def build_pipeline(
         "--force/--no-force",
         help="Ignore any warnings and run the pipeline anyway",
     ),
-    _account_id: str | None = account_id_option(),
+    account_id: str | None = account_id_option(),
 ) -> None:
     """
     Validate local YAML, create or update a draft pipeline, and start the draft version.
     """
     require_credential()
+    client = api_client(account_id)
     if path is None:
         typer.echo(
             red("A pipeline YAML file path is required (use -p or --path with your YAML file)"),
@@ -160,16 +159,18 @@ def build_pipeline(
 
     confirm_git_warnings_or_exit(force, path)
     pipeline_data = load_validated_pipeline_data(path)
-    existing_pipeline = lookup_existing_pipeline(lookup_selector, "Build", allow_404=True)
+    existing_pipeline = lookup_existing_pipeline(client, lookup_selector, "Build", allow_404=True)
 
     if existing_pipeline is None:
         run_selector, version_number = _create_draft_pipeline(
+            client=client,
             path=path,
             lookup_selector=lookup_selector,
             pipeline_data=pipeline_data,
             force=force,
         )
         start_pipeline_run(
+            client=client,
             selector=run_selector,
             payload=build_run_payload(
                 branch=branch,
@@ -184,11 +185,13 @@ def build_pipeline(
     pipeline_storage_provider = storage_provider(existing_pipeline)
     if pipeline_storage_provider is None or pipeline_storage_provider == "ORCHESTRA":
         run_selector, version_number = _update_draft_pipeline(
+            client=client,
             existing_pipeline=existing_pipeline,
             pipeline_data=pipeline_data,
         )
 
         start_pipeline_run(
+            client=client,
             selector=run_selector,
             payload=build_run_payload(
                 branch=branch,
@@ -222,6 +225,7 @@ def build_pipeline(
     )
 
     start_pipeline_run(
+        client=client,
         selector=run_selector,
         payload=build_run_payload(
             branch=git_branch,

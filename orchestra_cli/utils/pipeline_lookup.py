@@ -3,7 +3,7 @@ import json
 import httpx
 import typer
 
-from .api import auth_headers, fail_with_response, request_or_exit
+from .api import fail_with_response, request_or_exit
 from .constants import get_api_url
 from .pipeline_selector import PipelineSelector
 from .styling import indent_message, red, yellow
@@ -33,17 +33,16 @@ def require_pipeline_lookup_body(
 
 
 def lookup_existing_pipeline(
+    client: httpx.Client,
     selector: PipelineSelector,
     action: str,
     *,
     allow_404: bool = False,
 ) -> dict[str, object] | None:
     response = request_or_exit(
-        httpx.get,
+        client.get,
         get_api_url("pipeline"),
         params=selector.to_payload(),
-        timeout=30,
-        headers=auth_headers(),
     )
     if response.status_code == 404 and allow_404:
         return None

@@ -1549,7 +1549,13 @@ def test_run_wait_sends_each_refreshed_login_token(
             json={"results": []},
         )
 
-    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--alias", "demo", "--wait", "--account-id", "acc-1"],
+    )
 
     assert result.exit_code == 0, result.output
     assert "Pipeline succeeded" in result.output
+    for request in httpx_mock.get_requests():
+        if request.url.path != "/oauth/token":
+            assert request.headers["X-Orchestra-Account-Id"] == "acc-1"

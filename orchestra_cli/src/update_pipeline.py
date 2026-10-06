@@ -1,11 +1,10 @@
 from pathlib import Path
 
-import httpx
 import typer
 
 from ..utils.api import (
     account_id_option,
-    auth_headers,
+    api_client,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -43,18 +42,19 @@ def update_pipeline(
         "--force/--no-force",
         help="Ignore prompts and continue with inferred git update choices",
     ),
-    _account_id: str | None = account_id_option(),
+    account_id: str | None = account_id_option(),
 ):
     """
     Update an Orchestra-backed pipeline from a local YAML file.
     """
     require_credential()
+    client = api_client(account_id)
     if path is None:
         typer.echo(red("Provide --path to update a pipeline from YAML"))
         raise typer.Exit(code=1)
     selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
     data = load_validated_pipeline_data(path)
-    existing_pipeline = lookup_existing_pipeline(selector, "Update")
+    existing_pipeline = lookup_existing_pipeline(client, selector, "Update")
     if existing_pipeline is None:
         typer.echo(red("❌ Update failed: pipeline lookup returned no pipeline"))
         raise typer.Exit(code=1)
@@ -80,11 +80,9 @@ def update_pipeline(
     payload = build_upsert_payload(data, publish, update_selector)
 
     response = request_or_exit(
-        httpx.put,
+        client.put,
         get_update_pipeline_url(),
         json=payload,
-        timeout=30,
-        headers=auth_headers(),
     )
 
     if response.status_code == 200:

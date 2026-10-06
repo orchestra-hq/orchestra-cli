@@ -1,6 +1,7 @@
 import typer
 
 from ..utils.accounts import fetch_accounts, pick_account
+from ..utils.api import api_client
 from ..utils.credentials import load_credentials, save_credentials
 from ..utils.picker import can_pick
 from ..utils.styling import green, red, yellow
@@ -17,7 +18,7 @@ def use_account(
     if id_or_name is None and not can_pick():
         typer.echo(red("No terminal to pick an account in; pass a workspace id or name."))
         raise typer.Exit(code=1)
-    accounts = fetch_accounts()
+    accounts = fetch_accounts(api_client(scoped=False))
     account = _pick(accounts) if id_or_name is None else _match(accounts, id_or_name)
     # Read again after fetching, which may have refreshed and rotated the saved tokens.
     credentials = _require_login()

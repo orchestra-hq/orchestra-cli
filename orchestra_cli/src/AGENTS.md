@@ -37,10 +37,10 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 **Error handling:** All commands use `typer.Exit(code=1)` for failures — no exceptions propagate to the user. Use the helpers in `orchestra_cli/utils/api.py` for the common patterns rather than rolling your own:
 
 - `require_credential()` — resolves the cached `orchestra login` token, falling back to `ORCHESTRA_API_KEY`, or exits.
-- `request_or_exit(httpx.<method>, url, ...)` — wraps the request in a uniform transport-error handler.
+- `request_or_exit(client.<method>, url, ...)` — wraps the request in a uniform transport-error handler.
 - `fail_with_response("Action", response)` — uniform `❌ Action failed with status <code>` output for non-success HTTP responses.
-- `account_id_option()` — every workspace-scoped API command declares `_account_id: str | None = account_id_option()`. The option stores the value itself, so `auth_headers()` sends `X-Orchestra-Account-Id` when an account is set; the command body never touches it.
-- `auth_headers()` — builds the `Authorization` header (and account header), resolving the credential afresh. Call it per request; never hold a credential or headers across requests, since a login token can expire mid-command.
+- `account_id_option()` — every workspace-scoped API command declares `account_id: str | None = account_id_option()` and builds one client with `client = api_client(account_id)`.
+- `api_client(account_id, scoped=True)` — the `httpx.Client` a command passes to every helper that calls the API. It sets `Authorization` (and `X-Orchestra-Account-Id`) per request, so a login token that expires mid-command is refreshed; never build auth headers by hand.
 
 **YAML loading:** Commands that take a `--path` to a pipeline YAML should use `load_validated_pipeline_data(path)` from `orchestra_cli/utils/yaml_loader.py` — it loads, schema-validates against the API, and exits cleanly on any failure.
 
@@ -57,7 +57,7 @@ The previous flat command names (`validate`, `import`, `run`, `fetch-pipelines`,
 **Import style:** Use relative imports within `src/`:
 
 ```python
-from ..utils.api import auth_headers, fail_with_response, request_or_exit, require_credential
+from ..utils.api import api_client, fail_with_response, request_or_exit, require_credential
 from ..utils.constants import get_api_url
 from ..utils.styling import red, green
 from ..utils.git import detect_repo_root

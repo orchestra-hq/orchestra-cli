@@ -11,7 +11,12 @@ import httpx
 import typer
 
 from ..utils.accounts import fetch_accounts, pick_account
-from ..utils.api import fail_with_response, request_or_exit, token_response_to_credentials
+from ..utils.api import (
+    api_client,
+    fail_with_response,
+    request_or_exit,
+    token_response_to_credentials,
+)
 from ..utils.constants import get_base_url
 from ..utils.credentials import load_credentials, save_credentials
 from ..utils.picker import can_pick
@@ -170,7 +175,7 @@ def _choose_default_account(logged_in: str) -> None:
     The login is already saved, so nothing here can fail it.
     """
     try:
-        accounts = fetch_accounts()
+        accounts = fetch_accounts(api_client(scoped=False))
     except typer.Exit:
         typer.echo(green(logged_in))
         typer.echo(yellow("Could not list your accounts, so no default account is set."))

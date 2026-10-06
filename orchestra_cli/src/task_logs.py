@@ -10,7 +10,7 @@ import typer
 
 from ..utils.api import (
     account_id_option,
-    auth_headers,
+    api_client,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -32,13 +32,11 @@ def _success_json_or_exit(response: httpx.Response, action: str) -> object:
         raise typer.Exit(code=1)
 
 
-def _resolve_pipeline_run_id(task_run_id: str) -> str:
+def _resolve_pipeline_run_id(client: httpx.Client, task_run_id: str) -> str:
     response = request_or_exit(
-        httpx.get,
+        client.get,
         get_api_url("task_runs"),
         params={"task_run_ids": task_run_id},
-        timeout=30,
-        headers=auth_headers(),
     )
     if response.status_code != 200:
         raise fail_with_response("Resolve task run", response)
@@ -75,12 +73,14 @@ def _download_log_url(pipeline_run_id: str, task_run_id: str) -> str:
     return f"{_task_logs_url(pipeline_run_id, task_run_id)}/download"
 
 
-def _list_log_filenames(pipeline_run_id: str, task_run_id: str) -> list[str]:
+def _list_log_filenames(
+    client: httpx.Client,
+    pipeline_run_id: str,
+    task_run_id: str,
+) -> list[str]:
     response = request_or_exit(
-        httpx.get,
+        client.get,
         _task_logs_url(pipeline_run_id, task_run_id),
-        timeout=30,
-        headers=auth_headers(),
     )
     if response.status_code != 200:
         raise fail_with_response("List task logs", response)
@@ -219,6 +219,7 @@ def _is_eof_response(response: httpx.Response) -> bool:
 
 
 def _watch_log_file(
+    client: httpx.Client,
     pipeline_run_id: str,
     task_run_id: str,
     filename: str,
@@ -230,13 +231,11 @@ def _watch_log_file(
 
     try:
         while True:
-            headers = {**auth_headers(), "Range": f"bytes={offset}-"}
             response = request_or_exit(
-                httpx.get,
+                client.get,
                 _download_log_url(pipeline_run_id, task_run_id),
                 params={"filename": filename},
-                timeout=30,
-                headers=headers,
+                headers={"Range": f"bytes={offset}-"},
             )
 
             if response.status_code in {200, 206}:
@@ -293,20 +292,22 @@ def task_logs(
         "--no-watch",
         help="Print current log content once without waiting for new lines",
     ),
-    _account_id: str | None = account_id_option(),
+    account_id: str | None = account_id_option(),
 ):
     """
     Fetch logs for a single Orchestra task run.
     """
     require_credential()
-    pipeline_run_id = _resolve_pipeline_run_id(task_run_id)
+    client = api_client(account_id)
+    pipeline_run_id = _resolve_pipeline_run_id(client, task_run_id)
     selected_filename = filename
     if not selected_filename:
         selected_filename = _select_filename(
-            _list_log_filenames(pipeline_run_id, task_run_id),
+            _list_log_filenames(client, pipeline_run_id, task_run_id),
         )
 
     _watch_log_file(
+        client=client,
         pipeline_run_id=pipeline_run_id,
         task_run_id=task_run_id,
         filename=selected_filename,

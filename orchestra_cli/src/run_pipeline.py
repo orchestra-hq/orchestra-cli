@@ -14,7 +14,7 @@ from rich.text import Text
 
 from ..utils.api import (
     account_id_option,
-    auth_headers,
+    api_client,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -153,6 +153,7 @@ def _parse_pipeline_data_text(yaml_text: str) -> dict[str, object]:
 
 
 def _load_pipeline_data_for_task_resolution(
+    client: httpx.Client,
     path: Path | None,
     selector: PipelineSelector,
 ) -> tuple[dict[str, object], str]:
@@ -160,11 +161,9 @@ def _load_pipeline_data_for_task_resolution(
         return load_validated_pipeline_data(path), f"YAML at {path}"
 
     response = request_or_exit(
-        httpx.get,
+        client.get,
         get_api_url("pipeline/data"),
         params=selector.to_payload(),
-        timeout=30,
-        headers=auth_headers(),
     )
     if response.status_code != 200:
         raise fail_with_response("Run", response)
@@ -226,16 +225,14 @@ def _parse_task_runs_response(response: httpx.Response) -> list[dict[str, object
     return []
 
 
-def _poll_all_task_runs(pipeline_run_id: str) -> list[dict[str, object]]:
+def _poll_all_task_runs(client: httpx.Client, pipeline_run_id: str) -> list[dict[str, object]]:
     task_runs: list[dict[str, object]] = []
     page = 1
     while True:
         response = request_or_exit(
-            httpx.get,
+            client.get,
             get_api_url(f"pipeline_runs/{pipeline_run_id}/task_runs"),
             params={"page_size": 50, "page": page},
-            timeout=30,
-            headers=auth_headers(),
         )
         if not (200 <= response.status_code < 300):
             typer.echo(red(f"❌ Task run polling failed with HTTP {response.status_code}"))
@@ -476,6 +473,7 @@ def _sleep_with_status_updates(
 
 
 def _poll_until_terminal(
+    client: httpx.Client,
     selector_name: str,
     pipeline_run_id: str,
     lineage_url: str,
@@ -483,7 +481,7 @@ def _poll_until_terminal(
 ) -> None:
     """Poll the run status endpoint until the run reaches a terminal state.
 
-    The credential is re-resolved on every poll: a run can outlive an
+    ``client`` re-resolves the credential on every poll: a run can outlive an
     ``orchestra login`` access token, which refreshes only when asked for.
     """
     poll_interval_seconds = 5
@@ -505,10 +503,11 @@ def _poll_until_terminal(
                 task_runs=last_task_runs,
                 can_fetch_task_runs=can_fetch_task_runs,
             )
-            # Outside the try: its typer.Exit on a failed refresh must end the loop.
-            headers = auth_headers()
             try:
-                status_resp = httpx.get(status_url, headers=headers, timeout=30)
+                status_resp = client.get(status_url)
+            except typer.Exit:
+                # A failed login refresh must end the loop, not count as a failed poll.
+                raise
             except Exception as exc:
                 _stop_poll_status_display(poll_status_display)
                 poll_status_display = None
@@ -540,7 +539,7 @@ def _poll_until_terminal(
                     IN_PROGRESS_RUN_STATUSES | TERMINAL_RUN_STATUSES
                 )
                 if can_fetch_task_runs:
-                    last_task_runs = _poll_all_task_runs(pipeline_run_id)
+                    last_task_runs = _poll_all_task_runs(client, pipeline_run_id)
                 if poll_status_display is not None:
                     poll_status_display.update(
                         _build_poll_display(
@@ -648,6 +647,7 @@ def _resolve_start_path(
 
 
 def start_pipeline_run(
+    client: httpx.Client,
     selector: PipelineSelector,
     payload: dict[str, Any] | None,
     wait: bool,
@@ -659,11 +659,9 @@ def start_pipeline_run(
 
     typer.echo(f"Starting pipeline ({selector_name})")
     response = request_or_exit(
-        httpx.post,
+        client.post,
         get_api_url(start_path),
         json=payload if payload is not None else None,
-        timeout=30,
-        headers=auth_headers(),
     )
 
     if 200 <= response.status_code < 300:
@@ -695,6 +693,7 @@ def start_pipeline_run(
         typer.echo(bold("Polling pipeline status... (Ctrl+C to stop)"))
 
         _poll_until_terminal(
+            client=client,
             selector_name=selector_name,
             pipeline_run_id=str(pipeline_run_id),
             lineage_url=lineage_url,
@@ -764,13 +763,14 @@ def run_pipeline(
         "--force/--no-force",
         help="Ignore any warnings and run the pipeline anyway",
     ),
-    _account_id: str | None = account_id_option(),
+    account_id: str | None = account_id_option(),
 ):
     """
     Run a pipeline in Orchestra.
     """
     _validate_run_selector_inputs(path, alias, pipeline_id)
     require_credential()
+    client = api_client(account_id)
     if continue_downstream_run and not task:
         typer.echo(red("❌ --continue can only be used when --task/-t is provided"))
         raise typer.Exit(code=1)
@@ -779,6 +779,7 @@ def run_pipeline(
     task_ids = None
     if task:
         pipeline_data, task_source_description = _load_pipeline_data_for_task_resolution(
+            client,
             path,
             selector,
         )
@@ -799,7 +800,7 @@ def run_pipeline(
     existing_pipeline: dict[str, object] | None = None
     should_prepare_git_backed_target = False
     if path is not None:
-        existing_pipeline = lookup_existing_pipeline(selector, "Run", allow_404=True)
+        existing_pipeline = lookup_existing_pipeline(client, selector, "Run", allow_404=True)
     if existing_pipeline is not None and path is not None and selector_uses_repository_path:
         provider = (storage_provider(existing_pipeline) or "ORCHESTRA").upper()
         if provider != "ORCHESTRA":
@@ -839,6 +840,7 @@ def run_pipeline(
         )
 
     start_pipeline_run(
+        client=client,
         selector=run_selector,
         payload=build_run_payload(
             branch=run_branch,
