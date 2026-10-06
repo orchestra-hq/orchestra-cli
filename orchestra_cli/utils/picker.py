@@ -10,7 +10,8 @@ from rich.text import Text
 UP_KEYS = {"\x1b[A", "\x1bOA", "\x00H", "\xe0H"}
 DOWN_KEYS = {"\x1b[B", "\x1bOB", "\x00P", "\xe0P"}
 ENTER_KEYS = {"\r", "\n"}
-ESCAPE = "\x1b"
+# Esc, plus Ctrl+D on Windows, where click.getchar returns it rather than raising EOFError.
+CANCEL_KEYS = {"\x1b", "\x04"}
 
 
 def can_pick() -> bool:
@@ -35,7 +36,7 @@ def pick(labels: list[str], start: int = 0) -> int | None:
                 return None
             if key in ENTER_KEYS:
                 return index
-            if key == ESCAPE:
+            if key in CANCEL_KEYS:
                 return None
             # One read can hold several presses when a key is held down or the link lags.
             down = sum(key.count(seq) for seq in DOWN_KEYS) - sum(key.count(seq) for seq in UP_KEYS)
