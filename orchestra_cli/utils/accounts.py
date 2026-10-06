@@ -1,24 +1,22 @@
 import httpx
 import typer
 
-from .api import auth_headers, fail_with_response, request_or_exit
+from .api import fail_with_response, request_or_exit
 from .constants import get_base_url
 from .picker import pick
 from .styling import indent_message, red, yellow
 
 
-def fetch_accounts() -> list[dict]:
+def fetch_accounts(client: httpx.Client) -> list[dict]:
     """Return the workspaces the current credential covers as ``[{id, name}]``, or exit 1.
 
-    Sent without an account header: the call isn't scoped to one workspace, so a
-    stale default account must not break it.
+    ``client`` should come from ``api_client(scoped=False)``: the call isn't scoped to
+    one workspace, so a stale default account must not break it.
     """
     response = request_or_exit(
-        httpx.get,
+        client.get,
         # Unlike the pipeline endpoints, this one is served from the public v1 API.
         f"{get_base_url()}/public/v1/accounts",
-        timeout=30,
-        headers=auth_headers(scoped=False),
     )
     if response.status_code != 200:
         raise fail_with_response("List accounts", response)

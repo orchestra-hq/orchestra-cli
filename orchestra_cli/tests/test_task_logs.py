@@ -71,6 +71,40 @@ def test_task_logs_with_filename_watches_until_ready(httpx_mock: HTTPXMock, monk
     assert "hello\nworld\n" in result.output
 
 
+def test_task_logs_sends_account_id_on_every_poll(httpx_mock: HTTPXMock, monkeypatch):
+    _mock_task_run_lookup(httpx_mock)
+    monkeypatch.setattr(task_logs_module.time, "sleep", lambda _: None)
+    download_url = (
+        "https://app.getorchestra.io/api/engine/public"
+        f"/pipeline_runs/{mock_pipeline_run_id}/task_runs/{mock_task_run_id}"
+        "/logs/download?filename=main.log"
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        content=b"hello\n",
+        headers={"content-range": "bytes 0-5/12", "x-file-status": "WRITING"},
+        status_code=206,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=download_url,
+        content=b"world\n",
+        headers={"content-range": "bytes 6-11/12", "x-file-status": "READY"},
+        status_code=206,
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "logs", "--task-run-id", mock_task_run_id, "-f", "main.log", "--account-id", "a1"],
+    )
+
+    assert result.exit_code == 0
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 3
+    assert all(request.headers["X-Orchestra-Account-Id"] == "a1" for request in requests)
+
+
 def test_task_logs_completed_file_exits_on_non_pending_status_response(httpx_mock: HTTPXMock):
     _mock_task_run_lookup(httpx_mock)
     httpx_mock.add_response(

@@ -1,11 +1,10 @@
 from pathlib import Path
 
-import httpx
 import typer
 
 from ..utils.api import (
     account_id_option,
-    auth_headers,
+    api_client,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -24,12 +23,13 @@ def delete_pipeline(
     path: Path | None = pipeline_path_option(),
     alias: str | None = pipeline_alias_option(),
     pipeline_id: str | None = pipeline_id_option(),
-    _account_id: str | None = account_id_option(),
+    account_id: str | None = account_id_option(),
 ):
     """
     Delete a pipeline by selector.
     """
     require_credential()
+    client = api_client(account_id)
     selector = resolve_pipeline_selector(alias, pipeline_id, path)
 
     if not typer.confirm(f"Delete pipeline ({selector.display()})?"):
@@ -37,11 +37,9 @@ def delete_pipeline(
         raise typer.Exit(code=1)
 
     response = request_or_exit(
-        httpx.delete,
+        client.delete,
         get_delete_pipeline_url(),
         params=selector.to_payload(),
-        timeout=30,
-        headers=auth_headers(),
     )
 
     if response.status_code == 204:

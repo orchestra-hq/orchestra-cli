@@ -64,21 +64,13 @@ def test_delete_pipeline_id_uses_query_selector(httpx_mock: HTTPXMock):
     assert "pipeline_id: pipeline-id" in result.output
 
 
-def test_delete_aborts_without_confirmation(monkeypatch):
-    delete_calls = []
-
-    def record_delete(*args, **kwargs):  # noqa: ARG001
-        delete_calls.append((args, kwargs))
-        return httpx.Response(status_code=204)
-
-    monkeypatch.setattr(httpx, "delete", record_delete)
-
+def test_delete_aborts_without_confirmation(httpx_mock: HTTPXMock):
     result = runner.invoke(app, ["pipeline", "delete", "--alias", "demo"], input="n\n")
 
     assert result.exit_code == 1
     assert "Delete pipeline (alias: demo)?" in result.output
     assert "Deletion aborted" in result.output
-    assert delete_calls == []
+    assert httpx_mock.get_requests() == []
 
 
 def test_delete_requires_selector():
@@ -97,11 +89,8 @@ def test_delete_missing_api_key(monkeypatch):
     assert "ORCHESTRA_API_KEY is not set" in result.output
 
 
-def test_delete_http_request_failure(monkeypatch):
-    def raise_timeout(*args, **kwargs):  # noqa: ARG001
-        raise httpx.TimeoutException("timed out")
-
-    monkeypatch.setattr(httpx, "delete", raise_timeout)
+def test_delete_http_request_failure(httpx_mock: HTTPXMock):
+    httpx_mock.add_exception(httpx.TimeoutException("timed out"), method="DELETE")
 
     result = runner.invoke(app, ["pipeline", "delete", "--alias", "demo"], input="y\n")
 
