@@ -21,7 +21,7 @@ pipx install orchestra-cli
 ## Environment variables
 
 - `ORCHESTRA_API_KEY`: Credential for actions that call the API (`pipeline import`, `pipeline new`, `pipeline update`, `pipeline migrate`, `pipeline get`, `pipeline list`, `pipeline delete`, `pipeline run`, `pipeline build`, `accounts list`). Not needed once you have run `orchestra login`: a login takes precedence, and the key is used only when you are not logged in or your login has expired.
-- `ORCHESTRA_ACCOUNT_ID`: Optional. The workspace to act in when your `orchestra login` covers several. Every `pipeline` and `task` command that calls the API also takes `--account-id`, which wins over the variable. API keys belong to one account and don't need it.
+- `ORCHESTRA_ACCOUNT_ID`: Optional. The workspace to act in when your `orchestra login` covers several. Every `pipeline` and `task` command that calls the API also takes `--account-id`, which wins over the variable, and both win over the default saved by `orchestra accounts use`. API keys belong to one account and don't need it.
 - `BASE_URL`: Optional. Override the default Orchestra host (`https://app.getorchestra.io`) for non‑production/testing.
 
 ## Command structure
@@ -43,6 +43,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline`, `task` an
 | `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
 | `orchestra task logs`                | Fetch or follow logs for a single task run.                                                 |
 | `orchestra accounts list`            | List the workspaces your login or API key covers, with their ids, as JSON.                  |
+| `orchestra accounts use <id\|name>`   | Save the workspace later commands act in when no `--account-id` is given.                   |
 
 Commands that read a local pipeline file (`pipeline validate`, `import`, `new`, `update`, `build`, and `run --path` with `--task`) accept `.yaml`, `.yml` and `.oml` files; any other extension is rejected. `.oml` files are read as YAML, so only OML written in YAML or JSON syntax is supported. OML block terminators (`.`) and embeds (`%sql ... %%`) fail with an `Invalid YAML` error.
 
@@ -411,9 +412,28 @@ orchestra accounts list
 
 Behavior
 
-- Sends `GET /api/engine/public/accounts`, with no account header.
-- Prints the `[{id, name}]` response as pretty JSON.
+- Sends `GET /public/v1/accounts`, with no account header.
+- Prints the `[{id, name}]` response as pretty JSON, adding `default: true` to the account saved by `accounts use` and `false` to the rest.
 - Exit codes: `0` on success, `1` on failure.
+
+---
+
+## accounts use
+
+Save a default workspace for an `orchestra login` that covers several, so commands no longer need `--account-id`.
+
+```bash
+orchestra accounts use 'some great account'
+orchestra accounts use 00000000-0000-0000-0000-000000000000
+```
+
+Behavior
+
+- Fetches the accounts as `accounts list` does, then matches an exact id first and a case-insensitive exact name second.
+- Exits `1`, listing the valid names, when nothing matches, and asks for the id when several workspaces share the name.
+- Saves the account into the login's entry in `~/.orchestra/credentials.json`. It survives token refreshes; running `orchestra login` again clears it.
+- `--account-id` and `ORCHESTRA_ACCOUNT_ID` still override the default. It is never sent with an API key.
+- Exits `1` when you are using an API key rather than a login, since a key covers one account.
 
 ---
 

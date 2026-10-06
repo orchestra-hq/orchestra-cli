@@ -10,7 +10,7 @@ from orchestra_cli.utils.credentials import save_credentials
 
 runner = CliRunner()
 
-ACCOUNTS_URL = "https://app.getorchestra.io/api/engine/public/accounts"
+ACCOUNTS_URL = "https://app.getorchestra.io/public/v1/accounts"
 
 
 @pytest.fixture(autouse=True)
@@ -31,7 +31,7 @@ def test_list_accounts_success(httpx_mock: HTTPXMock):
     result = runner.invoke(app, ["accounts", "list"])
 
     assert result.exit_code == 0
-    assert result.output == f"{json.dumps(accounts, indent=2)}\n"
+    assert json.loads(result.output) == [{**account, "default": False} for account in accounts]
 
 
 def test_list_accounts_uses_login_token(httpx_mock: HTTPXMock):
@@ -55,7 +55,7 @@ def test_list_accounts_uses_login_token(httpx_mock: HTTPXMock):
     result = runner.invoke(app, ["accounts", "list"])
 
     assert result.exit_code == 0
-    assert result.output == f"{json.dumps(accounts, indent=2)}\n"
+    assert json.loads(result.output) == [{**account, "default": False} for account in accounts]
 
 
 def test_list_accounts_error_status(httpx_mock: HTTPXMock):

@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 import orchestra_cli.src.login as login_module
 from orchestra_cli.src.cli import app
+from orchestra_cli.utils.credentials import save_credentials
 
 runner = CliRunner()
 BASE = "https://app.getorchestra.io"
@@ -178,3 +179,22 @@ def test_login_explains_host_without_authorization_server(httpx_mock: HTTPXMock)
 
     assert result.exit_code == 1
     assert "does not support `orchestra login`" in result.output
+
+
+def test_login_clears_default_account(httpx_mock: HTTPXMock, monkeypatch, isolated_home):
+    save_credentials({"access_token": "at-0", "account_id": "acc-1", "account_name": "Acme"})
+    mock_authorization_server(httpx_mock)
+    httpx_mock.add_response(
+        method="POST",
+        url=TOKEN_ENDPOINT,
+        json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 900},
+    )
+    fake_browser(monkeypatch, lambda q: {"code": "auth-code", "state": q["state"]})
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    cached = json.loads((isolated_home / ".orchestra" / "credentials.json").read_text())[BASE]
+    assert cached["access_token"] == "at-1"
+    assert "account_id" not in cached
+    assert "account_name" not in cached
