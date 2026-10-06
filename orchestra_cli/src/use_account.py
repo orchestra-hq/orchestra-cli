@@ -1,8 +1,8 @@
 import typer
 
-from ..utils.accounts import fetch_accounts
+from ..utils.accounts import fetch_accounts, pick_account
 from ..utils.credentials import load_credentials, save_credentials
-from ..utils.picker import can_pick, pick
+from ..utils.picker import can_pick
 from ..utils.styling import green, red, yellow
 
 
@@ -45,14 +45,11 @@ def _pick(accounts: list[dict]) -> dict:
     if not accounts:
         typer.echo(red("Your login covers no accounts."))
         raise typer.Exit(code=1)
-    default_id = (load_credentials() or {}).get("account_id")
-    start = next((i for i, account in enumerate(accounts) if account["id"] == default_id), 0)
-    # The id tells apart workspaces that share a name.
-    index = pick([f"{account['name']} ({account['id']})" for account in accounts], start)
-    if index is None:
+    account = pick_account(accounts, (load_credentials() or {}).get("account_id"))
+    if account is None:
         typer.echo(yellow("Cancelled; the default account is unchanged."))
         raise typer.Exit(code=1)
-    return accounts[index]
+    return account
 
 
 def _require_login() -> dict:

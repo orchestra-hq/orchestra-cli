@@ -38,7 +38,7 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 - `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
 - `fail_with_response(action, response)` — echoes `"❌ <action> failed with status <code>"` followed by `echo_response_error_body(response)` and exits with code 1. Use this for any non-success path of an HTTP call.
 
-**`accounts.py`** — `fetch_accounts()` returns the workspaces the current credential covers (`GET /public/v1/accounts`, `[{id, name}]`), exiting 1 on any failure. It calls `auth_headers(scoped=False)`, since the call isn't scoped to a workspace.
+**`accounts.py`** — `fetch_accounts()` returns the workspaces the current credential covers (`GET /public/v1/accounts`, `[{id, name}]`), exiting 1 on any failure. It calls `auth_headers(scoped=False)`, since the call isn't scoped to a workspace. `pick_account(accounts, default_id=None)` shows them in the picker and returns the chosen one, or `None` on cancel.
 
 **`picker.py`** — `pick(labels, start=0)` shows an arrow-key menu (keys from `click.getchar()`, redrawn with `rich.live.Live`) and returns the chosen index, or `None` on Esc, Ctrl+C or Ctrl+D. Check `can_pick()` first: it is false without an interactive terminal on stdin and stdout (CI, pipes, `TERM=dumb`), where `pick` would wait for keys behind an invisible menu. Tests feed keys with `press_keys(monkeypatch, ...)` from `tests/conftest.py`.
 

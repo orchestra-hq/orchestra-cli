@@ -17,6 +17,11 @@ from orchestra_cli.utils.credentials import save_credentials
 runner = CliRunner()
 BASE = "https://app.getorchestra.io"
 TOKEN_ENDPOINT = f"{BASE}/oauth/token"
+ACCOUNTS_URL = f"{BASE}/public/v1/accounts"
+ACCOUNTS = [
+    {"id": "acc-1", "name": "Some Great Account"},
+    {"id": "acc-2", "name": "Globex"},
+]
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +45,22 @@ def mock_authorization_server(httpx_mock: HTTPXMock):
         status_code=201,
         json={"client_id": "cli-client"},
     )
+
+
+def mock_login(httpx_mock: HTTPXMock, monkeypatch, **accounts_response):
+    """Mock a login that succeeds, then lists accounts with ``accounts_response``."""
+    mock_authorization_server(httpx_mock)
+    httpx_mock.add_response(
+        method="POST",
+        url=TOKEN_ENDPOINT,
+        json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 900},
+    )
+    httpx_mock.add_response(method="GET", url=ACCOUNTS_URL, **accounts_response)
+    fake_browser(monkeypatch, lambda q: {"code": "auth-code", "state": q["state"]})
+
+
+def cached_credentials(isolated_home) -> dict:
+    return json.loads((isolated_home / ".orchestra" / "credentials.json").read_text())[BASE]
 
 
 def fake_browser(monkeypatch, callback_params):
@@ -86,6 +107,7 @@ def test_login_completes_pkce_flow_and_caches_token(
         url=TOKEN_ENDPOINT,
         json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 900},
     )
+    httpx_mock.add_response(method="GET", url=ACCOUNTS_URL, json=ACCOUNTS)
     opened = fake_browser(monkeypatch, lambda q: {"code": "auth-code", "state": q["state"]})
 
     result = runner.invoke(app, ["login"])
@@ -119,6 +141,7 @@ def test_login_ignores_callback_with_foreign_state(httpx_mock: HTTPXMock, monkey
         url=TOKEN_ENDPOINT,
         json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 900},
     )
+    httpx_mock.add_response(method="GET", url=ACCOUNTS_URL, json=ACCOUNTS)
     fake_browser(
         monkeypatch,
         lambda q: [
@@ -183,18 +206,111 @@ def test_login_explains_host_without_authorization_server(httpx_mock: HTTPXMock)
 
 def test_login_clears_default_account(httpx_mock: HTTPXMock, monkeypatch, isolated_home):
     save_credentials({"access_token": "at-0", "account_id": "acc-1", "account_name": "Acme"})
-    mock_authorization_server(httpx_mock)
-    httpx_mock.add_response(
-        method="POST",
-        url=TOKEN_ENDPOINT,
-        json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 900},
-    )
-    fake_browser(monkeypatch, lambda q: {"code": "auth-code", "state": q["state"]})
+    mock_login(httpx_mock, monkeypatch, json=ACCOUNTS)
 
     result = runner.invoke(app, ["login"])
 
     assert result.exit_code == 0, result.output
-    cached = json.loads((isolated_home / ".orchestra" / "credentials.json").read_text())[BASE]
+    cached = cached_credentials(isolated_home)
     assert cached["access_token"] == "at-1"
     assert "account_id" not in cached
     assert "account_name" not in cached
+
+
+def test_login_saves_only_account_as_default(httpx_mock: HTTPXMock, monkeypatch, isolated_home):
+    mock_login(httpx_mock, monkeypatch, json=ACCOUNTS[:1])
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    assert f"✅ Logged in to {BASE} (Some Great Account)" in result.output
+    cached = cached_credentials(isolated_home)
+    assert cached["access_token"] == "at-1"
+    assert cached["account_id"] == "acc-1"
+    assert cached["account_name"] == "Some Great Account"
+    accounts_request = httpx_mock.get_requests(url=ACCOUNTS_URL)[0]
+    assert accounts_request.headers["Authorization"] == "Bearer at-1"
+
+
+@pytest.fixture
+def fake_picker(monkeypatch):
+    """Pretend to be in a terminal, with a picker that returns the account set in ``choice``."""
+    choice = {}
+    monkeypatch.setattr(login_module, "can_pick", lambda: True)
+    monkeypatch.setattr(login_module, "pick_account", lambda _accounts: choice.get("account"))
+    return choice
+
+
+def test_login_picks_default_from_several(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    isolated_home,
+    fake_picker,
+):
+    fake_picker["account"] = ACCOUNTS[1]
+    mock_login(httpx_mock, monkeypatch, json=ACCOUNTS)
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    assert "Default account: Globex" in result.output
+    assert cached_credentials(isolated_home)["account_id"] == "acc-2"
+
+
+@pytest.mark.usefixtures("fake_picker")
+def test_login_cancelled_pick_keeps_login(httpx_mock: HTTPXMock, monkeypatch, isolated_home):
+    mock_login(httpx_mock, monkeypatch, json=ACCOUNTS)
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    assert "No default account set" in result.output
+    cached = cached_credentials(isolated_home)
+    assert cached["access_token"] == "at-1"
+    assert "account_id" not in cached
+
+
+def test_login_with_several_accounts_without_terminal_hints(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    isolated_home,
+):
+    monkeypatch.setattr(
+        login_module,
+        "pick_account",
+        lambda _accounts: pytest.fail("prompted without a terminal"),
+    )
+    mock_login(httpx_mock, monkeypatch, json=ACCOUNTS)
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    assert "orchestra accounts use" in result.output
+    assert "account_id" not in cached_credentials(isolated_home)
+
+
+@pytest.mark.parametrize(
+    "accounts_response",
+    [
+        {"status_code": 500, "json": {"detail": "boom"}},
+        {"text": "not json"},
+        {"text": "null"},
+        {"json": [{"id": "acc-1"}]},
+    ],
+)
+def test_login_survives_failed_accounts_fetch(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    isolated_home,
+    accounts_response,
+):
+    mock_login(httpx_mock, monkeypatch, **accounts_response)
+
+    result = runner.invoke(app, ["login"])
+
+    assert result.exit_code == 0, result.output
+    assert f"✅ Logged in to {BASE}" in result.output
+    assert "no default account is set" in result.output
+    cached = cached_credentials(isolated_home)
+    assert cached["access_token"] == "at-1"
+    assert "account_id" not in cached
