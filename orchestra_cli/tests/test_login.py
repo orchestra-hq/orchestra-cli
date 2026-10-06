@@ -294,7 +294,7 @@ def test_login_with_several_accounts_without_terminal_hints(
     [
         {"status_code": 500, "json": {"detail": "boom"}},
         {"text": "not json"},
-        {"json": None},
+        {"text": "null"},
         {"json": [{"id": "acc-1"}]},
     ],
 )
