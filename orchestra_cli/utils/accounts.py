@@ -23,11 +23,16 @@ def fetch_accounts() -> list[dict]:
     if response.status_code != 200:
         raise fail_with_response("List accounts", response)
     try:
-        return response.json()
+        accounts = response.json()
     except Exception:
-        typer.echo(red("❌ List accounts failed: success response was not valid JSON"))
+        accounts = None
+    if not isinstance(accounts, list) or not all(
+        isinstance(account, dict) and "id" in account and "name" in account for account in accounts
+    ):
+        typer.echo(red("❌ List accounts failed: success response was not a list of accounts"))
         typer.echo(yellow(indent_message(response.text)))
         raise typer.Exit(code=1)
+    return accounts
 
 
 def pick_account(accounts: list[dict], default_id: str | None = None) -> dict | None:

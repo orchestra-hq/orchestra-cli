@@ -291,7 +291,12 @@ def test_login_with_several_accounts_without_terminal_hints(
 
 @pytest.mark.parametrize(
     "accounts_response",
-    [{"status_code": 500, "json": {"detail": "boom"}}, {"text": "not json"}],
+    [
+        {"status_code": 500, "json": {"detail": "boom"}},
+        {"text": "not json"},
+        {"json": None},
+        {"json": [{"id": "acc-1"}]},
+    ],
 )
 def test_login_survives_failed_accounts_fetch(
     httpx_mock: HTTPXMock,
