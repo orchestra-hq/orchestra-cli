@@ -1,0 +1,19 @@
+orchestra_cli/utils/api.py
+  s_a2adbf7be803b9::t_211af01b95ab5f 140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e54492753f35cf0e2f32982f273f3edfd2f50f78",
+  "prompts": {},
+  "sessions": {
+    "s_a2adbf7be803b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d39794e-3be7-48db-a2d0-c344926627bd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
