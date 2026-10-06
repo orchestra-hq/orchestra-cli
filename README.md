@@ -43,7 +43,7 @@ Commands follow a `noun verb` shape. The current nouns are `pipeline`, `task` an
 | `orchestra pipeline build`           | Validate local YAML, create or update a draft pipeline, and start that draft version.       |
 | `orchestra task logs`                | Fetch or follow logs for a single task run.                                                 |
 | `orchestra accounts list`            | List the workspaces your login or API key covers, with their ids, as JSON.                  |
-| `orchestra accounts use <id\|name>`   | Save the workspace later commands act in when no `--account-id` is given.                   |
+| `orchestra accounts use [id\|name]`   | Save the workspace later commands act in when no `--account-id` is given.                   |
 
 Commands that read a local pipeline file (`pipeline validate`, `import`, `new`, `update`, `build`, and `run --path` with `--task`) accept `.yaml`, `.yml` and `.oml` files; any other extension is rejected. `.oml` files are read as YAML, so only OML written in YAML or JSON syntax is supported. OML block terminators (`.`) and embeds (`%sql ... %%`) fail with an `Invalid YAML` error.
 
@@ -425,12 +425,14 @@ Save a default workspace for an `orchestra login` that covers several, so comman
 ```bash
 orchestra accounts use 'some great account'
 orchestra accounts use 00000000-0000-0000-0000-000000000000
+orchestra accounts use   # pick from a list
 ```
 
 Behavior
 
 - Fetches the accounts as `accounts list` does, then matches an exact id first and a case-insensitive exact name second.
 - Exits `1`, listing the valid names, when nothing matches, and asks for the id when several workspaces share the name.
+- With no argument, lists the workspaces with the cursor on the current default: ↑/↓ moves, Enter saves, and Esc, Ctrl+C or Ctrl+D exits `1` leaving the default unchanged. Without a terminal (CI, piped input) it exits `1` and asks for an id or name instead.
 - Saves the account into the login's entry in `~/.orchestra/credentials.json`. It survives token refreshes; running `orchestra login` again clears it.
 - `--account-id` and `ORCHESTRA_ACCOUNT_ID` still override the default. It is never sent with an API key.
 - Exits `1` when you are using an API key rather than a login, since a key covers one account.
