@@ -3,6 +3,7 @@ import typer
 
 from .api import auth_headers, fail_with_response, request_or_exit
 from .constants import get_base_url
+from .picker import pick
 from .styling import indent_message, red, yellow
 
 
@@ -27,3 +28,14 @@ def fetch_accounts() -> list[dict]:
         typer.echo(red("❌ List accounts failed: success response was not valid JSON"))
         typer.echo(yellow(indent_message(response.text)))
         raise typer.Exit(code=1)
+
+
+def pick_account(accounts: list[dict], default_id: str | None = None) -> dict | None:
+    """Let the user choose one of ``accounts`` (not empty) in the picker; None if they cancel.
+
+    The cursor starts on ``default_id`` when it is among them. Callers check ``can_pick()`` first.
+    """
+    start = next((i for i, account in enumerate(accounts) if account["id"] == default_id), 0)
+    # The id tells apart workspaces that share a name.
+    index = pick([f"{account['name']} ({account['id']})" for account in accounts], start)
+    return None if index is None else accounts[index]

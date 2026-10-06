@@ -10,9 +10,11 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import httpx
 import typer
 
+from ..utils.accounts import fetch_accounts, pick_account
 from ..utils.api import fail_with_response, request_or_exit, token_response_to_credentials
 from ..utils.constants import get_base_url
-from ..utils.credentials import save_credentials
+from ..utils.credentials import load_credentials, save_credentials
+from ..utils.picker import can_pick
 from ..utils.styling import green, red, yellow
 
 SCOPES = "orchestra:read orchestra:write offline_access"
@@ -159,4 +161,43 @@ def login():
             {"client_id": client_id, "token_endpoint": metadata["token_endpoint"]},
         ),
     )
-    typer.echo(green(f"✅ Logged in to {base_url}"))
+    _choose_default_account(f"✅ Logged in to {base_url}")
+
+
+def _choose_default_account(logged_in: str) -> None:
+    """Save the workspace later commands act in, so a multi-account login works from the start.
+
+    The login is already saved, so nothing here can fail it.
+    """
+    try:
+        accounts = fetch_accounts()
+    except typer.Exit:
+        typer.echo(green(logged_in))
+        typer.echo(yellow("Could not list your accounts, so no default account is set."))
+        return
+    if len(accounts) == 1:
+        _save_default_account(accounts[0])
+        typer.echo(green(f"{logged_in} ({accounts[0]['name']})"))
+        return
+    typer.echo(green(logged_in))
+    if not accounts:
+        return
+    if not can_pick():
+        typer.echo(yellow("Your login covers several accounts; run `orchestra accounts use`."))
+        return
+    typer.echo("Pick a default account:")
+    account = pick_account(accounts)
+    if account is None:
+        typer.echo(yellow("No default account set; run `orchestra accounts use` to pick one."))
+        return
+    _save_default_account(account)
+    typer.echo(green(f"Default account: {account['name']}"))
+
+
+def _save_default_account(account: dict) -> None:
+    # Read again after fetching, which may have refreshed and rotated the saved tokens.
+    credentials = load_credentials()
+    if credentials is not None:
+        save_credentials(
+            {**credentials, "account_id": account["id"], "account_name": account["name"]},
+        )

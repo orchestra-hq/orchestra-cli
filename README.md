@@ -112,6 +112,8 @@ orchestra login
 
 Logins are per host: a login made with `BASE_URL` pointing at another environment is only used against that environment. CI and scripts, where nobody is logged in, keep using `ORCHESTRA_API_KEY`.
 
+After logging in it saves a default workspace, as `accounts use` does: the only one if your login covers one, or the one you pick from a list if it covers several. Esc skips the default, and without a terminal it prints a hint to run `orchestra accounts use` instead. If the accounts can't be listed, the login still succeeds with no default set.
+
 ---
 
 ## pipeline import
@@ -433,7 +435,7 @@ Behavior
 - Fetches the accounts as `accounts list` does, then matches an exact id first and a case-insensitive exact name second.
 - Exits `1`, listing the valid names, when nothing matches, and asks for the id when several workspaces share the name.
 - With no argument, lists the workspaces with the cursor on the current default: ↑/↓ moves, Enter saves, and Esc, Ctrl+C or Ctrl+D exits `1` leaving the default unchanged. Without a terminal (CI, piped input) it exits `1` and asks for an id or name instead.
-- Saves the account into the login's entry in `~/.orchestra/credentials.json`. It survives token refreshes; running `orchestra login` again clears it.
+- Saves the account into the login's entry in `~/.orchestra/credentials.json`. It survives token refreshes; running `orchestra login` again resets it.
 - `--account-id` and `ORCHESTRA_ACCOUNT_ID` still override the default. It is never sent with an API key.
 - Exits `1` when you are using an API key rather than a login, since a key covers one account.
 
