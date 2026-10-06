@@ -137,7 +137,7 @@ class _OrchestraAuth(httpx.Auth):
         yield request
 
 
-def api_client(account_id: str | None = None, *, scoped: bool = True) -> httpx.Client:
+def api_client(account_id: str | None = None, scoped: bool = True) -> httpx.Client:
     """Return the client a command sends every Orchestra API request through, closed with it.
 
     The account is ``account_id``, else the ``accounts use`` default; ``scoped=False`` sends none.
