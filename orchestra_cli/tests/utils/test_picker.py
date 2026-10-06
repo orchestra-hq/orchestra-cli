@@ -20,6 +20,8 @@ ESC = "\x1b"
         ((DOWN, ENTER), 2, 0),
         (("\xe0P", "\x1bOB", "\n"), 0, 2),
         (("x", DOWN, ENTER), 0, 1),
+        ((DOWN * 2, ENTER), 0, 2),
+        ((DOWN + UP * 2, ENTER), 0, 2),
     ],
 )
 def test_pick_moves_wraps_and_selects(monkeypatch, keys, start, chosen):

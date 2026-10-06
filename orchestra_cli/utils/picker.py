@@ -37,10 +37,9 @@ def pick(labels: list[str], start: int = 0) -> int | None:
                 return index
             if key == ESCAPE:
                 return None
-            if key in UP_KEYS:
-                index = (index - 1) % len(labels)
-            elif key in DOWN_KEYS:
-                index = (index + 1) % len(labels)
+            # One read can hold several presses when a key is held down or the link lags.
+            down = sum(key.count(seq) for seq in DOWN_KEYS) - sum(key.count(seq) for seq in UP_KEYS)
+            index = (index + down) % len(labels)
 
 
 def _render(labels: list[str], index: int, height: int) -> Text:
