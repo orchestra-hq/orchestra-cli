@@ -27,6 +27,7 @@ orchestra_cli/src/create_pipeline.py
   s_a2adbf7be803b9::t_1b6da1fb7053fe 7
 orchestra_cli/utils/AGENTS.md
   s_a2adbf7be803b9::t_a890ba080dd83d 35-37
+  s_a2adbf7be803b9::t_1d0e3a7d80d3f0 41
 orchestra_cli/src/import_pipeline.py
   s_a2adbf7be803b9::t_b19e0b249ef7ac 42,48,103
   s_a2adbf7be803b9::t_af46bf88574cf5 8
@@ -54,6 +55,8 @@ orchestra_cli/src/list_accounts.py
   s_a2adbf7be803b9::t_9007adcf1fb6cb 6,12
 orchestra_cli/src/use_account.py
   s_a2adbf7be803b9::t_2392eace90b86c 4,21
+orchestra_cli/src/login.py
+  s_a2adbf7be803b9::t_17157b49333217 14-19,178
 ---
 {
   "schema_version": "authorship/3.0.0",
