@@ -1,0 +1,24 @@
+orchestra_cli/tests/test_run_pipeline.py
+  s_8ba0c9cc719396::t_87e480c4f02c0d 1-2
+  s_8ba0c9cc719396::t_a133489bfb1c4b 101-105,1104-1190
+orchestra_cli/src/run_pipeline.py
+  s_8ba0c9cc719396::t_e261bff8d2417c 40,47,311-317,322,326-327,433,437,467,484,506,520,549,555,569,598-600
+  s_8ba0c9cc719396::t_3a811bb8b9e0cc 573-576
+  s_8ba0c9cc719396::t_04ccba8e63aba8 597
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e00a4d59fb37616a65f3a2ecdd02383ccc86b523",
+  "prompts": {},
+  "sessions": {
+    "s_8ba0c9cc719396": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "327a8744-0c40-4cdd-bb07-a14037f597f4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
