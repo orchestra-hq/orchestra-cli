@@ -1,3 +1,5 @@
+import subprocess
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -94,6 +96,11 @@ def test_build_poll_status_text_includes_duration() -> None:
     now_utc = datetime(2026, 5, 29, 11, 31, 30, tzinfo=UTC)
     text = _build_poll_status_text("RUNNING", created_at, now_utc)
     assert text.plain == "Pipeline status: RUNNING (1:30 minutes)"
+
+
+def test_build_poll_status_text_includes_status_message() -> None:
+    text = _build_poll_status_text("QUEUED", status_message="Waiting for a free slot")
+    assert text.plain == "Pipeline status: QUEUED - Waiting for a free slot"
 
 
 def test_build_live_status_text_includes_update_age() -> None:
@@ -1092,6 +1099,93 @@ def test_run_wait_warning(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
     assert result.exit_code == 0
     assert result.output.strip().splitlines()[-1] == "⚠ Pipeline completed with warnings"
+
+
+def _invoke_run_through_statuses(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+    status_bodies: list[dict[str, str]],
+):
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+
+    base = "https://app.getorchestra.io/api/engine/public"
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{base}/pipelines/demo/start",
+        json={"pipelineRunId": "run-q"},
+    )
+    for status_body in status_bodies:
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base}/pipeline_runs/run-q/status",
+            json={**status_body, "pipelineName": "demo"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base}/pipeline_runs/run-q/task_runs?page_size=50&page=1",
+            json={"results": []},
+        )
+
+    return runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
+
+
+def test_run_wait_keeps_polling_while_cancelling(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    result = _invoke_run_through_statuses(
+        httpx_mock,
+        monkeypatch,
+        tmp_path,
+        [{"runStatus": "QUEUED"}, {"runStatus": "CANCELLING"}, {"runStatus": "CANCELLED"}],
+    )
+
+    assert result.exit_code == 1
+    assert "Invalid status value" not in result.output
+    assert "status: CANCELLING" in result.output
+    assert "status CANCELLED" in result.output
+
+
+def test_run_wait_shows_queued_message_then_final_status(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    result = _invoke_run_through_statuses(
+        httpx_mock,
+        monkeypatch,
+        tmp_path,
+        [
+            {"runStatus": "QUEUED", "message": "Waiting for a free slot"},
+            {"runStatus": "RUNNING", "message": "Waiting for a free slot"},
+            {"runStatus": "SUCCEEDED"},
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Pipeline (alias: demo) status: QUEUED - Waiting for a free slot" in result.output
+    assert "Pipeline (alias: demo) status: RUNNING\n" in result.output
+    assert result.output.strip().splitlines()[-1] == "✅ Pipeline succeeded"
+
+
+def test_run_wait_skipped_prints_reason(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+    result = _invoke_run_through_statuses(
+        httpx_mock,
+        monkeypatch,
+        tmp_path,
+        [{"runStatus": "SKIPPED", "message": "Replaced by a newer run"}],
+    )
+
+    assert result.exit_code == 0
+    assert result.output.strip().splitlines()[-1] == "⚠ Pipeline skipped: Replaced by a newer run"
 
 
 def test_run_git_backed_path_uses_prepared_branch_and_commit(
