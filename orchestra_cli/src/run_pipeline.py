@@ -37,13 +37,14 @@ STATUS_STYLES = {
     "CREATED": "cyan",
     "QUEUED": "yellow",
     "RUNNING": "blue",
+    "CANCELLING": "red",
     "SUCCEEDED": "green",
     "WARNING": "yellow",
     "SKIPPED": "yellow",
     "FAILED": "red",
     "CANCELLED": "red",
 }
-IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED"}
+IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED", "CANCELLING"}
 TERMINAL_RUN_STATUSES = {"SUCCEEDED", "WARNING", "SKIPPED", "FAILED", "CANCELLED"}
 
 
@@ -307,13 +308,23 @@ def _format_pipeline_duration(created_at_utc: datetime, now_utc: datetime | None
     return f"{seconds} {unit}"
 
 
+def _run_message(status_body: dict[str, object]) -> str | None:
+    message = status_body.get("message")
+    if isinstance(message, str) and message.strip():
+        return message.strip()
+    return None
+
+
 def _build_poll_status_text(
     status_value: str,
     created_at_utc: datetime | None = None,
     now_utc: datetime | None = None,
+    status_message: str | None = None,
 ) -> Text:
     text = Text("Pipeline status: ")
     text.append(status_value, style=f"bold {STATUS_STYLES.get(status_value, 'white')}")
+    if status_message is not None:
+        text.append(f" - {status_message}")
     if created_at_utc is not None:
         text.append(f" ({_format_pipeline_duration(created_at_utc, now_utc)})", style="dim")
     return text
@@ -419,10 +430,11 @@ def _build_poll_display(
     task_runs: list[dict[str, object]],
     can_fetch_task_runs: bool,
     now_utc: datetime | None = None,
+    status_message: str | None = None,
 ) -> Group:
     return Group(
         _build_live_status_text(seconds_since_check),
-        _build_poll_status_text(status_value, created_at_utc, now_utc),
+        _build_poll_status_text(status_value, created_at_utc, now_utc, status_message),
         _build_task_runs_table(
             task_runs,
             can_fetch_task_runs=can_fetch_task_runs,
@@ -452,6 +464,7 @@ def _sleep_with_status_updates(
     created_at_utc: datetime | None,
     task_runs: list[dict[str, object]],
     can_fetch_task_runs: bool,
+    status_message: str | None = None,
     sleep_fn: Callable[[float], None] | None = None,
 ) -> None:
     sleep_fn = sleep_fn or time.sleep
@@ -468,6 +481,7 @@ def _sleep_with_status_updates(
                 created_at_utc=created_at_utc,
                 task_runs=task_runs,
                 can_fetch_task_runs=can_fetch_task_runs,
+                status_message=status_message,
             ),
         )
 
@@ -489,6 +503,7 @@ def _poll_until_terminal(
     status_url = get_api_url(f"pipeline_runs/{pipeline_run_id}/status")
     poll_status_display = _create_poll_status_display()
     last_status_value: str | None = None
+    last_status_message: str | None = None
     last_task_runs: list[dict[str, object]] = []
     can_fetch_task_runs = False
     missing_run_status_polls = 0
@@ -502,6 +517,7 @@ def _poll_until_terminal(
                 created_at_utc=created_at_utc,
                 task_runs=last_task_runs,
                 can_fetch_task_runs=can_fetch_task_runs,
+                status_message=last_status_message,
             )
             try:
                 status_resp = client.get(status_url)
@@ -530,11 +546,13 @@ def _poll_until_terminal(
                 status_body = {}
 
             status_value = status_body.get("runStatus")
+            run_message = _run_message(status_body)
             created_at_utc = created_at_utc or _parse_created_at_utc(status_body)
 
             if isinstance(status_value, str):
                 missing_run_status_polls = 0
                 last_status_value = status_value
+                last_status_message = run_message if status_value == "QUEUED" else None
                 can_fetch_task_runs = status_value in (
                     IN_PROGRESS_RUN_STATUSES | TERMINAL_RUN_STATUSES
                 )
@@ -548,10 +566,14 @@ def _poll_until_terminal(
                             created_at_utc=created_at_utc,
                             task_runs=last_task_runs,
                             can_fetch_task_runs=can_fetch_task_runs,
+                            status_message=last_status_message,
                         ),
                     )
                 else:
-                    typer.echo(f"Pipeline ({selector_name}) status: {status_value}")
+                    status_line = f"Pipeline ({selector_name}) status: {status_value}"
+                    if last_status_message is not None:
+                        status_line += f" - {last_status_message}"
+                    typer.echo(status_line)
             else:
                 missing_run_status_polls += 1
                 if missing_run_status_polls <= max_missing_run_status_polls:
@@ -572,7 +594,10 @@ def _poll_until_terminal(
             if status_value == "SKIPPED":
                 _stop_poll_status_display(poll_status_display)
                 poll_status_display = None
-                typer.echo(yellow("⚠ Pipeline skipped"))
+                skipped_text = (
+                    f"⚠ Pipeline skipped: {run_message}" if run_message else "⚠ Pipeline skipped"
+                )
+                typer.echo(yellow(skipped_text))
                 raise typer.Exit(code=0)
 
             if status_value in {"FAILED", "CANCELLED"}:
