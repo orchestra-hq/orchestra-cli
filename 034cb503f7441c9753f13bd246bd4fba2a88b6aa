@@ -1,0 +1,19 @@
+orchestra_cli/tests/test_list_accounts.py
+  s_15d18aec4f7f5b::t_b51700fbfce2c8 2,9,37-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "034cb503f7441c9753f13bd246bd4fba2a88b6aa",
+  "prompts": {},
+  "sessions": {
+    "s_15d18aec4f7f5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7018b5f3-7f67-4e47-841e-a3013f99ed07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

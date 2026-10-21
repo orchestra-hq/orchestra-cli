@@ -1,0 +1,35 @@
+orchestra_cli/src/validate_pipeline.py
+  s_c82927632f2614::t_5e0361b554a66c 12,67
+  s_c82927632f2614::t_45d30c774a688a 52
+orchestra_cli/tests/test_validate_pipeline.py
+  s_c82927632f2614::t_820c9b19586a75 121
+orchestra_cli/utils/AGENTS.md
+  s_c82927632f2614::t_5e0361b554a66c 43
+  s_c82927632f2614::t_45d30c774a688a 42,46
+orchestra_cli/tests/test_create_pipeline.py
+  s_c82927632f2614::t_45d30c774a688a 252-263
+README.md
+  s_c82927632f2614::t_e6499eff1ad521 44
+  s_c82927632f2614::t_45d30c774a688a 45,68
+orchestra_cli/utils/yaml_loader.py
+  s_c82927632f2614::t_820c9b19586a75 88-89
+  s_c82927632f2614::t_5e0361b554a66c 83-87,90-93,140
+  s_c82927632f2614::t_45d30c774a688a 19-20,72-80,136
+  s_c82927632f2614::t_6b781f10266761 81-82,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "acc0db7011aea0c0a4e9c263cb277cf47ea034d6",
+  "prompts": {},
+  "sessions": {
+    "s_c82927632f2614": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d95c57e3-aec8-4b76-bc21-384f0c09580d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

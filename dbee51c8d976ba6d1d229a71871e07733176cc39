@@ -1,0 +1,43 @@
+orchestra_cli/utils/api.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 24,28-33,35-39,44
+orchestra_cli/src/update_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 46
+orchestra_cli/src/delete_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 27
+orchestra_cli/src/create_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 36
+orchestra_cli/src/migrate_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 349
+orchestra_cli/src/fetch_pipelines.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 17
+orchestra_cli/src/AGENTS.md
+  s_639cf249f52dcc::t_4f366d69fd0d17 42
+orchestra_cli/utils/AGENTS.md
+  s_639cf249f52dcc::t_4f366d69fd0d17 36
+orchestra_cli/src/build_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 148
+orchestra_cli/src/task_logs.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 296
+orchestra_cli/src/get_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 50
+orchestra_cli/src/import_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 43
+orchestra_cli/src/run_pipeline.py
+  s_639cf249f52dcc::t_4f366d69fd0d17 767
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dbee51c8d976ba6d1d229a71871e07733176cc39",
+  "prompts": {},
+  "sessions": {
+    "s_639cf249f52dcc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e16e31ef-f93c-4bb3-820d-c0e65dbe8c8d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+pyproject.toml
+  s_f8f433a4232616::t_8e3366927a0fce 27-29
+orchestra_cli/src/login_page.html
+  s_f8f433a4232616::t_8e3366927a0fce 1-42
+orchestra_cli/src/login.py
+  s_f8f433a4232616::t_8e3366927a0fce 7,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "939fd271866b997301f68efb01ccec7fe9c978da",
+  "prompts": {},
+  "sessions": {
+    "s_f8f433a4232616": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9633ad4d-86e4-43aa-8a78-074546209854",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

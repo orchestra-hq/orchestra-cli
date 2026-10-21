@@ -1,0 +1,32 @@
+README.md
+  s_f8f433a4232616::t_0c5e4cad697a0d 23,108
+orchestra_cli/src/AGENTS.md
+  s_f8f433a4232616::t_0c5e4cad697a0d 39
+orchestra_cli/src/login.py
+  s_f8f433a4232616::t_3eec77d9fa39e2 52-57,60-61,66-68,130,151-154,158
+orchestra_cli/utils/AGENTS.md
+  s_f8f433a4232616::t_0c5e4cad697a0d 34
+orchestra_cli/utils/api.py
+  s_f8f433a4232616::t_6cf9d34e2a01c3 38-39,50-56,68,81-82
+  s_f8f433a4232616::t_3eec77d9fa39e2 27-28,30-35,41-44,46-49,57-67,69-70,74-75,79
+orchestra_cli/tests/test_login.py
+  s_f8f433a4232616::t_c9238236df15cc 45-49,57-65,67,114,116-147,152
+orchestra_cli/tests/utils/test_api.py
+  s_f8f433a4232616::t_c9238236df15cc 33,37-42,46-59,137-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fe7de9ee318ab1c72c3ddc836157a1489c6b352e",
+  "prompts": {},
+  "sessions": {
+    "s_f8f433a4232616": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9633ad4d-86e4-43aa-8a78-074546209854",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}

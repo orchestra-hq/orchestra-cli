@@ -1,0 +1,21 @@
+pyproject.toml
+  s_e528663356b357::t_41a64217b39e52 3
+uv.lock
+  s_e528663356b357::t_e207d2a33a6580 202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "661f0d7fdf0430d6caf367abb07eaa611a6cbec6",
+  "prompts": {},
+  "sessions": {
+    "s_e528663356b357": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "916125ce-58d6-4d38-bfce-da419a0554d7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Will Davies <42768478+willdavies0@users.noreply.github.com>"
+    }
+  }
+}
