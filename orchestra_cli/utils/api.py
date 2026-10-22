@@ -94,7 +94,7 @@ def _refresh(credentials: dict) -> dict | None:
             return credentials
         typer.echo(red(f"HTTP request failed: {e}"))
         raise typer.Exit(code=1)
-    if 400 <= response.status_code < 500:
+    if 400 <= response.status_code < 500 and not is_waf_block(response):
         # Another CLI process may have refreshed first, rotating the refresh token
         # this one sent; its saved result is then still good. Otherwise the login
         # itself is unusable (invalid_grant, or a registration that has since expired)
@@ -187,11 +187,14 @@ def echo_response_error_body(response: httpx.Response) -> None:
         typer.echo(yellow(indent_message(text)))
 
 
+def is_waf_block(response: httpx.Response) -> bool:
+    """Orchestra's own 403s are JSON, so an HTML 403 is the WAF's block page."""
+    return response.status_code == 403 and "text/html" in response.headers.get("content-type", "")
+
+
 def response_error_text(response: httpx.Response) -> str:
     """Return the body, or the support ID to quote if the WAF blocked the request."""
-    content_type = response.headers.get("content-type", "")
-    # Orchestra's own 403s are JSON, so any other 403 is the WAF's block page.
-    if response.status_code == 403 and "application/json" not in content_type:
+    if is_waf_block(response):
         support_id = response.request.headers.get(SUPPORT_ID_HEADER)
         return f"Your request was blocked. Contact Orchestra support with ID: {support_id}"
     return response.text

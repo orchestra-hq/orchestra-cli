@@ -36,7 +36,7 @@ Override the base via the `BASE_URL` env var — it must contain a `{}` placehol
 - `account_id_option()` — every workspace-scoped API command declares `account_id: str | None = account_id_option()` (`--account-id`, falling back to `ORCHESTRA_ACCOUNT_ID`) and passes it to `api_client()`.
 - `request_or_exit(client_method, *args, **kwargs)` — invokes a client method (e.g. `client.post`, `client.delete`) and on any transport exception echoes `"HTTP request failed: <msg>"` in red and exits with code 1. A `typer.Exit` from the client's auth passes through untouched.
 - `echo_response_error_body(response)` — echoes the response body as indented JSON when possible, falling back to plain text.
-- `response_error_text(response)` — the response body as text, or, for a WAF block (a non-JSON 403), a message giving the request's support ID. Use it wherever an error response's text is shown.
+- `response_error_text(response)` — the response body as text, or, for a WAF block (an HTML 403), a message giving the request's support ID. Use it wherever an error response's text is shown.
 - `support_id_headers()` — headers to pass on a request made without `api_client()`, so it still carries a support ID.
 - `fail_with_response(action, response)` — echoes `"❌ <action> failed with status <code>"` followed by `echo_response_error_body(response)` and exits with code 1. Use this for any non-success path of an HTTP call.
 

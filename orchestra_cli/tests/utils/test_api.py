@@ -126,6 +126,22 @@ def test_refresh_server_error_is_not_reported_as_expired_login(httpx_mock: HTTPX
     assert "expired" not in output
 
 
+def test_waf_blocked_refresh_keeps_login_and_shows_support_id(httpx_mock: HTTPXMock, capsys):
+    cache_login(time.time() - 1)
+    httpx_mock.add_response(
+        method="POST",
+        url=TOKEN_ENDPOINT,
+        status_code=403,
+        headers={"content-type": "text/html"},
+        text="<html><head><title>403 Forbidden</title></head></html>",
+    )
+
+    with pytest.raises(typer.Exit):
+        require_credential()
+    assert "Contact Orchestra support with ID:" in capsys.readouterr().out
+    assert load_credentials() is not None
+
+
 def test_rejected_refresh_uses_token_another_process_just_rotated_in(httpx_mock: HTTPXMock):
     cache_login(time.time() - 1)
 
