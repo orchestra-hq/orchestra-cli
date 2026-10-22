@@ -18,6 +18,7 @@ from ..utils.api import (
     fail_with_response,
     request_or_exit,
     require_credential,
+    response_error_text,
 )
 from ..utils.constants import get_api_url, get_base_url
 from ..utils.git import GitAction, confirm_git_warnings_or_exit, prepare_git_backed_run_target
@@ -535,7 +536,7 @@ def _poll_until_terminal(
                 poll_status_display = None
                 typer.echo(red(f"❌ Status check failed with HTTP {status_resp.status_code}"))
                 try:
-                    typer.echo(yellow(indent_message(status_resp.text)))
+                    typer.echo(yellow(indent_message(response_error_text(status_resp))))
                 except Exception:
                     pass
                 raise typer.Exit(code=1)

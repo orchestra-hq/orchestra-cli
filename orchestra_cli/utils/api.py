@@ -8,6 +8,7 @@ transport errors, or hand-roll JSON-vs-text error rendering themselves.
 
 import json
 import os
+import secrets
 import time
 from collections.abc import Callable
 from typing import Any
@@ -22,6 +23,8 @@ from .styling import indent_message, red, yellow
 # Refresh this long before expiry so a token cannot lapse mid-request.
 _REFRESH_MARGIN_SECONDS = 60
 
+SUPPORT_ID_HEADER = "X-Orchestra-Support-Id"
+
 
 def account_id_option() -> Any:
     """Return the ``--account-id`` option, whose value a command passes to ``api_client()``."""
@@ -31,6 +34,11 @@ def account_id_option() -> Any:
         envvar="ORCHESTRA_ACCOUNT_ID",
         help="Workspace to act in, for a login that covers several accounts",
     )
+
+
+def support_id_headers() -> dict[str, str]:
+    """Tag a request with a fresh ID that support can look up in the WAF logs."""
+    return {SUPPORT_ID_HEADER: secrets.token_hex(6)}
 
 
 def require_credential() -> str:
@@ -77,6 +85,7 @@ def _refresh(credentials: dict) -> dict | None:
                 "refresh_token": credentials["refresh_token"],
                 "client_id": credentials["client_id"],
             },
+            headers=support_id_headers(),
             timeout=30,
         )
     except httpx.HTTPError as e:
@@ -128,6 +137,7 @@ class _OrchestraAuth(httpx.Auth):
         self._scoped = scoped
 
     def auth_flow(self, request: httpx.Request):
+        request.headers.update(support_id_headers())
         request.headers["Authorization"] = f"Bearer {require_credential()}"
         # After require_credential(), which drops a dead login, so a key never gets its default.
         if self._scoped:
@@ -172,8 +182,19 @@ def echo_response_error_body(response: httpx.Response) -> None:
         return
     except Exception:
         pass
-    if response.text:
-        typer.echo(yellow(indent_message(response.text)))
+    text = response_error_text(response)
+    if text:
+        typer.echo(yellow(indent_message(text)))
+
+
+def response_error_text(response: httpx.Response) -> str:
+    """Return the body, or the support ID to quote if the WAF blocked the request."""
+    content_type = response.headers.get("content-type", "")
+    # Orchestra's own 403s are JSON, so any other 403 is the WAF's block page.
+    if response.status_code == 403 and "application/json" not in content_type:
+        support_id = response.request.headers.get(SUPPORT_ID_HEADER)
+        return f"Your request was blocked. Contact Orchestra support with ID: {support_id}"
+    return response.text
 
 
 def fail_with_response(action: str, response: httpx.Response) -> typer.Exit:

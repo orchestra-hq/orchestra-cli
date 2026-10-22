@@ -6,7 +6,7 @@ import httpx
 import typer
 import yaml
 
-from ..utils.api import request_or_exit
+from ..utils.api import request_or_exit, response_error_text, support_id_headers
 from ..utils.constants import get_api_url
 from ..utils.styling import bold, green, indent_message, red, yellow
 from ..utils.yaml_loader import echo_invalid_yaml, exit_if_unsupported_extension, load_yaml
@@ -67,7 +67,13 @@ def validate(
         echo_invalid_yaml(file, err)
         raise typer.Exit(code=1)
 
-    response = request_or_exit(httpx.post, get_api_url("pipelines/schema"), json=data, timeout=10)
+    response = request_or_exit(
+        httpx.post,
+        get_api_url("pipelines/schema"),
+        json=data,
+        headers=support_id_headers(),
+        timeout=10,
+    )
 
     if response.status_code == 200:
         typer.echo(green("✅ Validation passed!"))
@@ -82,5 +88,5 @@ def validate(
         else:
             typer.echo(errors)
     except Exception:
-        typer.echo(response.text)
+        typer.echo(response_error_text(response))
     raise typer.Exit(code=1)

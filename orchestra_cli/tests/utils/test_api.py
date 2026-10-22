@@ -1,3 +1,4 @@
+import re
 import time
 from types import SimpleNamespace
 from urllib.parse import parse_qs
@@ -8,7 +9,7 @@ import typer
 from pytest_httpx import HTTPXMock
 
 import orchestra_cli.utils.api as api_module
-from orchestra_cli.utils.api import require_credential
+from orchestra_cli.utils.api import SUPPORT_ID_HEADER, api_client, require_credential
 from orchestra_cli.utils.credentials import load_credentials, save_credentials
 
 TOKEN_ENDPOINT = "https://app.getorchestra.io/oauth/token"
@@ -227,3 +228,43 @@ def test_other_errors_get_no_account_hint(response, capsys):
     api_module.fail_with_response("Fetch pipelines", response)
 
     assert ACCOUNT_HINT not in capsys.readouterr().out
+
+
+def test_requests_carry_a_support_id(httpx_mock: HTTPXMock, monkeypatch):
+    monkeypatch.setenv("ORCHESTRA_API_KEY", "account-key")
+    httpx_mock.add_response(url="https://app.getorchestra.io/api/engine/public/pipelines")
+
+    api_client().get("https://app.getorchestra.io/api/engine/public/pipelines")
+
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert re.fullmatch(r"[0-9a-f]{12}", request.headers[SUPPORT_ID_HEADER])
+
+
+def test_waf_block_shows_support_id_instead_of_its_page(capsys):
+    response = httpx.Response(
+        403,
+        headers={"content-type": "text/html"},
+        text="<html><head><title>403 Forbidden</title></head></html>",
+        request=httpx.Request(
+            "GET",
+            "https://app.getorchestra.io",
+            headers={SUPPORT_ID_HEADER: "0123456789ab"},
+        ),
+    )
+
+    api_module.fail_with_response("Fetch pipelines", response)
+
+    out = capsys.readouterr().out
+    assert "Your request was blocked. Contact Orchestra support with ID: 0123456789ab" in out
+    assert "<html>" not in out
+
+
+def test_json_403_is_not_treated_as_waf_block(capsys):
+    response = httpx.Response(403, json={"detail": "Not allowed"})
+
+    api_module.fail_with_response("Fetch pipelines", response)
+
+    out = capsys.readouterr().out
+    assert "Not allowed" in out
+    assert "blocked" not in out

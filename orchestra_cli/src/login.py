@@ -15,6 +15,7 @@ from ..utils.api import (
     api_client,
     fail_with_response,
     request_or_exit,
+    support_id_headers,
     token_response_to_credentials,
 )
 from ..utils.constants import get_base_url
@@ -83,6 +84,7 @@ def login():
     response = request_or_exit(
         httpx.get,
         f"{base_url}/.well-known/oauth-authorization-server",
+        headers=support_id_headers(),
         timeout=30,
     )
     if response.status_code != 200:
@@ -111,6 +113,7 @@ def login():
                 "response_types": ["code"],
                 "token_endpoint_auth_method": "none",
             },
+            headers=support_id_headers(),
             timeout=30,
         )
         if response.status_code not in (200, 201):
@@ -151,6 +154,7 @@ def login():
             "client_id": client_id,
             "code_verifier": verifier,
         },
+        headers=support_id_headers(),
         timeout=30,
     )
     if response.status_code != 200:
