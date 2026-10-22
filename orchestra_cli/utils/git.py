@@ -91,7 +91,10 @@ def _remote_host(remote_url: str) -> str | None:
     """The host of a URL remote, or of the SSH shorthand ``[user@]host:path``."""
     remote_url = remote_url.strip()
     if "://" in remote_url:
-        return urlsplit(remote_url).hostname
+        try:
+            return urlsplit(remote_url).hostname
+        except ValueError:
+            return None
     user_and_host, separator, _ = remote_url.partition(":")
     return user_and_host.rpartition("@")[2].lower() if separator else None
 

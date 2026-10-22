@@ -128,6 +128,7 @@ def test_require_repo_root_walks_up_from_nonexistent_parent(monkeypatch, tmp_pat
         ("https://gitlab.com/org/repo.git", "GITLAB"),
         ("https://git.example.com/org/repo.git", None),
         ("https://example.com/ghe.com/repo.git", None),
+        ("https://[malformed/org/repo.git", None),
         (None, None),
     ],
 )
