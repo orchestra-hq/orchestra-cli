@@ -138,7 +138,10 @@ def test_waf_blocked_refresh_keeps_login_and_shows_support_id(httpx_mock: HTTPXM
 
     with pytest.raises(typer.Exit):
         require_credential()
-    assert "Contact Orchestra support with ID:" in capsys.readouterr().out
+    request = httpx_mock.get_request(url=TOKEN_ENDPOINT)
+    assert request is not None
+    support_id = request.headers[SUPPORT_ID_HEADER]
+    assert f"Contact Orchestra support with ID: {support_id}" in capsys.readouterr().out
     assert load_credentials() is not None
 
 
