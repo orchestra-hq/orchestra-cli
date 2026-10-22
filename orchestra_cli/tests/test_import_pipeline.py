@@ -36,6 +36,8 @@ def mock_env(monkeypatch):
     [
         ("https://github.com/org/repo.git", "GITHUB", "org/repo"),
         ("git@github.com:org/repo.git", "GITHUB", "org/repo"),
+        ("https://acme.ghe.com/org/repo.git", "GITHUB", "org/repo"),
+        ("git@acme.ghe.com:org/repo.git", "GITHUB", "org/repo"),
         ("https://gitlab.com/org/repo.git", "GITLAB", "org/repo"),
         ("git@gitlab.com:org/repo.git", "GITLAB", "org/repo"),
         ("https://dev.azure.com/org/project/_git/repo", "AZURE_DEVOPS", "project/repo"),
