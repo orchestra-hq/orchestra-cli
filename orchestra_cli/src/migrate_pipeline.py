@@ -364,7 +364,8 @@ def migrate_pipeline(
         typer.echo(red("Could not detect repository URL from git"))
         raise typer.Exit(code=1)
 
-    storage_provider_value = detect_storage_provider(get_remote_url(repo_root))
+    remote_url = get_remote_url(repo_root)
+    storage_provider_value = detect_storage_provider(remote_url)
     if not storage_provider_value:
         typer.echo(red("Could not detect storage provider - no matching host"))
         raise typer.Exit(code=1)
@@ -437,6 +438,7 @@ def migrate_pipeline(
             repository_slug,
             default_branch,
             pushed_branch,
+            remote_url,
         )
         if compare_link:
             typer.echo(yellow(f"Open PR / compare link: {compare_link}"))

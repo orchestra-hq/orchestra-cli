@@ -4,10 +4,13 @@ import string
 import subprocess
 from enum import StrEnum
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import typer
 
 from .styling import bold, red, yellow
+
+GHE_COM_HOST_SUFFIX = ".ghe.com"
 
 
 class GitAction(StrEnum):
@@ -84,12 +87,30 @@ def detect_current_branch(repo_root: Path, allow_detached: bool = True) -> str |
     return out
 
 
+def _remote_host(remote_url: str) -> str | None:
+    """The host of a URL remote, or of the SSH shorthand ``[user@]host:path``."""
+    remote_url = remote_url.strip()
+    if "://" in remote_url:
+        try:
+            return urlsplit(remote_url).hostname
+        except ValueError:
+            return None
+    user_and_host, separator, _ = remote_url.partition(":")
+    return user_and_host.rpartition("@")[2].lower() if separator else None
+
+
+def _ghe_com_host(remote_url: str | None) -> str | None:
+    """The remote's host if it's on GitHub Enterprise Cloud with data residency."""
+    host = _remote_host(remote_url) if remote_url else None
+    return host if host and host.endswith(GHE_COM_HOST_SUFFIX) else None
+
+
 def detect_storage_provider(repository_url: str | None) -> str | None:
     if not repository_url:
         return None
 
     url = repository_url.lower()
-    if "github.com" in url:
+    if "github.com" in url or _ghe_com_host(repository_url):
         return "GITHUB"
     if "gitlab.com" in url:
         return "GITLAB"
@@ -103,10 +124,12 @@ def build_compare_link(
     repository_slug: str,
     default_branch: str,
     branch_name: str,
+    remote_url: str | None,
 ) -> str | None:
     provider = storage_provider.upper()
     if provider == "GITHUB":
-        return f"https://github.com/{repository_slug}/compare/{default_branch}...{branch_name}?expand=1"
+        host = _ghe_com_host(remote_url) or "github.com"
+        return f"https://{host}/{repository_slug}/compare/{default_branch}...{branch_name}?expand=1"
     if provider == "GITLAB":
         return f"https://gitlab.com/{repository_slug}/-/compare/{default_branch}...{branch_name}"
     return None

@@ -114,3 +114,46 @@ def test_require_repo_root_walks_up_from_nonexistent_parent(monkeypatch, tmp_pat
     monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
 
     assert git_module.require_repo_root(target_file, git_module.GitAction.MIGRATE) == tmp_path
+
+
+@pytest.mark.parametrize(
+    "remote_url, expected",
+    [
+        ("https://github.com/org/repo.git", "GITHUB"),
+        ("git@github.com:org/repo.git", "GITHUB"),
+        ("https://acme.ghe.com/org/repo.git", "GITHUB"),
+        ("https://user:token@acme.ghe.com/org/repo.git", "GITHUB"),
+        ("git@acme.ghe.com:org/repo.git", "GITHUB"),
+        ("ssh://git@acme.ghe.com/org/repo.git", "GITHUB"),
+        ("https://gitlab.com/org/repo.git", "GITLAB"),
+        ("https://git.example.com/org/repo.git", None),
+        ("https://example.com/ghe.com/repo.git", None),
+        ("https://[malformed/org/repo.git", None),
+        (None, None),
+    ],
+)
+def test_detect_storage_provider(remote_url: str | None, expected: str | None):
+    assert git_module.detect_storage_provider(remote_url) == expected
+
+
+@pytest.mark.parametrize(
+    "remote_url, expected",
+    [
+        (
+            "git@github.com:org/repo.git",
+            "https://github.com/org/repo/compare/main...feature?expand=1",
+        ),
+        (
+            "git@acme.ghe.com:org/repo.git",
+            "https://acme.ghe.com/org/repo/compare/main...feature?expand=1",
+        ),
+        (
+            "https://user:token@acme.ghe.com/org/repo.git",
+            "https://acme.ghe.com/org/repo/compare/main...feature?expand=1",
+        ),
+        (None, "https://github.com/org/repo/compare/main...feature?expand=1"),
+    ],
+)
+def test_build_compare_link_github(remote_url: str | None, expected: str):
+    link = git_module.build_compare_link("GITHUB", "org/repo", "main", "feature", remote_url)
+    assert link == expected
