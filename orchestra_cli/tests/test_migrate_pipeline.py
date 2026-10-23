@@ -38,7 +38,7 @@ def test_migrate_success_uses_default_branch_without_working_branch(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=3",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=3",
         text="name: remote\nversion: 1\n",
         status_code=200,
     )
@@ -100,7 +100,7 @@ def test_migrate_prompts_for_latest_version_and_prints_compare_link(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=5",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=5",
         text="name: remote\n",
         status_code=200,
     )
@@ -170,7 +170,7 @@ def test_migrate_uses_local_file_when_conflict_choice_is_local(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=1",
         text="name: remote\n",
         status_code=200,
     )
@@ -271,7 +271,7 @@ def test_migrate_branch_protection_offer_retries_with_suggested_branch(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=1",
         text="name: remote\n",
         status_code=200,
     )
@@ -337,7 +337,7 @@ def test_migrate_accepts_nonexistent_parent_directory_inside_repo(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=1",
         text="name: remote\n",
         status_code=200,
     )
@@ -398,7 +398,7 @@ def test_migrate_force_skips_version_prompt(monkeypatch, tmp_path: Path, httpx_m
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=2",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=2",
         text="name: remote\n",
         status_code=200,
     )
@@ -469,7 +469,7 @@ def test_migrate_force_skips_branch_recovery_prompt(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=1",
         text="name: remote\n",
         status_code=200,
     )
@@ -536,7 +536,7 @@ def test_migrate_fails_before_writing_when_reprompted_path_is_outside_repo(
     )
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo&version=1",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo&version=1",
         text="name: remote\n",
         status_code=200,
     )

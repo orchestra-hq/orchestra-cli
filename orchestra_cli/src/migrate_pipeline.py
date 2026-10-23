@@ -138,7 +138,7 @@ def _download_pipeline_yaml(
 
     response = request_or_exit(
         client.get,
-        get_api_url("pipeline/data"),
+        get_api_url("pipelines/data"),
         params=params,
     )
     if response.status_code != 200:

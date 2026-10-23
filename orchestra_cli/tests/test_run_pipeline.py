@@ -288,7 +288,7 @@ def test_run_with_task_and_overrides(httpx_mock: HTTPXMock, monkeypatch, tmp_pat
 
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo",
         text="\n".join(
             [
                 "name: demo",
@@ -366,7 +366,7 @@ def test_run_task_name_resolves_from_remote_pipeline_data(
 
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo",
         text="\n".join(
             [
                 "name: demo",
@@ -419,7 +419,7 @@ def test_run_task_name_resolves_from_remote_json_pipeline_definition(
 
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo",
         json={
             "name": "demo",
             "pipeline": {
@@ -471,7 +471,7 @@ def test_run_task_name_ignores_metadata_only_wrapper_and_uses_top_level_pipeline
 
     httpx_mock.add_response(
         method="GET",
-        url="https://app.getorchestra.io/api/engine/public/pipeline/data?alias=demo",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/data?alias=demo",
         json={
             "data": {"page": 1, "total": 1},
             "pipeline": {
