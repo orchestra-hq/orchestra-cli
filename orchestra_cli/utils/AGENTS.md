@@ -9,11 +9,11 @@ Shared utility modules. See root `AGENTS.md` for project overview. See `../src/A
 **`constants.py`** — API URL resolution:
 
 ```python
-get_api_url("schema")      # → https://app.getorchestra.io/api/engine/public/pipelines/schema
-get_api_url("demo/start")  # → https://app.getorchestra.io/api/engine/public/pipelines/demo/start
+get_api_url("pipelines/schema")  # → https://app.getorchestra.io/api/engine/public/pipelines/schema
+get_api_url("pipeline")          # → https://app.getorchestra.io/api/engine/public/pipeline
 ```
 
-Override the base via the `BASE_URL` env var — it must contain a `{}` placeholder.
+Paths are relative to `/api/engine/public`, so include the router prefix (`pipelines/`, `pipeline_runs/`, …). Override the host via the `BASE_URL` env var.
 
 **`git.py`** — Git subprocess helpers:
 

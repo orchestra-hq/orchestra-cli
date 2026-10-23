@@ -164,7 +164,7 @@ def _load_pipeline_data_for_task_resolution(
 
     response = request_or_exit(
         client.get,
-        get_api_url("pipeline/data"),
+        get_api_url("pipelines/data"),
         params=selector.to_payload(),
     )
     if response.status_code != 200:

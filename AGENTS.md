@@ -67,7 +67,7 @@ uv pip install -e ".[dev]"
 | Variable            | Required | Default                                                                 | Purpose                          |
 |---------------------|----------|-------------------------------------------------------------------------|----------------------------------|
 | `ORCHESTRA_API_KEY` | Yes*     | —                                                                       | Auth token for `import` and `run` |
-| `BASE_URL`          | No       | `https://app.getorchestra.io/api/engine/public/pipelines/{}`            | Override API base (e.g., staging) |
+| `BASE_URL`          | No       | `https://app.getorchestra.io`                                           | Override API host (e.g., dev)     |
 
 *Required only for commands that call the API (`import`, `run`). `validate` does not need it.
 
