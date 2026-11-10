@@ -631,6 +631,7 @@ def build_run_payload(
     version_number: int | None = None,
     environment: str | None = None,
     run_inputs: dict[str, str] | None = None,
+    input_set: str | None = None,
     environment_overrides: dict[str, dict[str, str | int | bool]] | None = None,
     task_ids: list[str] | None = None,
     continue_downstream_run: bool | None = None,
@@ -646,6 +647,8 @@ def build_run_payload(
         payload["environment"] = environment
     if run_inputs:
         payload["runInputs"] = run_inputs
+    if input_set:
+        payload["inputSet"] = input_set
     if environment_overrides:
         payload["environmentOverrides"] = environment_overrides
     if task_ids:
@@ -773,6 +776,12 @@ def run_pipeline(
         "--input",
         help="Pipeline input override as KEY=VAL. Repeat to set multiple values.",
     ),
+    input_set: str | None = typer.Option(
+        None,
+        "--input-set",
+        help="Name of a pipeline input set to start the run with. "
+        "Explicit --input values take precedence over the set.",
+    ),
     environment_override: list[str] = typer.Option(
         [],
         "--env",
@@ -874,6 +883,7 @@ def run_pipeline(
             version_number=version_number,
             environment=environment,
             run_inputs=run_inputs,
+            input_set=input_set,
             environment_overrides=environment_overrides,
             task_ids=task_ids,
             continue_downstream_run=continue_downstream_run if task_ids else None,

@@ -332,6 +332,9 @@ orchestra pipeline run -a my-pipeline --no-wait
 
 # Start for a specific branch/commit
 orchestra pipeline run -a my-pipeline -b feature/my-change -c 0123abc
+
+# Start with a named input set, overriding one of its values
+orchestra pipeline run -a my-pipeline --input-set prod --input full_refresh=true
 ```
 
 Options
@@ -342,6 +345,8 @@ Options
 - `-b, --branch` (optional): Git branch name to associate with this run.
 - `-c, --commit` (optional): Commit SHA to associate with this run.
 - `-t, --task` (optional): Task ID, task name, task-group ID, or task-group name to run. With `--path`, selectors resolve from the local YAML; otherwise the CLI loads pipeline data from Orchestra and resolves them there.
+- `--input KEY=VAL` (optional, repeatable): Pipeline input override.
+- `--input-set` (optional): Name of a pipeline input set to start the run with. Combined with `--input`, the explicit `--input` value takes precedence. The platform rejects an unknown set with HTTP 400 and no run is created.
 - `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
 - `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
 - Provide exactly one selector mode: `--alias`, `--pipeline-id`, or `--path`. These selector flags are mutually exclusive.
