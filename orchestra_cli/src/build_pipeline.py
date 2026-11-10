@@ -28,7 +28,7 @@ from .pipeline_upsert import (
     require_pipeline_body_from_success_response,
     require_pipeline_id_from_success_body,
 )
-from .run_pipeline import build_run_payload, start_pipeline_run
+from .run_pipeline import build_run_payload, parse_key_value_pairs, start_pipeline_run
 
 
 def _extract_pipeline_version(body: dict[str, object], action: str) -> int:
@@ -133,6 +133,17 @@ def build_pipeline(
     pipeline_id: str | None = pipeline_id_option(),
     branch: str | None = typer.Option(None, "--branch", "-b", help="Git branch name"),
     commit: str | None = typer.Option(None, "--commit", "-c", help="Commit SHA"),
+    run_input: list[str] = typer.Option(
+        [],
+        "--input",
+        help="Pipeline input override as KEY=VAL. Repeat to set multiple values.",
+    ),
+    input_set: str | None = typer.Option(
+        None,
+        "--input-set",
+        help="Name of a pipeline input set to start the run with. "
+        "Explicit --input values take precedence over the set.",
+    ),
     wait: bool = typer.Option(
         True,
         "--wait/--no-wait",
@@ -155,6 +166,7 @@ def build_pipeline(
             red("A pipeline YAML file path is required (use -p or --path with your YAML file)"),
         )
         raise typer.Exit(code=1)
+    run_inputs = parse_key_value_pairs(run_input, "--input") if run_input else None
     lookup_selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
 
     confirm_git_warnings_or_exit(force, path)
@@ -176,6 +188,8 @@ def build_pipeline(
                 branch=branch,
                 commit=commit,
                 version_number=version_number,
+                run_inputs=run_inputs,
+                input_set=input_set,
             ),
             wait=wait,
             failure_action="Build",
@@ -197,6 +211,8 @@ def build_pipeline(
                 branch=branch,
                 commit=commit,
                 version_number=version_number,
+                run_inputs=run_inputs,
+                input_set=input_set,
             ),
             wait=wait,
             failure_action="Build",
@@ -230,6 +246,8 @@ def build_pipeline(
         payload=build_run_payload(
             branch=git_branch,
             commit=git_commit,
+            run_inputs=run_inputs,
+            input_set=input_set,
         ),
         wait=wait,
         failure_action="Build",

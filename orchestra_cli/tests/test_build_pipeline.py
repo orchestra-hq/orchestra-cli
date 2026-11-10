@@ -895,3 +895,150 @@ def test_build_uses_zero_latest_version_number(httpx_mock: HTTPXMock, monkeypatc
 
     assert result.exit_code == 0
     assert "updated as version 0" in result.output
+
+
+BASE_URL = "https://app.getorchestra.io/api/engine/public"
+INPUT_ARGS = ["--input-set", "staging", "--input", "full_refresh=true", "--no-wait"]
+INPUT_PAYLOAD = {"inputSet": "staging", "runInputs": {"full_refresh": "true"}}
+
+
+def _mock_git(monkeypatch, tmp_path: Path, extra: dict | None = None) -> Path:
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("remote", "get-url", "origin"): (0, "git@github.com:org/repo.git", ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+        **(extra or {}),
+    }
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    return yaml_file
+
+
+def _mock_schema_and_lookup(httpx_mock: HTTPXMock, lookup_json: dict, status_code: int) -> None:
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE_URL}/pipelines/schema",
+        json={"ok": True},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="GET",
+        url=f"{BASE_URL}/pipeline?repository=org%2Frepo&yaml_path=pipe.yaml",
+        json=lookup_json,
+        status_code=status_code,
+    )
+
+
+def test_build_sends_input_set_and_inputs_when_updating_existing_draft(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = _mock_git(monkeypatch, tmp_path)
+    _mock_schema_and_lookup(
+        httpx_mock,
+        {"id": "pipeline-id", "storage_provider": "ORCHESTRA"},
+        200,
+    )
+    httpx_mock.add_response(
+        method="PUT",
+        url=f"{BASE_URL}/pipelines",
+        json={"id": "pipeline-id", "latestVersionNumber": 12},
+        status_code=200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE_URL}/pipelines/pipeline-id/start",
+        match_json={"versionNumber": 12, **INPUT_PAYLOAD},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(app, ["pipeline", "build", "--path", str(yaml_file), *INPUT_ARGS])
+
+    assert result.exit_code == 0, result.output
+
+
+def test_build_sends_input_set_and_inputs_when_creating_draft(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = _mock_git(monkeypatch, tmp_path)
+    _mock_schema_and_lookup(httpx_mock, {"detail": "not found"}, 404)
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE_URL}/pipelines",
+        json={"id": "pipeline-id", "currentVersionNumber": 3},
+        status_code=201,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE_URL}/pipelines/pipeline-id/start",
+        match_json={"versionNumber": 3, **INPUT_PAYLOAD},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "build", "--path", str(yaml_file), *INPUT_ARGS],
+        input="\n",
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+def test_build_sends_input_set_and_inputs_for_git_backed_pipeline(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    yaml_file = _mock_git(
+        monkeypatch,
+        tmp_path,
+        {
+            ("status", "--porcelain", "--", "pipe.yaml"): (0, "", ""),
+            ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (0, "origin/main", ""),
+            ("rev-list", "--left-right", "--count", "@{u}...HEAD"): (0, "0 0", ""),
+            ("rev-parse", "--abbrev-ref", "HEAD"): (0, "main", ""),
+            ("rev-parse", "HEAD"): (0, "abc123", ""),
+        },
+    )
+    _mock_schema_and_lookup(
+        httpx_mock,
+        {"id": "pipeline-id", "alias": "demo", "storage_provider": "GITHUB"},
+        200,
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE_URL}/pipelines/pipeline-id/start",
+        match_json={"branch": "main", "commit": "abc123", **INPUT_PAYLOAD},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "build", "--path", str(yaml_file), *INPUT_ARGS],
+        input="\n",
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+def test_build_rejects_malformed_input_before_any_request(tmp_path: Path):
+    yaml_file = tmp_path / "pipe.yaml"
+    yaml_file.write_text("name: demo\nversion: 1\n")
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "build", "--path", str(yaml_file), "--input", "no-equals"],
+    )
+
+    assert result.exit_code == 1
+    assert "Invalid --input value 'no-equals'" in result.output
