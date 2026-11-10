@@ -647,7 +647,7 @@ def build_run_payload(
         payload["environment"] = environment
     if run_inputs:
         payload["runInputs"] = run_inputs
-    if input_set:
+    if input_set is not None:
         payload["inputSet"] = input_set
     if environment_overrides:
         payload["environmentOverrides"] = environment_overrides

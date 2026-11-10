@@ -52,6 +52,10 @@ def test_build_run_payload_includes_input_set_when_set() -> None:
     assert build_run_payload(input_set="prod") == {"inputSet": "prod"}
 
 
+def test_build_run_payload_sends_empty_input_set_for_platform_to_reject() -> None:
+    assert build_run_payload(input_set="") == {"inputSet": ""}
+
+
 def test_build_run_payload_omits_input_set_when_not_set() -> None:
     assert "inputSet" not in build_run_payload(run_inputs={"foo": "bar"})
 
