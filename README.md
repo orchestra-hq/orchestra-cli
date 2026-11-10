@@ -332,6 +332,9 @@ orchestra pipeline run -a my-pipeline --no-wait
 
 # Start for a specific branch/commit
 orchestra pipeline run -a my-pipeline -b feature/my-change -c 0123abc
+
+# Start with a named input set, overriding one of its values
+orchestra pipeline run -a my-pipeline --input-set prod --input full_refresh=true
 ```
 
 Options
@@ -342,6 +345,8 @@ Options
 - `-b, --branch` (optional): Git branch name to associate with this run.
 - `-c, --commit` (optional): Commit SHA to associate with this run.
 - `-t, --task` (optional): Task ID, task name, task-group ID, or task-group name to run. With `--path`, selectors resolve from the local YAML; otherwise the CLI loads pipeline data from Orchestra and resolves them there.
+- `--input KEY=VAL` (optional, repeatable): Pipeline input override.
+- `--input-set` (optional): Name of a pipeline input set to start the run with. Combined with `--input`, the explicit `--input` value takes precedence. The platform rejects an unknown set with HTTP 400 and no run is created.
 - `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
 - `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
 - Provide exactly one selector mode: `--alias`, `--pipeline-id`, or `--path`. These selector flags are mutually exclusive.
@@ -380,6 +385,9 @@ orchestra pipeline build --path ./pipelines/pipeline.yaml --pipeline-id f374e795
 
 # Run against a specific branch/commit override
 orchestra pipeline build -p ./pipelines/pipeline.yaml -a my-pipeline -b feature/my-change -c 0123abc
+
+# Run the draft with a named input set, overriding one of its values
+orchestra pipeline build -p ./pipelines/pipeline.yaml --input-set staging --input full_refresh=true
 ```
 
 Options
@@ -389,6 +397,8 @@ Options
 - `-i, --pipeline-id` (optional): Pipeline ID.
 - `-b, --branch` (optional): Git branch name to associate with the draft run.
 - `-c, --commit` (optional): Commit SHA to associate with the draft run.
+- `--input KEY=VAL` (optional, repeatable): Pipeline input override for the draft run.
+- `--input-set` (optional): Name of a pipeline input set to start the draft run with, including a set defined in the YAML you are building. Combined with `--input`, the explicit `--input` value takes precedence.
 - `--wait/--no-wait` (default: `--wait`): Poll until the run ends.
 - `--force/--no-force` (default: `--no-force`): Skip confirmation if local git warnings are detected.
 

@@ -49,7 +49,7 @@ IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED", "CANCELLING"}
 TERMINAL_RUN_STATUSES = {"SUCCEEDED", "WARNING", "SKIPPED", "FAILED", "CANCELLED"}
 
 
-def _parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
+def parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for raw in values:
         key, sep, value = raw.partition("=")
@@ -76,7 +76,7 @@ def _typed_environment_override(value: str) -> dict[str, str | int | bool]:
 
 
 def _build_environment_overrides(values: list[str]) -> dict[str, dict[str, str | int | bool]]:
-    parsed = _parse_key_value_pairs(values, "-e/--env")
+    parsed = parse_key_value_pairs(values, "-e/--env")
     return {key: _typed_environment_override(value) for key, value in parsed.items()}
 
 
@@ -631,6 +631,7 @@ def build_run_payload(
     version_number: int | None = None,
     environment: str | None = None,
     run_inputs: dict[str, str] | None = None,
+    input_set: str | None = None,
     environment_overrides: dict[str, dict[str, str | int | bool]] | None = None,
     task_ids: list[str] | None = None,
     continue_downstream_run: bool | None = None,
@@ -646,6 +647,8 @@ def build_run_payload(
         payload["environment"] = environment
     if run_inputs:
         payload["runInputs"] = run_inputs
+    if input_set is not None:
+        payload["inputSet"] = input_set
     if environment_overrides:
         payload["environmentOverrides"] = environment_overrides
     if task_ids:
@@ -773,6 +776,12 @@ def run_pipeline(
         "--input",
         help="Pipeline input override as KEY=VAL. Repeat to set multiple values.",
     ),
+    input_set: str | None = typer.Option(
+        None,
+        "--input-set",
+        help="Name of a pipeline input set to start the run with. "
+        "Explicit --input values take precedence over the set.",
+    ),
     environment_override: list[str] = typer.Option(
         [],
         "--env",
@@ -811,7 +820,7 @@ def run_pipeline(
         )
         task_ids = _resolve_task_ids(task, pipeline_data, task_source_description)
     environment = _resolve_environment_value(environment_id, environment_name)
-    run_inputs = _parse_key_value_pairs(run_input, "--input") if run_input else None
+    run_inputs = parse_key_value_pairs(run_input, "--input") if run_input else None
     environment_overrides = (
         _build_environment_overrides(environment_override) if environment_override else None
     )
@@ -874,6 +883,7 @@ def run_pipeline(
             version_number=version_number,
             environment=environment,
             run_inputs=run_inputs,
+            input_set=input_set,
             environment_overrides=environment_overrides,
             task_ids=task_ids,
             continue_downstream_run=continue_downstream_run if task_ids else None,

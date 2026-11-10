@@ -48,11 +48,24 @@ def test_build_run_payload_omits_version_number_when_not_set() -> None:
     assert payload == {}
 
 
+def test_build_run_payload_includes_input_set_when_set() -> None:
+    assert build_run_payload(input_set="prod") == {"inputSet": "prod"}
+
+
+def test_build_run_payload_sends_empty_input_set_for_platform_to_reject() -> None:
+    assert build_run_payload(input_set="") == {"inputSet": ""}
+
+
+def test_build_run_payload_omits_input_set_when_not_set() -> None:
+    assert "inputSet" not in build_run_payload(run_inputs={"foo": "bar"})
+
+
 def test_build_run_payload_includes_task_environment_and_overrides() -> None:
     payload = build_run_payload(
         version_number=3,
         environment="staging",
         run_inputs={"foo": "bar"},
+        input_set="prod",
         environment_overrides={"FLAG": {"type": "bool", "value": True}},
         task_ids=["task_1", "task_2"],
         continue_downstream_run=False,
@@ -61,6 +74,7 @@ def test_build_run_payload_includes_task_environment_and_overrides() -> None:
         "versionNumber": 3,
         "environment": "staging",
         "runInputs": {"foo": "bar"},
+        "inputSet": "prod",
         "environmentOverrides": {"FLAG": {"type": "bool", "value": True}},
         "taskIds": ["task_1", "task_2"],
         "continueDownstreamRun": False,
@@ -926,6 +940,77 @@ def test_run_api_error(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
     result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--no-wait"])
     assert result.exit_code == 1
     assert "Run failed" in result.output
+
+
+def test_run_sends_input_set_with_input_override(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    import subprocess
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        match_json={"inputSet": "prod", "runInputs": {"full_refresh": "true"}},
+        json={"pipelineRunId": mock_pipeline_run_id},
+        status_code=200,
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "pipeline",
+            "run",
+            "--alias",
+            "demo",
+            "--input-set",
+            "prod",
+            "--input",
+            "full_refresh=true",
+            "--no-wait",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+def test_run_unknown_input_set_shows_platform_error(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    import subprocess
+
+    mapping = {
+        ("rev-parse", "--show-toplevel"): (0, str(tmp_path), ""),
+        ("status", "--porcelain"): (0, "", ""),
+        ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"): (1, "", ""),
+    }
+    monkeypatch.setattr(subprocess, "run", make_git_subprocess_mock(mapping))
+    message = "Input set 'nope' is not defined in version 3."
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        match_json={"inputSet": "nope"},
+        json={"detail": message},
+        status_code=400,
+    )
+
+    result = runner.invoke(
+        app,
+        ["pipeline", "run", "--alias", "demo", "--input-set", "nope", "--no-wait"],
+    )
+
+    assert result.exit_code == 1
+    assert "Run failed" in result.output
+    assert message in result.output
 
 
 def test_run_wait_success(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
