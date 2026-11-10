@@ -49,7 +49,7 @@ IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED", "CANCELLING"}
 TERMINAL_RUN_STATUSES = {"SUCCEEDED", "WARNING", "SKIPPED", "FAILED", "CANCELLED"}
 
 
-def _parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
+def parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for raw in values:
         key, sep, value = raw.partition("=")
@@ -76,7 +76,7 @@ def _typed_environment_override(value: str) -> dict[str, str | int | bool]:
 
 
 def _build_environment_overrides(values: list[str]) -> dict[str, dict[str, str | int | bool]]:
-    parsed = _parse_key_value_pairs(values, "-e/--env")
+    parsed = parse_key_value_pairs(values, "-e/--env")
     return {key: _typed_environment_override(value) for key, value in parsed.items()}
 
 
@@ -820,7 +820,7 @@ def run_pipeline(
         )
         task_ids = _resolve_task_ids(task, pipeline_data, task_source_description)
     environment = _resolve_environment_value(environment_id, environment_name)
-    run_inputs = _parse_key_value_pairs(run_input, "--input") if run_input else None
+    run_inputs = parse_key_value_pairs(run_input, "--input") if run_input else None
     environment_overrides = (
         _build_environment_overrides(environment_override) if environment_override else None
     )
