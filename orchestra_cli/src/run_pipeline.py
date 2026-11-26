@@ -819,8 +819,6 @@ def run_pipeline(
     if continue_downstream_run and not task:
         typer.echo(red("❌ --continue can only be used when --task/-t is provided"))
         raise typer.Exit(code=1)
-    # Read before changing anything, so a failed read leaves nothing half done.
-    run_statuses = fetch_run_status_classifications(client) if wait else None
 
     selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
     task_ids = None
@@ -836,6 +834,8 @@ def run_pipeline(
     environment_overrides = (
         _build_environment_overrides(environment_override) if environment_override else None
     )
+    # Read before changing anything, so a failed read leaves nothing half done.
+    run_statuses = fetch_run_status_classifications(client) if wait else None
 
     selector_uses_repository_path = (
         selector.repository is not None and selector.yaml_path is not None

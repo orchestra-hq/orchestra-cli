@@ -1033,7 +1033,10 @@ def test_build_sends_input_set_and_inputs_for_git_backed_pipeline(
     assert result.exit_code == 0, result.output
 
 
-def test_build_rejects_malformed_input_before_any_request(tmp_path: Path):
+def test_build_rejects_malformed_input_before_any_request(
+    httpx_mock: HTTPXMock,
+    tmp_path: Path,
+):
     yaml_file = tmp_path / "pipe.yaml"
     yaml_file.write_text("name: demo\nversion: 1\n")
 
@@ -1044,6 +1047,7 @@ def test_build_rejects_malformed_input_before_any_request(tmp_path: Path):
 
     assert result.exit_code == 1
     assert "Invalid --input value 'no-equals'" in result.output
+    assert not httpx_mock.get_requests()
 
 
 def test_build_wait_leaves_the_draft_untouched_when_classifications_unavailable(
@@ -1055,7 +1059,10 @@ def test_build_wait_leaves_the_draft_untouched_when_classifications_unavailable(
     httpx_mock.reset()
     httpx_mock.add_response(method="GET", url=STATUS_CLASSIFICATIONS_URL, status_code=503)
 
-    result = runner.invoke(app, ["pipeline", "build", "--path", str(yaml_file), "--wait"])
+    result = runner.invoke(
+        app,
+        ["pipeline", "build", "--path", str(yaml_file), "--wait", "--force"],
+    )
 
     assert result.exit_code == 1
     assert "❌ Reading run status classifications failed with status 503" in result.output

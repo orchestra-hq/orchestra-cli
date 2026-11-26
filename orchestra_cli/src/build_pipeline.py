@@ -171,10 +171,10 @@ def build_pipeline(
             red("A pipeline YAML file path is required (use -p or --path with your YAML file)"),
         )
         raise typer.Exit(code=1)
-    # Read before changing anything, so a failed read leaves the draft untouched.
-    run_statuses = fetch_run_status_classifications(client) if wait else None
     run_inputs = parse_key_value_pairs(run_input, "--input") if run_input else None
     lookup_selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
+    # Read before changing anything, so a failed read leaves the draft untouched.
+    run_statuses = fetch_run_status_classifications(client) if wait else None
 
     confirm_git_warnings_or_exit(force, path)
     pipeline_data = load_validated_pipeline_data(path)
