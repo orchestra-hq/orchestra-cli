@@ -1341,7 +1341,7 @@ def test_run_wait_fails_before_starting_when_classifications_unavailable(
         json={"detail": "Service unavailable"},
     )
 
-    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait", "--force"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
 
     assert result.exit_code == 1
     assert "❌ Reading run status classifications failed with status 503" in result.output
@@ -1358,25 +1358,37 @@ def test_run_wait_fails_before_starting_when_classifications_unreachable(
         url=STATUS_CLASSIFICATIONS_URL,
     )
 
-    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait", "--force"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
 
     assert result.exit_code == 1
     assert "HTTP request failed: Connection refused" in result.output
     assert not httpx_mock.get_requests(method="POST")
 
 
-def test_run_wait_fails_when_classifications_lack_pipeline_runs(httpx_mock: HTTPXMock):
+@pytest.mark.parametrize(
+    "body",
+    [
+        [{"name": "task_run", "members": []}],
+        [{"name": "pipeline_run", "members": []}],
+        [
+            {
+                "name": "pipeline_run",
+                "members": [{"value": "SUCCEEDED", "classifications": "completed"}],
+            },
+        ],
+    ],
+)
+def test_run_wait_fails_before_starting_without_a_completed_status(
+    httpx_mock: HTTPXMock,
+    body: object,
+):
     httpx_mock.reset()
-    httpx_mock.add_response(
-        method="GET",
-        url=STATUS_CLASSIFICATIONS_URL,
-        json=[{"name": "task_run", "members": []}],
-    )
+    httpx_mock.add_response(method="GET", url=STATUS_CLASSIFICATIONS_URL, json=body)
 
-    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait", "--force"])
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait"])
 
     assert result.exit_code == 1
-    assert "has no pipeline run statuses" in result.output
+    assert "has no completed pipeline run status" in result.output
     assert not httpx_mock.get_requests(method="POST")
 
 

@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 
 from orchestra_cli.src.cli import app
 from orchestra_cli.utils import git as git_module
-from tests.conftest import make_git_subprocess_mock
+from tests.conftest import STATUS_CLASSIFICATIONS_URL, make_git_subprocess_mock
 
 pytestmark = pytest.mark.usefixtures("served_status_classifications")
 
@@ -1044,3 +1044,19 @@ def test_build_rejects_malformed_input_before_any_request(tmp_path: Path):
 
     assert result.exit_code == 1
     assert "Invalid --input value 'no-equals'" in result.output
+
+
+def test_build_wait_leaves_the_draft_untouched_when_classifications_unavailable(
+    httpx_mock: HTTPXMock,
+    tmp_path: Path,
+):
+    yaml_file = tmp_path / "pipeline.yaml"
+    yaml_file.write_text("version: v1\nname: demo\n")
+    httpx_mock.reset()
+    httpx_mock.add_response(method="GET", url=STATUS_CLASSIFICATIONS_URL, status_code=503)
+
+    result = runner.invoke(app, ["pipeline", "build", "--path", str(yaml_file), "--wait"])
+
+    assert result.exit_code == 1
+    assert "❌ Reading run status classifications failed with status 503" in result.output
+    assert [request.url for request in httpx_mock.get_requests()] == [STATUS_CLASSIFICATIONS_URL]
