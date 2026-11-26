@@ -8,6 +8,8 @@ from orchestra_cli.src.cli import app
 from orchestra_cli.utils import git as git_module
 from tests.conftest import make_git_subprocess_mock
 
+pytestmark = pytest.mark.usefixtures("served_status_classifications")
+
 runner = CliRunner()
 mock_api_key = "fake-key"
 mock_pipeline_run_id = "798d7121-6809-4148-aecb-26740cfabdf1"
