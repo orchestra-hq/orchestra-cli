@@ -12,7 +12,7 @@ PIPELINE_RUN_CLASSIFICATIONS = {
     "SUCCEEDED": ["completed", "successful", "triggerable"],
     "WARNING": ["completed", "successful", "triggerable"],
     "FAILED": ["completed", "triggerable"],
-    "SKIPPED": ["completed"],
+    "SKIPPED": ["completed", "triggerable"],
     "CANCELLING": ["force_cancellable"],
     "CANCELLED": ["completed", "triggerable"],
 }
