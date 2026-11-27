@@ -28,12 +28,7 @@ from .pipeline_upsert import (
     require_pipeline_body_from_success_response,
     require_pipeline_id_from_success_body,
 )
-from .run_pipeline import (
-    build_run_payload,
-    fetch_run_status_classifications,
-    parse_key_value_pairs,
-    start_pipeline_run,
-)
+from .run_pipeline import build_run_payload, parse_key_value_pairs, start_pipeline_run
 
 
 def _extract_pipeline_version(body: dict[str, object], action: str) -> int:
@@ -173,8 +168,6 @@ def build_pipeline(
         raise typer.Exit(code=1)
     run_inputs = parse_key_value_pairs(run_input, "--input") if run_input else None
     lookup_selector = resolve_pipeline_selector(alias, pipeline_id, path, force=force)
-    # Read before changing anything, so a failed read leaves the draft untouched.
-    run_statuses = fetch_run_status_classifications(client) if wait else None
 
     confirm_git_warnings_or_exit(force, path)
     pipeline_data = load_validated_pipeline_data(path)
@@ -198,7 +191,7 @@ def build_pipeline(
                 run_inputs=run_inputs,
                 input_set=input_set,
             ),
-            run_statuses=run_statuses,
+            wait=wait,
             failure_action="Build",
         )
         return
@@ -221,7 +214,7 @@ def build_pipeline(
                 run_inputs=run_inputs,
                 input_set=input_set,
             ),
-            run_statuses=run_statuses,
+            wait=wait,
             failure_action="Build",
         )
         return
@@ -256,6 +249,6 @@ def build_pipeline(
             run_inputs=run_inputs,
             input_set=input_set,
         ),
-        run_statuses=run_statuses,
+        wait=wait,
         failure_action="Build",
     )

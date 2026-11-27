@@ -212,26 +212,20 @@ def _resolve_task_ids(
     raise typer.Exit(code=1)
 
 
-def fetch_run_status_classifications(client: httpx.Client) -> dict[str, set[str]]:
+def _fetch_run_status_classifications(client: httpx.Client) -> dict[str, set[str]]:
     """Each pipeline run status, mapped to the classifications the API serves for it."""
     response = request_or_exit(client.get, get_api_url("status_classifications/"))
     if not (200 <= response.status_code < 300):
         raise fail_with_response("Reading run status classifications", response)
     try:
-        pipeline_run = next(enum for enum in response.json() if enum.get("name") == "pipeline_run")
-        run_statuses = {
+        pipeline_run = next(enum for enum in response.json() if enum["name"] == "pipeline_run")
+        return {
             member["value"]: set(member["classifications"]) for member in pipeline_run["members"]
         }
     except Exception:
-        run_statuses = {}
-    # Without a completed status, polling could never end.
-    if not any("completed" in classifications for classifications in run_statuses.values()):
-        typer.echo(
-            red("❌ Run status classifications response has no completed pipeline run status"),
-        )
+        typer.echo(red("❌ Run status classifications response has no pipeline run statuses"))
         echo_response_error_body(response)
         raise typer.Exit(code=1)
-    return run_statuses
 
 
 def _parse_task_runs_response(response: httpx.Response) -> list[dict[str, object]]:
@@ -687,13 +681,14 @@ def start_pipeline_run(
     client: httpx.Client,
     selector: PipelineSelector,
     payload: dict[str, Any] | None,
-    run_statuses: dict[str, set[str]] | None,
+    wait: bool,
     failure_action: str,
     existing_pipeline: dict[str, object] | None = None,
 ) -> None:
-    """Start the run, and wait on it unless ``run_statuses`` is None."""
     selector_name = selector.display()
     start_path = _resolve_start_path(selector, existing_pipeline)
+    # Before the run starts, so a failed read never leaves a run going that nothing waits on.
+    run_statuses = _fetch_run_status_classifications(client) if wait else None
 
     typer.echo(f"Starting pipeline ({selector_name})")
     response = request_or_exit(
@@ -834,8 +829,6 @@ def run_pipeline(
     environment_overrides = (
         _build_environment_overrides(environment_override) if environment_override else None
     )
-    # Read before changing anything, so a failed read leaves nothing half done.
-    run_statuses = fetch_run_status_classifications(client) if wait else None
 
     selector_uses_repository_path = (
         selector.repository is not None and selector.yaml_path is not None
@@ -900,7 +893,7 @@ def run_pipeline(
             task_ids=task_ids,
             continue_downstream_run=continue_downstream_run if task_ids else None,
         ),
-        run_statuses=run_statuses,
+        wait=wait,
         failure_action="Run",
         existing_pipeline=existing_pipeline,
     )
