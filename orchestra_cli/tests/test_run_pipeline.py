@@ -26,7 +26,14 @@ from orchestra_cli.src.run_pipeline import (
 from orchestra_cli.utils.credentials import save_credentials
 from orchestra_cli.utils.pipeline_selector import PipelineSelector
 from orchestra_cli.utils.pipeline_update import build_update_selector
-from tests.conftest import make_git_subprocess_mock
+from tests.conftest import (
+    PIPELINE_RUN_CLASSIFICATIONS,
+    STATUS_CLASSIFICATIONS_URL,
+    make_git_subprocess_mock,
+    status_classifications_body,
+)
+
+pytestmark = pytest.mark.usefixtures("served_status_classifications")
 
 runner = CliRunner()
 mock_pipeline_run_id = "798d7121-6809-4148-aecb-26740cfabdf1"
@@ -1261,7 +1268,8 @@ def test_run_wait_shows_queued_message_then_final_status(
     assert result.output.strip().splitlines()[-1] == "✅ Pipeline succeeded"
 
 
-def test_run_wait_skipped_prints_reason(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+def test_run_wait_skipped_fails_with_reason(httpx_mock: HTTPXMock, monkeypatch, tmp_path: Path):
+    """SKIPPED is completed but not successful, as a completion trigger's default reads it."""
     result = _invoke_run_through_statuses(
         httpx_mock,
         monkeypatch,
@@ -1269,8 +1277,120 @@ def test_run_wait_skipped_prints_reason(httpx_mock: HTTPXMock, monkeypatch, tmp_
         [{"runStatus": "SKIPPED", "message": "Replaced by a newer run"}],
     )
 
+    assert result.exit_code == 1
+    assert (
+        "❌ Pipeline ended with status SKIPPED - Replaced by a newer run. See lineage for details."
+        in result.output
+    )
+
+
+def test_run_wait_follows_the_served_classifications(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    """A status the CLI has never seen is waited on, and ends the run, as the API classifies it."""
+    httpx_mock.reset()
+    httpx_mock.add_response(
+        method="GET",
+        url=STATUS_CLASSIFICATIONS_URL,
+        json=status_classifications_body(
+            {**PIPELINE_RUN_CLASSIFICATIONS, "PAUSED": [], "PARTIAL": ["completed", "successful"]},
+        ),
+    )
+
+    result = _invoke_run_through_statuses(
+        httpx_mock,
+        monkeypatch,
+        tmp_path,
+        [{"runStatus": "PAUSED"}, {"runStatus": "PARTIAL"}],
+    )
+
     assert result.exit_code == 0
-    assert result.output.strip().splitlines()[-1] == "⚠ Pipeline skipped: Replaced by a newer run"
+    assert "status: PAUSED" in result.output
+    assert "Invalid status value" not in result.output
+    assert result.output.strip().splitlines()[-1] == "✅ Pipeline succeeded"
+
+
+# An unserved status ends the poll before its task runs are fetched.
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+def test_run_wait_rejects_a_status_the_api_does_not_serve(
+    httpx_mock: HTTPXMock,
+    monkeypatch,
+    tmp_path: Path,
+):
+    result = _invoke_run_through_statuses(
+        httpx_mock,
+        monkeypatch,
+        tmp_path,
+        [{"runStatus": "EXPLODED"}],
+    )
+
+    assert result.exit_code == 1
+    assert "Invalid status value: EXPLODED" in result.output
+
+
+def test_run_wait_fails_before_starting_when_classifications_unavailable(
+    httpx_mock: HTTPXMock,
+):
+    httpx_mock.reset()
+    httpx_mock.add_response(
+        method="GET",
+        url=STATUS_CLASSIFICATIONS_URL,
+        status_code=503,
+        json={"detail": "Service unavailable"},
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait", "--force"])
+
+    assert result.exit_code == 1
+    assert "❌ Reading run status classifications failed with status 503" in result.output
+    assert "Starting pipeline" not in result.output
+    assert not httpx_mock.get_requests(method="POST")
+
+
+def test_run_wait_fails_before_starting_when_classifications_unreachable(
+    httpx_mock: HTTPXMock,
+):
+    httpx_mock.reset()
+    httpx_mock.add_exception(
+        httpx.ConnectError("Connection refused"),
+        url=STATUS_CLASSIFICATIONS_URL,
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait", "--force"])
+
+    assert result.exit_code == 1
+    assert "HTTP request failed: Connection refused" in result.output
+    assert not httpx_mock.get_requests(method="POST")
+
+
+def test_run_wait_fails_before_starting_without_pipeline_run_statuses(httpx_mock: HTTPXMock):
+    httpx_mock.reset()
+    httpx_mock.add_response(
+        method="GET",
+        url=STATUS_CLASSIFICATIONS_URL,
+        json=[{"name": "task_run", "members": []}],
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--wait", "--force"])
+
+    assert result.exit_code == 1
+    assert "has no pipeline run statuses" in result.output
+    assert not httpx_mock.get_requests(method="POST")
+
+
+def test_run_no_wait_does_not_read_classifications(httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        method="POST",
+        url="https://app.getorchestra.io/api/engine/public/pipelines/demo/start",
+        json={"pipelineRunId": "run-nw"},
+    )
+
+    result = runner.invoke(app, ["pipeline", "run", "--alias", "demo", "--no-wait", "--force"])
+
+    assert result.exit_code == 0
+    assert not httpx_mock.get_requests(url=STATUS_CLASSIFICATIONS_URL)
 
 
 def test_run_git_backed_path_uses_prepared_branch_and_commit(

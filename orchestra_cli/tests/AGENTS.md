@@ -30,6 +30,8 @@ CI runs: `uv run pytest orchestra_cli/tests/`
 
 **`conftest.py`** — `make_git_subprocess_mock(mapping)` factory; returns a `subprocess.run` drop-in that maps git subcommand tuples to `(returncode, stdout, stderr)`.
 
+**`served_status_classifications`** (`conftest.py`) — serves the `status_classifications/` endpoint that `pipeline run` and `pipeline build` read before waiting on a run. `test_run_pipeline.py` and `test_build_pipeline.py` apply it to every test with `pytestmark`; a test that needs a different response calls `httpx_mock.reset()` first.
+
 **`pytest-httpx`** — `HTTPXMock` fixture intercepts all `httpx` calls; used in all integration-style tests. Never make real network calls in tests.
 
 **`typer.testing.CliRunner`** — used in every test file to invoke CLI commands without spawning a subprocess.

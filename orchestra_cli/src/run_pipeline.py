@@ -15,6 +15,7 @@ from rich.text import Text
 from ..utils.api import (
     account_id_option,
     api_client,
+    echo_response_error_body,
     fail_with_response,
     request_or_exit,
     require_credential,
@@ -45,8 +46,6 @@ STATUS_STYLES = {
     "FAILED": "red",
     "CANCELLED": "red",
 }
-IN_PROGRESS_RUN_STATUSES = {"RUNNING", "QUEUED", "CREATED", "CANCELLING"}
-TERMINAL_RUN_STATUSES = {"SUCCEEDED", "WARNING", "SKIPPED", "FAILED", "CANCELLED"}
 
 
 def parse_key_value_pairs(values: list[str], option_name: str) -> dict[str, str]:
@@ -211,6 +210,22 @@ def _resolve_task_ids(
         ),
     )
     raise typer.Exit(code=1)
+
+
+def _fetch_run_status_classifications(client: httpx.Client) -> dict[str, set[str]]:
+    """Each pipeline run status, mapped to the classifications the API serves for it."""
+    response = request_or_exit(client.get, get_api_url("status_classifications/"))
+    if not (200 <= response.status_code < 300):
+        raise fail_with_response("Reading run status classifications", response)
+    try:
+        pipeline_run = next(enum for enum in response.json() if enum["name"] == "pipeline_run")
+        return {
+            member["value"]: set(member["classifications"]) for member in pipeline_run["members"]
+        }
+    except Exception:
+        typer.echo(red("❌ Run status classifications response has no pipeline run statuses"))
+        echo_response_error_body(response)
+        raise typer.Exit(code=1)
 
 
 def _parse_task_runs_response(response: httpx.Response) -> list[dict[str, object]]:
@@ -492,9 +507,10 @@ def _poll_until_terminal(
     selector_name: str,
     pipeline_run_id: str,
     lineage_url: str,
+    run_statuses: dict[str, set[str]],
     created_at_utc: datetime | None = None,
 ) -> None:
-    """Poll the run status endpoint until the run reaches a terminal state.
+    """Poll the run status endpoint until the run completes, exiting 0 only if it was successful.
 
     ``client`` re-resolves the credential on every poll: a run can outlive an
     ``orchestra login`` access token, which refreshes only when asked for.
@@ -554,9 +570,7 @@ def _poll_until_terminal(
                 missing_run_status_polls = 0
                 last_status_value = status_value
                 last_status_message = run_message if status_value == "QUEUED" else None
-                can_fetch_task_runs = status_value in (
-                    IN_PROGRESS_RUN_STATUSES | TERMINAL_RUN_STATUSES
-                )
+                can_fetch_task_runs = status_value in run_statuses
                 if can_fetch_task_runs:
                     last_task_runs = _poll_all_task_runs(client, pipeline_run_id)
                 if poll_status_display is not None:
@@ -580,46 +594,34 @@ def _poll_until_terminal(
                 if missing_run_status_polls <= max_missing_run_status_polls:
                     continue
 
-            if status_value == "SUCCEEDED":
-                _stop_poll_status_display(poll_status_display)
-                poll_status_display = None
-                typer.echo(green("✅ Pipeline succeeded"))
-                raise typer.Exit(code=0)
-
-            if status_value == "WARNING":
-                _stop_poll_status_display(poll_status_display)
-                poll_status_display = None
-                typer.echo(yellow("⚠ Pipeline completed with warnings"))
-                raise typer.Exit(code=0)
-
-            if status_value == "SKIPPED":
-                _stop_poll_status_display(poll_status_display)
-                poll_status_display = None
-                skipped_text = (
-                    f"⚠ Pipeline skipped: {run_message}" if run_message else "⚠ Pipeline skipped"
-                )
-                typer.echo(yellow(skipped_text))
-                raise typer.Exit(code=0)
-
-            if status_value in {"FAILED", "CANCELLED"}:
+            run_classifications = (
+                run_statuses.get(status_value) if isinstance(status_value, str) else None
+            )
+            if run_classifications is None:
                 _stop_poll_status_display(poll_status_display)
                 poll_status_display = None
                 typer.echo(
-                    red(
-                        f"❌ Pipeline ended with status {status_value}. See lineage for details.",
-                    ),
+                    red(f"❌ Invalid status value: {status_value}\nResponse body: {status_body}"),
                 )
-                typer.echo(yellow(lineage_url))
                 raise typer.Exit(code=1)
 
-            if status_value in IN_PROGRESS_RUN_STATUSES:
+            if "completed" not in run_classifications:
                 continue
 
             _stop_poll_status_display(poll_status_display)
             poll_status_display = None
-            typer.echo(
-                red(f"❌ Invalid status value: {status_value}\nResponse body: {status_body}"),
-            )
+            if "successful" in run_classifications:
+                if status_value == "WARNING":
+                    typer.echo(yellow("⚠ Pipeline completed with warnings"))
+                else:
+                    typer.echo(green("✅ Pipeline succeeded"))
+                raise typer.Exit(code=0)
+
+            ended = f"❌ Pipeline ended with status {status_value}"
+            if run_message:
+                ended += f" - {run_message}"
+            typer.echo(red(f"{ended}. See lineage for details."))
+            typer.echo(yellow(lineage_url))
             raise typer.Exit(code=1)
     finally:
         _stop_poll_status_display(poll_status_display)
@@ -685,6 +687,8 @@ def start_pipeline_run(
 ) -> None:
     selector_name = selector.display()
     start_path = _resolve_start_path(selector, existing_pipeline)
+    # Before the run starts, so a failed read never leaves a run going that nothing waits on.
+    run_statuses = _fetch_run_status_classifications(client) if wait else None
 
     typer.echo(f"Starting pipeline ({selector_name})")
     response = request_or_exit(
@@ -711,7 +715,7 @@ def start_pipeline_run(
             )
             raise typer.Exit(code=0)
 
-        if not wait:
+        if run_statuses is None:
             typer.echo(f"Started pipeline ({selector_name}), run id: {str(pipeline_run_id)}")
             raise typer.Exit(code=0)
 
@@ -726,6 +730,7 @@ def start_pipeline_run(
             selector_name=selector_name,
             pipeline_run_id=str(pipeline_run_id),
             lineage_url=lineage_url,
+            run_statuses=run_statuses,
             created_at_utc=created_at_utc,
         )
         return

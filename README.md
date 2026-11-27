@@ -356,9 +356,10 @@ Behavior
 - Prints the run ID when known and a link to the run lineage page.
 - Rejects mixed selector modes.
 - When `--path` is used for a repository-backed pipeline, the CLI must find an existing Orchestra pipeline for that `repository` + `yaml_path` selector before it can start the run.
-- When waiting, polls status every ~5s until a terminal state:
-  - `SUCCEEDED` (exit `0`), `WARNING` (exit `0`), `SKIPPED` (exit `0`)
-  - `FAILED` or `CANCELLED` (exit `1`)
+- When waiting, reads the pipeline run statuses from the API's `status_classifications` endpoint before starting the run, then polls status every ~5s until the run completes:
+  - A successful run (`SUCCEEDED`, `WARNING`) exits `0`.
+  - Any other completed run, including `SKIPPED`, exits `1`. This is the same rule a completion trigger uses by default.
+  - If the statuses can't be read, the command exits `1` without starting the run.
 - When not waiting, exits after start and prints the run ID.
 
 Non-interactive usage
@@ -410,7 +411,7 @@ Behavior
 - When the pipeline does not exist, the CLI creates a draft Orchestra-backed pipeline from the local YAML, generating an alias from `--path` via the shared selector helper when needed.
 - When the pipeline exists and is Orchestra-backed, the CLI updates that draft and starts the returned `versionNumber`, preserving the same wait, polling, and branch/commit override behavior as `pipeline run`.
 - Existing git-backed pipelines reuse the same commit + branch-protection logic as `pipeline update`, then run using the resolved branch/commit target.
-- Exit codes follow `pipeline run`: success terminal states return `0`; failed or cancelled runs return `1`.
+- Exit codes follow `pipeline run`: successful runs (`SUCCEEDED`, `WARNING`) return `0`; any other completed run, including `SKIPPED`, returns `1`.
 
 ---
 

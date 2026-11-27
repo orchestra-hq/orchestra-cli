@@ -1,5 +1,21 @@
 import click
 import pytest
+from pytest_httpx import HTTPXMock
+
+STATUS_CLASSIFICATIONS_URL = "https://app.getorchestra.io/api/engine/public/status_classifications/"
+
+# Pipeline run statuses as /status_classifications/ serves them, with their classifications.
+PIPELINE_RUN_CLASSIFICATIONS = {
+    "QUEUED": ["cancellable"],
+    "CREATED": ["cancellable"],
+    "RUNNING": ["cancellable"],
+    "SUCCEEDED": ["completed", "successful", "triggerable"],
+    "WARNING": ["completed", "successful", "triggerable"],
+    "FAILED": ["completed", "triggerable"],
+    "SKIPPED": ["completed", "triggerable"],
+    "CANCELLING": ["force_cancellable"],
+    "CANCELLED": ["completed", "triggerable"],
+}
 
 
 def make_git_subprocess_mock(mapping: dict[tuple[str, ...], tuple[int, str, str]]):
@@ -39,3 +55,34 @@ def isolated_home(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
     return tmp_path
+
+
+def status_classifications_body(
+    pipeline_run: dict[str, list[str]] = PIPELINE_RUN_CLASSIFICATIONS,
+) -> list[dict[str, object]]:
+    """A /status_classifications/ response serving ``pipeline_run``'s statuses."""
+    return [
+        {
+            "name": "task_run",
+            "members": [{"value": "RUNNING", "classifications": ["cancellable"]}],
+        },
+        {
+            "name": "pipeline_run",
+            "members": [
+                {"value": value, "classifications": classifications}
+                for value, classifications in pipeline_run.items()
+            ],
+        },
+    ]
+
+
+@pytest.fixture
+def served_status_classifications(httpx_mock: HTTPXMock) -> None:
+    """Serve the run status classifications to any command that waits on a run."""
+    httpx_mock.add_response(
+        method="GET",
+        url=STATUS_CLASSIFICATIONS_URL,
+        json=status_classifications_body(),
+        is_optional=True,
+        is_reusable=True,
+    )
